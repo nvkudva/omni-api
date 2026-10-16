@@ -1,0 +1,15 @@
+.log { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+.text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.5; }
+.thinking { color: var(--text-3); font-size: 13px; }
+
+.thumbs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+.thumb {
+  width: 56px; height: 56px; object-fit: cover; display: block;
+  border-radius: var(--radius-sm); border: 1px solid var(--hairline);
+}
+.thumbButton { padding: 0; border: 0; background: none; cursor: pointer; border-radius: var(--radius-sm); transition: opacity 0.15s; }
+.thumbButton:hover { opacity: 0.6; }
+
+.input { flex: 1; min-height: 44px; max-height: 200px; resize: none; field-sizing: content; }
+.footHint { margin-right: auto; color: var(--text-3); font-size: 12px; }

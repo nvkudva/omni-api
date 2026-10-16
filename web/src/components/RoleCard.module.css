@@ -1,0 +1,66 @@
+.list { display: flex; flex-direction: column; gap: 8px; }
+
+.card {
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 9px 10px 8px;
+  border: 1px solid var(--hairline); border-radius: 10px;
+  background: var(--surface);
+  cursor: pointer; text-align: left; min-width: 0;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+.card:hover { border-color: var(--hairline-strong); }
+.card:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.on { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 42%, transparent); }
+.off { opacity: 0.72; }
+
+.top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 6px; color: #fff; flex: none;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12);
+}
+.name { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.runner { margin-left: auto; font: 500 10px var(--mono); color: var(--text-3); text-transform: lowercase; white-space: nowrap; }
+
+.endpoint {
+  font: 10.5px var(--mono); color: var(--text-2);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.modelRow { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.model { flex: 1; min-width: 0; font: 11px var(--mono); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.memory { flex: none; font: 500 11px var(--mono); color: var(--text); font-variant-numeric: tabular-nums; }
+
+.foot { display: flex; align-items: center; gap: 6px; margin-top: 1px; }
+.status { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--text-2); }
+.switch {
+  margin-left: auto; position: relative; width: 34px; height: 19px; flex: none; padding: 0;
+  border-radius: 999px; border: 1px solid var(--hairline-strong);
+  background: var(--surface-2); cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.switch::after {
+  content: ""; position: absolute; top: 1px; left: 1px; width: 15px; height: 15px;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: transform 0.16s cubic-bezier(0.3, 0.7, 0.3, 1);
+}
+.switchOn { background: var(--green); border-color: var(--green); }
+.switchOn::after { transform: translateX(15px); }
+.switch:disabled { opacity: 0.5; cursor: default; }
+.switch:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* System items (Models, Health) keep the plain nav shape. */
+.navItem {
+  display: flex; align-items: center; gap: 9px;
+  height: 30px; padding: 0 8px; width: 100%;
+  border: none; border-radius: 7px; background: transparent;
+  font-size: 13px; text-align: left; cursor: pointer; color: var(--text);
+}
+.navItem:hover { background: var(--hairline); }
+.navItem:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent); }
+.navItemOn, .navItemOn:hover { background: var(--accent); color: #fff; }
+.navIcon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 5px; color: #fff; flex: none;
+  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.1);
+}

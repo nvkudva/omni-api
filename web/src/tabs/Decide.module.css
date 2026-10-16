@@ -1,0 +1,5 @@
+.questions { min-height: 240px; font-family: var(--mono); font-size: 12px; letter-spacing: 0; white-space: pre; }
+
+.answers { display: flex; flex-direction: column; }
+.turnMeta { color: var(--text-2); }
+.pending { display: flex; flex-direction: column; gap: 8px; }

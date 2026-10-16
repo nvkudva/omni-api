@@ -1,0 +1,17 @@
+.recorder { display: flex; align-items: center; gap: 12px; }
+.timer { font-family: var(--mono); font-size: 13px; font-variant-numeric: tabular-nums; min-width: 42px; }
+.wave { flex: 1; height: 34px; width: 100%; min-width: 0; border-radius: var(--radius-sm); background: var(--surface-2); }
+
+.audio { width: 100%; height: 36px; }
+
+.transcript { margin: 0; font-size: 14px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.segments { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.segment {
+  display: flex; gap: 10px; width: 100%; text-align: left;
+  padding: 5px 8px; border: 0; border-radius: 6px; background: transparent;
+  cursor: pointer; font-size: 13px; color: var(--text);
+}
+.segment:hover { background: var(--surface-2); }
+.timestamp { font-family: var(--mono); font-size: 11.5px; color: var(--text-2); flex: none; }
+
+.stack { display: flex; flex-direction: column; gap: 14px; }

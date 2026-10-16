@@ -1,8 +1,8 @@
-.shell { display: grid; grid-template-columns: 236px minmax(0, 1fr); height: 100%; }
+.shell { display: grid; grid-template-columns: 302px minmax(0, 1fr); height: 100%; }
 
 .sidebar {
-  display: flex; flex-direction: column; gap: 14px;
-  padding: 18px 10px 14px;
+  display: flex; flex-direction: column; gap: 16px;
+  padding: 16px 12px 14px;
   background: var(--sidebar);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
@@ -10,30 +10,31 @@
   overflow-y: auto;
 }
 
-.brand { display: flex; align-items: center; gap: 10px; padding: 2px 10px 6px; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 2px 6px 0; }
 .brand img { border-radius: 7px; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15); }
 .brandName { font: 600 15px/1.2 var(--font-display); letter-spacing: -0.015em; }
 .status { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); }
 .status span:first-child { width: 7px; height: 7px; }
 
-.section { display: flex; flex-direction: column; gap: 1px; }
-.sectionTitle { padding: 0 10px 4px; font-size: 11px; font-weight: 600; color: var(--text-3); }
+.section { display: flex; flex-direction: column; gap: 7px; }
+.sectionTitle { padding: 0 8px; font-size: 11px; font-weight: 600; color: var(--text-3); }
+.cards { display: flex; flex-direction: column; gap: 8px; }
 
-.navItem {
+/* System rows (Models, Health) keep the plain nav shape. */
+.sysItem {
   display: flex; align-items: center; gap: 9px;
-  height: 30px; padding: 0 8px;
+  height: 30px; padding: 0 8px; width: 100%;
   border: none; border-radius: 7px; background: transparent;
   font-size: 13px; text-align: left; cursor: pointer; color: var(--text);
 }
-.navItem:hover { background: var(--hairline); }
-.navItem:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent); }
-.navItemOn, .navItemOn:hover { background: var(--accent); color: #fff; }
-.navIcon {
+.sysItem:hover { background: var(--hairline); }
+.sysItem:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent); }
+.sysOn, .sysOn:hover { background: var(--accent); color: #fff; }
+.sysIcon {
   display: inline-flex; align-items: center; justify-content: center;
   width: 20px; height: 20px; border-radius: 5px; color: #fff; flex: none;
   box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.1);
 }
-.navItemOn .navIcon { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35); }
 
 .sidebarFooter { margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding: 10px 6px 0; border-top: 1px solid var(--hairline); }
 .lastRequest { display: flex; gap: 8px; font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; padding: 0 4px; min-width: 0; }
@@ -42,11 +43,9 @@
 
 .main { overflow-y: auto; min-width: 0; }
 
-@media (max-width: 720px) {
+@media (max-width: 860px) {
   .shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-  .sidebar { flex-direction: row; align-items: center; gap: 10px; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--hairline); padding: 10px; }
-  .section { flex-direction: row; }
-  .sectionTitle, .brand, .lastRequest { display: none; }
-  /* Keep the theme toggle reachable on mobile; only the request readout is hidden. */
-  .sidebarFooter { margin-top: 0; flex-direction: row; align-items: center; padding: 0 0 0 8px; border-top: none; }
+  .sidebar { flex-direction: row; align-items: flex-start; gap: 12px; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--hairline); padding: 10px; }
+  .section { flex: none; }
+  .sectionTitle, .brand, .sidebarFooter { display: none; }
 }

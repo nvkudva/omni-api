@@ -2,11 +2,14 @@ import { useState } from "preact/hooks";
 import { record } from "../api/client.js";
 import { decide } from "../api/endpoints.js";
 import { models } from "../api/models.js";
+import { runtime } from "../api/roles.js";
 import { curlJson } from "../lib/curl.js";
 import { since } from "../lib/format.js";
 import * as store from "../store.js";
 import * as ui from "../components/ui.jsx";
-import styles from "./tabs.module.css";
+import { Distribution, Panel, RequestBody, Turn, UiJson, Workbench, useTurnState } from "../components/workbench.jsx";
+import { useJsonRequest } from "../hooks/useJsonRequest.js";
+import styles from "./Decide.module.css";
 
 const DEFAULT_STATE = "Hi, I was charged twice for my subscription this month and nobody has answered my last two emails. Please fix this today.";
 const DEFAULT_QUESTIONS = JSON.stringify({
@@ -35,48 +38,63 @@ function parseQuestions(text) {
   }
 }
 
-function noulView(answer) {
-  const yes = answer.noul;
+function viewFor(type, answer) {
+  if (type === "noul") {
+    const yes = answer.noul ?? 0;
+    return {
+      answer: yes >= 0.5 ? "true" : "false",
+      rows: [{ label: "false", value: 1 - yes }, { label: "true", value: yes }],
+      foot: `p(true) ${yes.toFixed(3)}`,
+    };
+  }
+  const entries = Object.entries(answer.probabilities ?? {});
+  if (type === "score") {
+    const legend = answer.legend ?? {};
+    const best = entries.reduce((top, entry) => (entry[1] > (top?.[1] ?? -1) ? entry : top), null);
+    return {
+      answer: Number(answer.score ?? 0).toFixed(2),
+      rows: entries.map(([level, value]) => ({
+        label: legend[level] ? `${level} · ${legend[level]}` : level,
+        value,
+        top: level === best?.[0],
+      })),
+      foot: `expectation, ${entries.length} levels`,
+    };
+  }
   return {
-    headline: yes >= 0.5 ? "yes" : "no",
-    rows: [
-      { label: "yes", value: yes, top: yes >= 0.5 },
-      { label: "no", value: 1 - yes, top: yes < 0.5 },
-    ],
+    answer: answer.choice ?? "",
+    rows: entries.map(([label, value]) => ({ label, value })),
+    foot: `${entries.length} options`,
   };
 }
 
-function choiceView(answer) {
-  const rows = Object.entries(answer.probabilities ?? {}).map(([label, value]) => ({ label, value, top: label === answer.choice }));
-  return { headline: answer.choice, rows };
-}
-
-function scoreView(answer) {
-  const entries = Object.entries(answer.probabilities ?? {});
-  const best = entries.reduce((top, entry) => (entry[1] > top[1] ? entry : top), entries[0] ?? ["", 0]);
-  const legend = answer.legend ?? {};
-  const rows = entries.map(([level, value]) => ({
-    label: legend[level] ? `${level} · ${legend[level]}` : level,
-    value,
-    top: level === best[0],
-  }));
-  const levels = Object.keys(legend).length || entries.length;
-  return { headline: `${Number(answer.score).toFixed(2)} / ${levels - 1}`, rows };
-}
-
-const VIEWS = { noul: noulView, choice: choiceView, score: scoreView };
-
-function Answer({ name, question, answer }) {
-  const view = (VIEWS[question?.type] ?? choiceView)(answer);
+function Answers({ questions, data }) {
+  const answers = Object.entries(data.answers ?? {});
+  if (!answers.length) return <ui.Empty>The reply carried no answers.</ui.Empty>;
   return (
-    <div class={styles.answer}>
-      <p class={styles.instruction}>{question?.instructions}</p>
-      <div class={styles.answerHead}>
-        <span class={styles.headline}>{view.headline}</span>
-        <ui.Meta>{name} · {question?.type}</ui.Meta>
-      </div>
-      <ui.Bars rows={view.rows} />
-      {answer.confidence != null && <ui.Meta>confidence {(answer.confidence * 100).toFixed(0)}%</ui.Meta>}
+    <div class={styles.answers}>
+      {answers.map(([name, answer]) => {
+        const question = questions?.[name];
+        const view = viewFor(question?.type, answer);
+        return (
+          <Distribution
+            key={name}
+            name={name}
+            type={question?.type}
+            instruction={question?.instructions}
+            answer={view.answer}
+            rows={view.rows}
+            foot={(
+              <>
+                <span>{view.foot}</span>
+                <span class={styles.turnMeta}>
+                  {answer.confidence != null && <span>confidence {answer.confidence.toFixed(3)}</span>}
+                </span>
+              </>
+            )}
+          />
+        );
+      })}
     </div>
   );
 }
@@ -85,19 +103,25 @@ export default function Decide() {
   const [model, setModel] = useState(() => store.get("omni.decide.model", ""));
   const [state, setState] = useState(DEFAULT_STATE);
   const [questionsText, setQuestionsText] = useState(() => store.get("omni.decide.questions", DEFAULT_QUESTIONS));
+  const [turns, setTurns] = useState([]);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState(null);
   const [error, setError] = useState("");
-  const [meta, setMeta] = useState("");
+  const [view, setView] = useState("ui");
+  const turnState = useTurnState();
 
   const decideModels = models.value.data.filter((entry) => entry.role === "decide").map((entry) => entry.id);
   const parsed = parseQuestions(questionsText);
+  const role = runtime.value.roles.decide;
 
-  const body = (questions) => {
-    const request = { state, questions };
-    if (model) request.model = model;
-    return request;
+  const body = {
+    state,
+    ...(parsed.questions ? { questions: parsed.questions } : {}),
+    ...(model ? { model } : {}),
   };
+  const json = useJsonRequest(view, body);
+  const curl = parsed.error && view === "ui"
+    ? "# questions are not valid JSON"
+    : curlJson("/v1/systemone", view === "json" && !json.error ? json.body : body);
 
   const editQuestions = (text) => {
     setQuestionsText(text);
@@ -110,20 +134,18 @@ export default function Decide() {
   };
 
   const send = async () => {
-    if (parsed.error) {
-      setError(`questions JSON: ${parsed.error}`);
-      return;
-    }
+    const payload = view === "json" ? json.body : body;
+    if (!payload || (view === "ui" && parsed.error)) return;
     setBusy(true);
     setError("");
     const start = performance.now();
+    const at = Date.now();
+    record("decide", 0, 0);
     try {
-      const { status, data } = await decide(body(parsed.questions));
+      const { status, data } = await decide(payload);
       const elapsed = since(start);
       record("decide", status, elapsed);
-      const tokens = data.usage?.prompt_tokens ?? data.usage?.input_tokens ?? "?";
-      setResult({ data, questions: parsed.questions });
-      setMeta(`${data.model ?? model ?? "default"} · ${elapsed} ms · ${tokens} tokens`);
+      setTurns((current) => [...current, { id: crypto.randomUUID(), at, request: payload, response: data, meta: `${elapsed} ms` }]);
     } catch (failure) {
       record("decide", failure.status ?? 0, since(start));
       setError(failure.message);
@@ -132,46 +154,81 @@ export default function Decide() {
     }
   };
 
-  const curl = parsed.error ? "# questions are not valid JSON" : curlJson("/v1/systemone", body(parsed.questions));
-  const answers = result ? Object.entries(result.data.answers ?? {}) : [];
+  const disableSend = busy || (view === "ui" && Boolean(parsed.error)) || !state.trim();
+  const openId = turnState.open ?? turns[turns.length - 1]?.id;
+
+  const readout = [
+    {
+      label: "Model",
+      node: (
+        <select aria-label="decide model" value={model} onChange={(event) => choose(event.currentTarget.value)}>
+          <option value="">default</option>
+          {decideModels.map((name) => <option key={name} value={name}>{name}</option>)}
+        </select>
+      ),
+    },
+    { label: "Runtime", value: "ollama" },
+    { label: "API", value: "POST /v1/systemone" },
+    { label: "Last run", value: role?.loaded ? (turns.at(-1)?.meta ?? "idle") : "not loaded" },
+  ];
 
   return (
-    <ui.Page title="Decide" subtitle="Yes/no, choice and score questions answered as probability distributions.">
-      <ui.Columns>
-        <ui.Card title="Request">
-          <ui.Stack>
-            <ui.Field label="Model">
-              <select value={model} onChange={(event) => choose(event.currentTarget.value)}>
-                <option value="">default model</option>
-                {decideModels.map((name) => <option key={name} value={name}>{name}</option>)}
-              </select>
-            </ui.Field>
-            <ui.Field label="State">
-              <textarea rows={4} value={state} onInput={(event) => setState(event.currentTarget.value)} />
-            </ui.Field>
-            <ui.Field
-              label="Questions"
-              trailing={<ui.Button small variant="plain" onClick={() => editQuestions(DEFAULT_QUESTIONS)}>Reset</ui.Button>}
-              hint={<><b>noul</b> yes/no · <b>choice</b> criteria is <code>{"{label: description}"}</code> · <b>score</b> criteria is an ordered list of levels.</>}
-            >
-              <textarea class={styles.mono} rows={18} spellcheck={false} value={questionsText} onInput={(event) => editQuestions(event.currentTarget.value)} />
-            </ui.Field>
-            <ui.Row end>
-              <ui.Button variant="primary" disabled={busy} onClick={send}>{busy ? "Deciding…" : "Decide"}</ui.Button>
-            </ui.Row>
-          </ui.Stack>
-        </ui.Card>
-        <ui.Card title="Answers" meta={meta}>
-          <ui.Stack>
-            {error && <ui.ErrorText>{error}</ui.ErrorText>}
-            {answers.length
-              ? answers.map(([name, answer]) => <Answer key={name} name={name} question={result.questions[name]} answer={answer} />)
-              : !error && <ui.Empty>Answers show as probability distributions.</ui.Empty>}
-            {result && <ui.Code>{JSON.stringify(result.data, null, 2)}</ui.Code>}
-            <ui.CurlBlock code={curl} />
-          </ui.Stack>
-        </ui.Card>
-      </ui.Columns>
-    </ui.Page>
+    <Workbench
+      title="Decide"
+      subtitle="Yes/no, choice and score questions answered as probability distributions in one forward pass."
+      readout={readout}
+    >
+      <Panel
+        title="Request"
+        tools={<UiJson view={view} onChange={setView} />}
+        foot={(
+          <>
+            {parsed.error && view === "ui" && <span class={styles.turnMeta}>questions JSON: {parsed.error}</span>}
+            <ui.Button variant="primary" disabled={disableSend} onClick={send}>{busy ? "Deciding…" : "Decide"}</ui.Button>
+          </>
+        )}
+      >
+        <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error}>
+          <ui.Field label="State">
+            <textarea rows={4} value={state} onInput={(event) => setState(event.currentTarget.value)} />
+          </ui.Field>
+          <ui.Field
+            label="Questions"
+            trailing={<ui.Button small variant="plain" onClick={() => editQuestions(DEFAULT_QUESTIONS)}>Reset</ui.Button>}
+            hint={<><b>noul</b> yes/no · <b>choice</b> criteria is <code>{"{label: description}"}</code> · <b>score</b> criteria is an ordered list of levels.</>}
+          >
+            <textarea class={styles.questions} rows={18} spellcheck={false} value={questionsText} onInput={(event) => editQuestions(event.currentTarget.value)} />
+          </ui.Field>
+        </RequestBody>
+      </Panel>
+
+      <Panel title="Answers" meta={turns.at(-1)?.meta} tools={<ui.Button small variant="plain" disabled={!turns.length} onClick={() => setTurns([])}>Clear</ui.Button>}>
+        {error && <ui.ErrorText>{error}</ui.ErrorText>}
+        {turns.length
+          ? (
+            <div class={styles.pending}>
+              {turns.map((turn, index) => (
+                <Turn
+                  key={turn.id}
+                  label={`Request #${index + 1}`}
+                  at={turn.at}
+                  model={turn.response?.model ?? turn.request?.model}
+                  meta={turn.meta}
+                  view={turnState.viewOf(turn.id)}
+                  onView={(next) => turnState.setViewOf(turn.id, next)}
+                  open={openId === turn.id}
+                  onToggle={() => turnState.toggle(turn.id)}
+                  summary={turn.request?.state}
+                  wire={{ request: turn.request, response: turn.response }}
+                >
+                  <Answers questions={turn.request?.questions} data={turn.response} />
+                </Turn>
+              ))}
+            </div>
+          )
+          : !error && <ui.Empty>Answers show as probability distributions, one per question.</ui.Empty>}
+        <ui.CurlBlock code={curl} />
+      </Panel>
+    </Workbench>
   );
 }

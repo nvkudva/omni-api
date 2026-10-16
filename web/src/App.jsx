@@ -1,9 +1,10 @@
-import { useEffect, useState } from "preact/hooks";
-import { pollHealth } from "./api/health.js";
+import { useState } from "preact/hooks";
 import { loadModels } from "./api/models.js";
+import { pollRuntime, ROLE_META } from "./api/roles.js";
 import { usePolling } from "./hooks/usePolling.js";
 import { useTheme } from "./hooks/useTheme.js";
 import { GatewayStatus, LastRequest } from "./components/GatewayStatus.jsx";
+import { RoleCard } from "./components/RoleCard.jsx";
 import * as store from "./store.js";
 import * as ui from "./components/ui.jsx";
 import { Icon } from "./components/Icon.jsx";
@@ -18,26 +19,29 @@ import Tts from "./tabs/Tts.jsx";
 import Models from "./tabs/Models.jsx";
 import Health from "./tabs/Health.jsx";
 
-const SECTIONS = [
-  { title: "Language", tabs: [
-    { id: "chat", label: "Chat", color: "#0a84ff", component: Chat },
-    { id: "decide", label: "Decide", color: "#bf5af2", component: Decide },
-    { id: "embed", label: "Embed", color: "#30b0c7", component: Embed },
-  ] },
-  { title: "Media", tabs: [
-    { id: "image", label: "Image", color: "#ff9f0a", component: Image },
-    { id: "video", label: "Video", color: "#ff375f", component: Video },
-  ] },
-  { title: "Speech", tabs: [
-    { id: "stt", label: "Speech to Text", color: "#ff453a", component: Stt },
-    { id: "tts", label: "Text to Speech", color: "#30d158", component: Tts },
-  ] },
-  { title: "System", tabs: [
-    { id: "models", label: "Models", color: "#8e8e93", component: Models },
-    { id: "health", label: "Health", color: "#34c759", component: Health },
-  ] },
+const ROLE_SECTIONS = [
+  { title: "Language", roles: ["chat", "decide", "embed"] },
+  { title: "Media", roles: ["image", "video"] },
+  { title: "Speech", roles: ["stt", "tts"] },
 ];
-const TABS = SECTIONS.flatMap((section) => section.tabs);
+
+const SYSTEM = [
+  { id: "models", label: "Models", color: "#8e8e93", component: Models },
+  { id: "health", label: "Health", color: "#34c759", component: Health },
+];
+
+const COMPONENTS = {
+  chat: Chat,
+  decide: Decide,
+  embed: Embed,
+  image: Image,
+  video: Video,
+  stt: Stt,
+  tts: Tts,
+  ...Object.fromEntries(SYSTEM.map((entry) => [entry.id, entry.component])),
+};
+const TAB_IDS = [...Object.keys(ROLE_META), ...SYSTEM.map((entry) => entry.id)];
+
 const THEMES = [
   { value: "system", label: "Auto" },
   { value: "light", label: "Light" },
@@ -47,16 +51,15 @@ const THEMES = [
 export default function App() {
   const [tab, setTab] = useState(() => {
     const saved = store.get("omni.tab", "chat");
-    return TABS.some((entry) => entry.id === saved) ? saved : "chat";
+    return TAB_IDS.includes(saved) ? saved : "chat";
   });
   const [theme, setTheme] = useTheme();
+  const Page = COMPONENTS[tab] ?? Chat;
 
-  useEffect(() => {
-    loadModels();
-  }, []);
+  usePolling(loadModels, 30000, { immediate: true });
 
   // Pauses itself while the document is hidden.
-  usePolling(pollHealth, 3000);
+  usePolling(pollRuntime, 4000);
 
   const choose = (id) => {
     setTab(id);
@@ -67,36 +70,44 @@ export default function App() {
     <div class={styles.shell}>
       <nav class={styles.sidebar} aria-label="Playground sections">
         <div class={styles.brand}>
-          <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="" width="28" height="28" />
+          <img src={`${import.meta.env?.BASE_URL ?? "/"}favicon.svg`} alt="" width="28" height="28" />
           <div>
             <div class={styles.brandName}>omni</div>
             <GatewayStatus />
           </div>
         </div>
-        {SECTIONS.map((section) => (
+        {ROLE_SECTIONS.map((section) => (
           <div class={styles.section} key={section.title}>
             <div class={styles.sectionTitle}>{section.title}</div>
-            {section.tabs.map((entry) => (
-              <button
-                type="button"
-                key={entry.id}
-                class={`${styles.navItem} ${entry.id === tab ? styles.navItemOn : ""}`}
-                aria-current={entry.id === tab ? "page" : undefined}
-                onClick={() => choose(entry.id)}
-              >
-                <span class={styles.navIcon} style={{ background: entry.color }}><Icon name={entry.id} /></span>
-                {entry.label}
-              </button>
-            ))}
+            <div class={styles.cards}>
+              {section.roles.map((role) => (
+                <RoleCard key={role} role={role} active={role === tab} onOpen={choose} />
+              ))}
+            </div>
           </div>
         ))}
+        <div class={styles.section}>
+          <div class={styles.sectionTitle}>System</div>
+          {SYSTEM.map((entry) => (
+            <button
+              type="button"
+              key={entry.id}
+              class={`${styles.sysItem} ${entry.id === tab ? styles.sysOn : ""}`}
+              aria-current={entry.id === tab ? "page" : undefined}
+              onClick={() => choose(entry.id)}
+            >
+              <span class={styles.sysIcon} style={{ background: entry.color }}><Icon name={entry.id} /></span>
+              {entry.label}
+            </button>
+          ))}
+        </div>
         <div class={styles.sidebarFooter}>
           <LastRequest />
           <ui.Segmented label="Appearance" options={THEMES} value={theme} onChange={setTheme} />
         </div>
       </nav>
       <main class={styles.main}>
-        {TABS.map((entry) => entry.id === tab && <entry.component key={entry.id} active />)}
+        <Page key={tab} active />
       </main>
     </div>
   );

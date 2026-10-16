@@ -27,6 +27,9 @@ class Worker:
     ready_since: float = 0.0
     next_start: float = 0.0
     held: bool = False
+    # the worker's own report: which model it serves, and whether that model is in memory
+    model: str = ""
+    loaded: bool = False
     # serialises spawn/terminate against the watch loop and against admin actions
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 

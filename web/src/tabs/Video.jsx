@@ -2,10 +2,13 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { ORIGIN, readDataUrl, record } from "../api/client.js";
 import { createVideo, videoJob } from "../api/endpoints.js";
 import { models } from "../api/models.js";
+import { runtime } from "../api/roles.js";
 import { curlJson } from "../lib/curl.js";
 import { shorten, since } from "../lib/format.js";
 import * as ui from "../components/ui.jsx";
-import styles from "./tabs.module.css";
+import { Panel, Pending, RequestBody, Turn, TurnError, UiJson, Workbench, useTurnState } from "../components/workbench.jsx";
+import { useJsonRequest } from "../hooks/useJsonRequest.js";
+import styles from "./Video.module.css";
 
 const DEFAULT_PROMPT = "A paper boat drifts down a rain-filled gutter at dusk, streetlights reflecting in the ripples, slow tracking shot, shallow depth of field.";
 const SIZES = ["512x320", "704x480", "768x512", "1024x576", "1280x704", "480x704"];
@@ -40,30 +43,14 @@ function wait(milliseconds, abortSignal) {
   });
 }
 
-function Job({ job, onStop }) {
-  const running = RUNNING.has(job.status);
-  return (
-    <li class={styles.figure}>
-      {job.url && <video class={styles.video} src={job.url} controls loop playsinline />}
-      <p class={styles.clipText}>{job.prompt}</p>
-      <div class={styles.clipFoot}>
-        <ui.Meta>{job.caption}</ui.Meta>
-        <span class={styles.buttons}>
-          {running && <ui.Button small variant="stop" onClick={() => onStop(job.key)}>Stop</ui.Button>}
-          {job.url && <a class={styles.link} href={job.url} download={`${job.id}.mp4`}>download .mp4</a>}
-        </span>
-      </div>
-      {job.error && <ui.ErrorText>{job.error}</ui.ErrorText>}
-    </li>
-  );
-}
-
 export default function Video() {
   const [form, setForm] = useState({ prompt: DEFAULT_PROMPT, negative: "", size: "704x480", seconds: 4, seed: "42", frame: null });
-  const [busy, setBusy] = useState(false);
   const [jobs, setJobs] = useState([]);
+  const [busy, setBusy] = useState(false);
   const [meta, setMeta] = useState("");
+  const [view, setView] = useState("ui");
   const controllers = useRef(new Map());
+  const turnState = useTurnState();
 
   useEffect(() => () => {
     controllers.current.forEach((controller) => controller.abort());
@@ -72,108 +59,166 @@ export default function Video() {
 
   const edit = (field) => (event) => setForm({ ...form, [field]: event.currentTarget.value });
   const body = requestBody(form);
+  const json = useJsonRequest(view, requestBody(form, true));
   const curl = `${curlJson("/v1/videos", requestBody(form, true))} | jq -r .id\n# poll until "status": "completed", then\ncurl -s ${ORIGIN}/v1/videos/$ID/content -o omni.mp4`;
+  const role = runtime.value.roles.video;
 
   const chooseFrame = async (file) => {
     if (!file.type.startsWith("image/")) return;
     setForm({ ...form, frame: { name: file.name, url: await readDataUrl(file) } });
   };
 
-  const updateJob = (key, changes) => setJobs((current) => current.map((job) => (job.key === key ? { ...job, ...changes } : job)));
+  const updateJob = (id, changes) => setJobs((current) => current.map((job) => (job.id === id ? { ...job, ...changes } : job)));
 
-  const stop = (key) => controllers.current.get(key)?.abort();
-
-  const follow = async (job, key, start, abortSignal, seed) => {
+  const follow = async (job, id, start, abortSignal, seed) => {
     const deadline = start + MAX_JOB_MS;
     while (RUNNING.has(job.status)) {
-      updateJob(key, { status: job.status, caption: caption(job, seed, start) });
+      updateJob(id, { status: job.status, caption: caption(job, seed, start) });
       if (performance.now() >= deadline) {
-        updateJob(key, { status: "failed", error: "timed out after 60 minutes" });
+        updateJob(id, { status: "failed", error: "timed out after 60 minutes" });
         return;
       }
       await wait(POLL_MS, abortSignal);
       if (document.hidden) continue; // don't poll a hidden tab
       job = await videoJob(job.id, abortSignal);
     }
-    updateJob(key, { status: job.status, caption: caption(job, seed, start) });
+    updateJob(id, { status: job.status, caption: caption(job, seed, start) });
     if (job.status === "failed") {
-      updateJob(key, { error: job.error?.message ?? "generation failed" });
+      updateJob(id, { error: job.error?.message ?? "generation failed" });
       return;
     }
-    updateJob(key, { id: job.id, url: `/v1/videos/${job.id}/content` });
+    updateJob(id, { remoteId: job.id, url: `/v1/videos/${job.id}/content` });
   };
 
   const submit = async () => {
-    if (!body.prompt) return;
-    const key = crypto.randomUUID();
+    const payload = view === "json" ? { ...(json.body ?? {}) } : body;
+    if (!payload?.prompt) return;
+    // The JSON pane shows a shortened data URL; send the real frame instead.
+    if (typeof payload.image === "string" && payload.image.endsWith("…") && form.frame) payload.image = form.frame.url;
+
+    const id = crypto.randomUUID();
+    const at = Date.now();
     const controller = new AbortController();
-    controllers.current.set(key, controller);
+    controllers.current.set(id, controller);
     setBusy(true);
-    setJobs((current) => [{ key, status: "queued", prompt: body.prompt, caption: "submitting…" }, ...current]);
+    setJobs((current) => [{ id, at, request: payload, prompt: payload.prompt, seed: payload.seed, status: "queued", caption: "submitting…" }, ...current]);
+    setMeta("submitting…");
     const start = performance.now();
     try {
-      const { status, data: job } = await createVideo(body, controller.signal);
+      const { status, data: job } = await createVideo(payload, controller.signal);
       record("video", status, since(start));
       setMeta(job.id);
       setBusy(false);
-      await follow(job, key, start, controller.signal, body.seed);
+      await follow(job, id, start, controller.signal, payload.seed);
     } catch (error) {
-      if (error.name === "AbortError") {
-        updateJob(key, { status: "stopped", error: "stopped" });
-      } else {
+      if (error.name === "AbortError") updateJob(id, { status: "stopped", error: "stopped" });
+      else {
         record("video", error.status ?? 0, since(start));
-        updateJob(key, { status: "failed", error: error.message });
+        updateJob(id, { status: "failed", error: error.message });
       }
     } finally {
-      controllers.current.delete(key);
+      controllers.current.delete(id);
       setBusy(false);
     }
   };
 
+  const stop = (id) => controllers.current.get(id)?.abort();
+  const openId = turnState.open ?? jobs[0]?.id;
+  const running = jobs.some((job) => RUNNING.has(job.status));
+
+  const readout = [
+    { label: "Model", value: models.value.defaults.video ?? "—" },
+    { label: "Runtime", value: "ltx-mlx · 4-bit" },
+    { label: "API", value: "POST /v1/videos" },
+    { label: "Last run", value: role?.loaded ? (meta || "idle") : "not loaded" },
+  ];
+
   return (
-    <ui.Page title="Video" subtitle="Text or image to video, run as a background job.">
-      <ui.Columns>
-        <ui.Card title="Prompt" meta={models.value.defaults.video}>
-          <ui.Stack>
-            <ui.Field label="Prompt">
-              <textarea rows={4} value={form.prompt} onInput={edit("prompt")} />
+    <Workbench title="Video" subtitle="Text or image to video, run as a background job you can stop and poll." readout={readout}>
+      <Panel
+        title="Request"
+        tools={<UiJson view={view} onChange={setView} />}
+        foot={(
+          <>
+            <span class={styles.foot}>{form.size} · {form.seconds} s · seed {form.seed || 42}</span>
+            <ui.Button variant="primary" disabled={busy} onClick={submit}>{busy ? "Submitting…" : "Generate"}</ui.Button>
+          </>
+        )}
+      >
+        <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error}>
+          <ui.Field label="Prompt">
+            <textarea rows={4} value={form.prompt} onInput={edit("prompt")} />
+          </ui.Field>
+          <ui.Field label="Negative prompt">
+            <input placeholder="optional" value={form.negative} onInput={edit("negative")} />
+          </ui.Field>
+          <ui.Grid>
+            <ui.Field label="Size">
+              <select value={form.size} onChange={edit("size")}>
+                {SIZES.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
             </ui.Field>
-            <ui.Field label="Negative prompt">
-              <input placeholder="optional" value={form.negative} onInput={edit("negative")} />
+            <ui.Field label="Seed">
+              <input type="number" value={form.seed} onInput={edit("seed")} />
             </ui.Field>
-            <ui.Grid>
-              <ui.Field label="Size">
-                <select value={form.size} onChange={edit("size")}>
-                  {SIZES.map((option) => <option key={option} value={option}>{option}</option>)}
-                </select>
-              </ui.Field>
-              <ui.Field label="Seed">
-                <input type="number" value={form.seed} onInput={edit("seed")} />
-              </ui.Field>
-            </ui.Grid>
-            <ui.Field label="Length" trailing={<ui.Meta>{form.seconds} s</ui.Meta>}>
-              <input type="range" min={1} max={10} value={form.seconds} onInput={(event) => setForm({ ...form, seconds: Number(event.currentTarget.value) })} />
-            </ui.Field>
-            <ui.DropZone accept="image/*" onFile={chooseFrame}>
-              {form.frame
-                ? <span class={styles.frame}><img class={styles.thumb} src={form.frame.url} alt={form.frame.name} /> {form.frame.name} — click to change</span>
-                : "First frame (optional): drop an image or click to choose"}
-            </ui.DropZone>
-            <ui.Notice tone="warn">LTX-2.5 distilled on MLX. The first request downloads the model pack (~75 GB at q8) plus its Gemma text encoder, then loads for minutes. Change or pre-install it in the Models tab.</ui.Notice>
-            <ui.Row end>
-              <ui.Button variant="primary" disabled={busy} onClick={submit}>{busy ? "Submitting…" : "Generate"}</ui.Button>
-            </ui.Row>
-          </ui.Stack>
-        </ui.Card>
-        <ui.Card title="Jobs" meta={meta}>
-          <ui.Stack>
-            {jobs.length
-              ? <ul class={styles.gallery}>{jobs.map((job) => <Job key={job.key} job={job} onStop={stop} />)}</ul>
-              : <ui.Empty>Jobs queue here; finished clips play inline.</ui.Empty>}
-            <ui.CurlBlock code={curl} />
-          </ui.Stack>
-        </ui.Card>
-      </ui.Columns>
-    </ui.Page>
+          </ui.Grid>
+          <ui.Field label="Length" trailing={<ui.Meta>{form.seconds} s</ui.Meta>}>
+            <input type="range" min={1} max={10} value={form.seconds} onInput={(event) => setForm({ ...form, seconds: Number(event.currentTarget.value) })} />
+          </ui.Field>
+          <ui.DropZone accept="image/*" onFile={chooseFrame}>
+            {form.frame
+              ? <span class={styles.frame}><img class={styles.thumb} src={form.frame.url} alt={form.frame.name} /> {form.frame.name} — click to change</span>
+              : "First frame (optional): drop an image or click to choose"}
+          </ui.DropZone>
+          <ui.Notice tone="warn">
+            LTX-2.5 distilled, 4-bit MLX. The first request downloads the model pack (~51 GB) plus its Gemma text encoder, then loads for minutes. Change or pre-install it on the Models page.
+          </ui.Notice>
+        </RequestBody>
+      </Panel>
+
+      <Panel
+        title="Jobs"
+        meta={meta}
+        tools={<ui.Button small variant="plain" disabled={!jobs.length || running} onClick={() => { setJobs([]); setMeta(""); }}>Clear</ui.Button>}
+      >
+        {jobs.length
+          ? (
+            <div class={styles.stack}>
+              {jobs.map((job, index) => (
+                <Turn
+                  key={job.id}
+                  label={`Job #${jobs.length - index}`}
+                  at={job.at}
+                  model={job.request?.size}
+                  status={RUNNING.has(job.status) ? job.status : undefined}
+                  meta={job.caption}
+                  view={turnState.viewOf(job.id)}
+                  onView={(next) => turnState.setViewOf(job.id, next)}
+                  open={openId === job.id}
+                  onToggle={() => turnState.toggle(job.id)}
+                  summary={job.prompt}
+                  wire={{ request: job.request, response: { id: job.remoteId, status: job.status, error: job.error } }}
+                >
+                  {RUNNING.has(job.status)
+                    ? <Pending label={job.status} note={job.caption}>{<ui.Button small variant="stop" onClick={() => stop(job.id)}>Stop</ui.Button>}</Pending>
+                    : job.error
+                      ? <TurnError>{job.error}</TurnError>
+                      : (
+                        <div class={styles.stack}>
+                          {job.url && <video class={styles.video} src={job.url} controls loop playsinline />}
+                          <div class={styles.clipFoot}>
+                            <ui.Meta>{job.caption}</ui.Meta>
+                            {job.url && <a class={styles.link} href={job.url} download={`${job.remoteId ?? job.id}.mp4`}>download .mp4</a>}
+                          </div>
+                        </div>
+                      )}
+                </Turn>
+              ))}
+            </div>
+          )
+          : <ui.Empty>Jobs queue here; finished clips play inline.</ui.Empty>}
+        <ui.CurlBlock code={curl} />
+      </Panel>
+    </Workbench>
   );
 }

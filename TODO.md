@@ -13,7 +13,7 @@
 - [x] Playground audio fix; chat image attach gated on Ollama vision capability
 - [x] Video role (LTX-2.5 distilled on MLX) with job API and playground Video tab
 - [x] Models admin: list/install/delete/set default per role, memory check and warnings; playground Models tab
-- [ ] Verify LTX-2.5 video generation end to end (75 GB q8 download; consider q4)
+- [ ] Verify LTX-2.5 video generation end to end (the 4-bit pack, ~51 GB; q8 was ~75 GB)
 - [ ] Retry Ollama pulls for embeddinggemma-2 and OneJev 0.8B (failed: IPv6 network unreachable)
 - [x] Playground rebuilt as Preact + CSS modules + Vite (web/ → src/omni/static/app), Apple-style light/dark design
 - [x] Model management: HF search filtered per role, load/unload, worker start/stop/restart, CPU/load overload checks with force override; Models tab UI

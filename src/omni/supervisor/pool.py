@@ -67,6 +67,7 @@ class Supervisor:
         statuses = {}
         for worker in self.workers.values():
             rss, cpu = process.usage(worker.ps)
+            ready = worker.status == "ready"
             statuses[worker.name] = {
                 "status": worker.status,
                 "pid": worker.process.pid if worker.process else None,
@@ -74,6 +75,8 @@ class Supervisor:
                 "rss_bytes": rss,
                 "cpu_percent": cpu,
                 "held": worker.held,
+                "model": worker.model if ready else "",
+                "loaded": ready and worker.loaded,
             }
         return statuses
 
@@ -120,7 +123,18 @@ class Supervisor:
             response = await worker.client.get(worker.health_path, timeout=worker.timeout)
         except httpx.HTTPError:
             return False
-        return response.status_code == 200
+        if response.status_code != 200:
+            return False
+        # keep the worker's own report (model name, whether it is in memory) so the UI can show it
+        try:
+            report = response.json()
+        except ValueError:
+            return True
+        if isinstance(report, dict):
+            if report.get("model"):
+                worker.model = str(report["model"])
+            worker.loaded = bool(report.get("loaded", worker.loaded))
+        return True
 
     def _schedule_restart(self, worker: Worker, now: float) -> None:
         delay = min(2.0**worker.restarts, MAX_BACKOFF_SECONDS)

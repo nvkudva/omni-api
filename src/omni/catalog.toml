@@ -13,7 +13,8 @@ model = "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0"
 model = "embeddinggemma-2"
 
 [stt]
-model = "mlx-community/parakeet-tdt-0.6b-v3"
+# 4-bit MLX (group 64): the multilingual v3 encoder, quantized, ~0.6 GB instead of ~2.5 GB.
+model = "animaslabs/parakeet-tdt-0.6b-v3-mlx-4bit"
 
 [tts]
 model = "prince-canuma/Kokoro-82M-4bit"
@@ -24,6 +25,7 @@ model = "Qwen/Qwen-Image-2.1"
 steps = 40
 
 [video]
-model = "dgrauet/ltx-2.5-mlx-q8"
+# 4-bit MLX: the same 28-file LTX-2.5 pack as q8, ~51 GB instead of ~75 GB.
+model = "dgrauet/ltx-2.5-mlx-q4"
 frames = 97
 fps = 24

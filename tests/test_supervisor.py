@@ -58,8 +58,67 @@ class WorkerAndStatus(unittest.TestCase):
             self.assertIsNone(status["pid"])
             self.assertEqual(status["rss_bytes"], 0)
             self.assertFalse(status["held"])
+            self.assertEqual(status["model"], "")
+            self.assertFalse(status["loaded"])
         finally:
             asyncio.run(client.aclose())
+
+    def test_status_reports_the_workers_model_only_while_it_is_ready(self):
+        client = httpx.AsyncClient()
+        try:
+            worker = Worker(name="stt", argv=["x"], client=client, health_path="/health")
+            pool = supervisor.Supervisor([worker])
+            worker.model, worker.loaded, worker.status = "parakeet", True, "ready"
+            self.assertEqual(pool.status()["stt"]["model"], "parakeet")
+            self.assertTrue(pool.status()["stt"]["loaded"])
+            # a worker that is restarting never claims to be holding a model
+            worker.status = "restarting"
+            self.assertEqual(pool.status()["stt"]["model"], "")
+            self.assertFalse(pool.status()["stt"]["loaded"])
+        finally:
+            asyncio.run(client.aclose())
+
+
+class StubClient:
+    def __init__(self, response):
+        self._response = response
+
+    async def get(self, path, timeout=None):
+        return self._response
+
+
+class HealthProbe(unittest.TestCase):
+    def probe(self, body, status_code=200):
+        request = httpx.Request("GET", "http://worker/health")
+        worker = Worker(name="stt", argv=["x"], client=StubClient(httpx.Response(status_code, json=body, request=request)),
+                        health_path="/health")
+        pool = supervisor.Supervisor([worker])
+        return worker, asyncio.run(pool._healthy(worker))
+
+    def test_a_healthy_worker_reports_its_model_and_loaded_flag(self):
+        worker, ok = self.probe({"ok": True, "model": "parakeet", "loaded": True})
+        self.assertTrue(ok)
+        self.assertEqual(worker.model, "parakeet")
+        self.assertTrue(worker.loaded)
+
+    def test_an_unloaded_worker_clears_the_loaded_flag(self):
+        worker, ok = self.probe({"ok": True, "model": "parakeet", "loaded": False})
+        self.assertTrue(ok)
+        self.assertFalse(worker.loaded)
+
+    def test_a_failed_probe_is_not_a_report(self):
+        worker, ok = self.probe({}, status_code=503)
+        self.assertFalse(ok)
+        self.assertEqual(worker.model, "")
+        self.assertFalse(worker.loaded)
+
+    def test_a_body_that_is_not_a_report_still_counts_as_healthy(self):
+        request = httpx.Request("GET", "http://worker/health")
+        response = httpx.Response(200, text="up", request=request)
+        worker = Worker(name="stt", argv=["x"], client=StubClient(response), health_path="/health")
+        pool = supervisor.Supervisor([worker])
+        self.assertTrue(asyncio.run(pool._healthy(worker)))
+        self.assertEqual(worker.model, "")
 
 
 if __name__ == "__main__":

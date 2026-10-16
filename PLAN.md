@@ -27,7 +27,7 @@ apps ──► 127.0.0.1:10000  omni-api gateway (FastAPI + httpx streaming prox
 | chat / summarize | Gemma 4 E2B (alternative: Qwen 3.5 4B, chosen by `omni bench chat`) | Ollama | ~2–4 GB |
 | decide | Vega 0.8B public-intents (`vegaml`; upgrade: Vega 4B; audio decisions: LiquidAI d1-omni-600M) | Python worker | ~2 GB |
 | embed | EmbeddingGemma-2 (text, image, audio) | Python worker, sentence-transformers | ~1–2 GB |
-| stt | Parakeet TDT 0.6B v3 (fallback: Whisper large-v3-turbo via mlx-whisper) | Python worker, parakeet-mlx | ~2 GB |
+| stt | Parakeet TDT 0.6B v3, 4-bit MLX (fallback: Whisper large-v3-turbo via mlx-whisper) | Python worker, parakeet-mlx | ~0.6 GB |
 | tts | Kokoro-82M | Python worker, kokoro-onnx | <0.5 GB |
 Memory figures are estimates; measure them and record real values in `catalog.toml`.
 
@@ -79,7 +79,7 @@ New uv project, installed with `uv tool install`. After the 2026-10-16 review it
 - 2026-10-16: embed moves to Ollama `embeddinggemma-2` (`/api/embed`, `truncate:true`). Task prompts are added in the gateway (`embed.py`). The sentence-transformers worker is removed. This drops image and audio embeddings: Ollama's `/api/embed` is text only. `omni init` pulls the embed model.
 - 2026-10-16: new `image` role: `/v1/images/generations` (OpenAI shape, `b64_json` only, plus `steps`, `seed` and `negative_prompt`). It is served by a diffusers worker running `Qwen/Qwen-Image-2.1` on MPS bf16. diffusers is pinned to git 4295ee3 because the 2.1 pipeline isn't released. Ollama has no Qwen-Image; it only has experimental z-image/flux2-klein.
 - 2026-10-16: on Ollama routes, `model` equal to the role name (`"embed"`, `"decide"`) means that role's configured model.
-- 2026-10-16: new `video` role: LTX-2.5 distilled (`dgrauet/ltx-2.5-mlx-q8`, ~75 GB; q4 ~47 GB) through `ltx_pipelines_mlx.DistilledPipeline` with `low_memory=True`. It uses the OpenAI video job shape: `POST /v1/videos` returns a queued job, `GET /v1/videos/{id}` polls it and `/content` serves the mp4. Jobs run one at a time and live in worker memory. Ollama has no video models, so this does not run on Ollama.
+- 2026-10-16: new `video` role: LTX-2.5 distilled (`dgrauet/ltx-2.5-mlx-q4`, ~51 GB; q8 ~75 GB) through `ltx_pipelines_mlx.DistilledPipeline` with `low_memory=True`. It uses the OpenAI video job shape: `POST /v1/videos` returns a queued job, `GET /v1/videos/{id}` polls it and `/content` serves the mp4. Jobs run one at a time and live in worker memory. Ollama has no video models, so this does not run on Ollama.
 - 2026-10-16: runners are fixed per role: Ollama for chat, decide and embed; the Hugging Face cache for stt, tts, image and video. `/admin/models` lists, installs (NDJSON progress) and deletes models; it refuses to delete a role's default.
 - 2026-10-16: `/admin/models/default` writes the role's model to `~/.omni-api/config.toml` and restarts that Python worker. It returns fit warnings (disk, RAM) based on the weights' size. `/admin/memory` reports RAM, swap, disk, Ollama-loaded models and worker RSS, with low-memory and swap warnings.
 - 2026-10-16: chat image input is passed through to Ollama as OpenAI `image_url` data URLs. The playground shows the attach button only when `/api/show` lists `vision`.

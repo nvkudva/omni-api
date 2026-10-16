@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { errorText, record } from "../api/client.js";
 import { synthesize, transcribe, voices as fetchVoices } from "../api/endpoints.js";
-import { curlJson } from "../lib/curl.js";
+import { models } from "../api/models.js";
+import { runtime } from "../api/roles.js";
 import { since, wavSeconds } from "../lib/format.js";
 import { usePolling } from "../hooks/usePolling.js";
 import * as store from "../store.js";
 import * as ui from "../components/ui.jsx";
-import styles from "./tabs.module.css";
+import { Panel, Pending, RequestBody, Turn, TurnError, UiJson, Workbench, useTurnState } from "../components/workbench.jsx";
+import { useJsonRequest } from "../hooks/useJsonRequest.js";
+import styles from "./Tts.module.css";
 
 const ACCENTS = { a: "American", b: "British" };
 const GENDERS = { f: "female", m: "male" };
@@ -29,22 +32,6 @@ function useVoices() {
   return { voices, fallback };
 }
 
-function Clip({ clip }) {
-  if (clip.pending) return <li class={styles.clip}><ui.Empty>Speaking… the first request loads the voice model, which can take a minute.</ui.Empty></li>;
-  if (clip.error) return <li class={styles.clip}><ui.ErrorText>{clip.error}</ui.ErrorText></li>;
-  return (
-    <li class={styles.clip}>
-      <p class={styles.clipText}>{clip.text}</p>
-      <audio class={styles.audio} controls autoplay src={clip.url} />
-      <div class={styles.clipFoot}>
-        <ui.Meta>{clip.caption}</ui.Meta>
-        <a class={styles.link} href={clip.url} download={clip.filename}>download .wav</a>
-      </div>
-      {clip.heard != null && <ui.Meta>stt heard: “{clip.heard.trim()}”</ui.Meta>}
-    </li>
-  );
-}
-
 export default function Tts() {
   const { voices, fallback } = useVoices();
   const [chosen, setChosen] = useState(() => store.get("omni.tts.voice", ""));
@@ -54,8 +41,10 @@ export default function Tts() {
   const [busy, setBusy] = useState(false);
   const [clips, setClips] = useState([]);
   const [meta, setMeta] = useState("");
+  const [view, setView] = useState("ui");
   const clipsRef = useRef([]);
   const abort = useRef(null);
+  const turnState = useTurnState();
 
   useEffect(() => () => {
     abort.current?.abort();
@@ -85,7 +74,8 @@ export default function Tts() {
   const voice = voices ? chosen || fallback : "";
   const body = { input: text, speed, response_format: "wav" };
   if (voice) body.voice = voice;
-  const curl = `${curlJson("/v1/audio/speech", body)} \\\n  -o speech.wav`;
+  const json = useJsonRequest(view, body);
+  const role = runtime.value.roles.tts;
 
   const choose = (name) => {
     setChosen(name);
@@ -93,15 +83,18 @@ export default function Tts() {
   };
 
   const speak = async () => {
-    if (!body.input.trim()) return;
+    const payload = view === "json" ? json.body : body;
+    if (!payload?.input?.trim()) return;
     const id = crypto.randomUUID();
+    const at = Date.now();
     const controller = new AbortController();
     abort.current = controller;
     setBusy(true);
-    commit([{ id, pending: true }, ...clipsRef.current]);
+    commit([{ id, at, request: payload, text: payload.input, pending: true }, ...clipsRef.current]);
+    setMeta("speaking…");
     const start = performance.now();
     try {
-      const response = await synthesize(body, controller.signal);
+      const response = await synthesize(payload, controller.signal);
       const elapsed = since(start);
       record("tts", response.status, elapsed);
       if (!response.ok) throw new Error(await errorText(response));
@@ -110,10 +103,9 @@ export default function Tts() {
       const seconds = wavSeconds(buffer);
       updateClip(id, {
         pending: false,
-        text: body.input,
         url: URL.createObjectURL(blob),
-        filename: `omni-${body.voice ?? "speech"}.wav`,
-        caption: `${body.voice ?? "default"} · ${body.speed}× · ${seconds.toFixed(1)} s audio in ${elapsed} ms (${(seconds / (elapsed / 1000)).toFixed(1)}× realtime)`,
+        filename: `omni-${payload.voice ?? "speech"}.wav`,
+        caption: `${payload.voice ?? "default"} · ${payload.speed ?? 1}× · ${seconds.toFixed(1)} s audio in ${elapsed} ms (${(seconds / (elapsed / 1000)).toFixed(1)}× realtime)`,
       });
       setMeta(`${elapsed} ms`);
       if (!roundTrip) return;
@@ -123,47 +115,97 @@ export default function Tts() {
     } catch (error) {
       if (error.name === "AbortError") updateClip(id, { pending: false, error: "cancelled" });
       else updateClip(id, { pending: false, error: error.message });
+      setMeta("");
     } finally {
       abort.current = null;
       setBusy(false);
     }
   };
 
+  const openId = turnState.open ?? clips[0]?.id;
+  const canSpeak = !(view === "json" && json.error) && !(view === "ui" && !body.input.trim()) && !busy;
+
+  const readout = [
+    { label: "Model", value: models.value.defaults.tts ?? "—" },
+    { label: "Runtime", value: "mlx-audio · 4-bit" },
+    { label: "API", value: "POST /v1/audio/speech" },
+    { label: "Last run", value: role?.loaded ? (meta || "idle") : "not loaded" },
+  ];
+
   return (
-    <ui.Page title="Text to speech" subtitle="Kokoro voices on MLX, returned as WAV.">
-      <ui.Columns>
-        <ui.Card title="Speech">
-          <ui.Stack>
-            <ui.Field label="Voice">
-              <select value={voice} onChange={(event) => choose(event.currentTarget.value)}>
-                {voices
-                  ? voices.map((name) => <option key={name} value={name}>{voiceLabel(name)}</option>)
-                  : <option value="">tts not ready — retrying</option>}
-              </select>
-            </ui.Field>
-            <ui.Field label="Text" trailing={<ui.Meta>{text.length} / {MAX_LENGTH}</ui.Meta>}>
-              <textarea rows={5} maxLength={MAX_LENGTH} value={text} onInput={(event) => setText(event.currentTarget.value)} />
-            </ui.Field>
-            <ui.Field label="Speed" trailing={<ui.Meta>{speed.toFixed(2)}×</ui.Meta>}>
-              <input type="range" min={0.5} max={2} step={0.05} value={speed} onInput={(event) => setSpeed(Number(event.currentTarget.value))} />
-            </ui.Field>
-            <ui.Toggle checked={roundTrip} onChange={setRoundTrip}>send the result to speech → text (round trip)</ui.Toggle>
-            <ui.Row end>
-              {busy
-                ? <ui.Button variant="stop" onClick={() => abort.current?.abort()}>Stop</ui.Button>
-                : <ui.Button variant="primary" onClick={speak}>Speak</ui.Button>}
-            </ui.Row>
-          </ui.Stack>
-        </ui.Card>
-        <ui.Card title="Clips" meta={meta}>
-          <ui.Stack>
-            {clips.length
-              ? <ul class={styles.clips}>{clips.map((clip) => <Clip key={clip.id} clip={clip} />)}</ul>
-              : <ui.Empty>Generated audio plays here; each clip can be downloaded.</ui.Empty>}
-            <ui.CurlBlock code={curl} />
-          </ui.Stack>
-        </ui.Card>
-      </ui.Columns>
-    </ui.Page>
+    <Workbench title="Text to speech" subtitle="Kokoro voices on MLX, returned as WAV. The first request loads the voice model." readout={readout}>
+      <Panel
+        title="Request"
+        tools={<UiJson view={view} onChange={setView} />}
+        foot={(
+          <>
+            <span class={styles.foot}>{text.length} / {MAX_LENGTH} characters</span>
+            {busy
+              ? <ui.Button variant="stop" onClick={() => abort.current?.abort()}>Stop</ui.Button>
+              : <ui.Button variant="primary" disabled={!canSpeak} onClick={speak}>Speak</ui.Button>}
+          </>
+        )}
+      >
+        <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error}>
+          <ui.Field label="Voice">
+            <select value={voice} onChange={(event) => choose(event.currentTarget.value)}>
+              {voices
+                ? voices.map((name) => <option key={name} value={name}>{voiceLabel(name)}</option>)
+                : <option value="">tts not ready — retrying</option>}
+            </select>
+          </ui.Field>
+          <ui.Field label="Text" trailing={<ui.Meta>{text.length} / {MAX_LENGTH}</ui.Meta>}>
+            <textarea rows={6} maxLength={MAX_LENGTH} value={text} onInput={(event) => setText(event.currentTarget.value)} />
+          </ui.Field>
+          <ui.Field label="Speed" trailing={<ui.Meta>{speed.toFixed(2)}×</ui.Meta>}>
+            <input type="range" min={0.5} max={2} step={0.05} value={speed} onInput={(event) => setSpeed(Number(event.currentTarget.value))} />
+          </ui.Field>
+          <ui.Toggle checked={roundTrip} onChange={setRoundTrip}>send the result to speech → text (round trip)</ui.Toggle>
+        </RequestBody>
+      </Panel>
+
+      <Panel
+        title="Clips"
+        meta={meta}
+        tools={<ui.Button small variant="plain" disabled={!clips.length || busy} onClick={() => { commit([]); setMeta(""); }}>Clear</ui.Button>}
+      >
+        {clips.length
+          ? (
+            <div class={styles.stack}>
+              {clips.map((clip, index) => (
+                <Turn
+                  key={clip.id}
+                  label={`Clip #${clips.length - index}`}
+                  at={clip.at}
+                  model={clip.request?.voice ?? voice}
+                  meta={clip.caption}
+                  view={turnState.viewOf(clip.id)}
+                  onView={(next) => turnState.setViewOf(clip.id, next)}
+                  open={openId === clip.id}
+                  onToggle={() => turnState.toggle(clip.id)}
+                  summary={clip.text}
+                  wire={{ request: clip.request, response: clip.pending ? { status: "speaking" } : { caption: clip.caption, heard: clip.heard } }}
+                >
+                  {clip.pending
+                    ? <Pending label="speaking" note="the first request loads the voice model, which can take a minute" />
+                    : clip.error
+                      ? <TurnError>{clip.error}</TurnError>
+                      : (
+                        <div class={styles.stack}>
+                          <audio class={styles.audio} controls autoplay src={clip.url} />
+                          <div class={styles.clipFoot}>
+                            <ui.Meta>{clip.caption}</ui.Meta>
+                            <a class={styles.link} href={clip.url} download={clip.filename}>download .wav</a>
+                          </div>
+                          {clip.heard != null && <ui.Meta>stt heard: “{clip.heard.trim()}”</ui.Meta>}
+                        </div>
+                      )}
+                </Turn>
+              ))}
+            </div>
+          )
+          : <ui.Empty>Generated audio plays here; each clip can be downloaded.</ui.Empty>}
+      </Panel>
+    </Workbench>
   );
 }

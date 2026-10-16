@@ -1,28 +1,3 @@
-.page { max-width: 1180px; margin: 0 auto; padding: 28px 36px 64px; }
-.pageHeader { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
-.pageTitle { font-size: 26px; font-weight: 700; letter-spacing: -0.022em; line-height: 1.15; }
-.pageSubtitle { margin: 4px 0 0; color: var(--text-2); font-size: 14px; max-width: 640px; }
-
-.columns { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 20px; align-items: start; }
-@media (max-width: 980px) { .columns { grid-template-columns: minmax(0, 1fr); } }
-.stack { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
-
-.card {
-  background: var(--surface);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow);
-  border: 1px solid var(--hairline);
-  min-width: 0;
-}
-.cardHeader {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 14px 18px 0;
-}
-.cardTitleGroup { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; }
-.cardTitle { font-size: 15px; font-weight: 600; letter-spacing: -0.012em; }
-.cardBody { padding: 14px 18px 18px; display: flex; flex-direction: column; gap: 14px; }
-.cardBodyFlush { padding: 6px 6px 8px; }
-
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .fieldLabel { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; font-weight: 500; color: var(--text-2); }
 .fieldLabel label { cursor: pointer; }
@@ -80,7 +55,8 @@
   max-height: 360px; overflow: auto;
 }
 
-.curl { border-top: 1px solid var(--hairline); margin: 0 -18px -18px; padding: 0 18px; }
+/* Sits as the last child of a panel body (16px padding), bled out to the edges. */
+.curl { border-top: 1px solid var(--hairline); margin: 4px -16px -16px; padding: 0 16px; }
 .curlSummary {
   list-style: none; cursor: pointer; user-select: none;
   display: flex; align-items: center; gap: 6px;
@@ -95,15 +71,6 @@
 .curl[open] .chevron { transform: rotate(45deg); }
 .curlBody { position: relative; padding-bottom: 16px; }
 .copy { position: absolute; top: 6px; right: 6px; background: var(--surface); }
-
-.bars { display: flex; flex-direction: column; gap: 7px; }
-.bar { display: grid; grid-template-columns: minmax(80px, 38%) 1fr 56px; align-items: center; gap: 12px; font-size: 13px; }
-.barLabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-2); }
-.barTop .barLabel { color: var(--text); font-weight: 500; }
-.barTrack { height: 6px; border-radius: 3px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--hairline); overflow: hidden; }
-.barFill { display: block; height: 100%; border-radius: 3px; background: var(--text-3); transition: width 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.barTop .barFill { background: var(--accent); }
-.barValue { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-2); font-size: 12px; }
 
 .meter { height: 8px; border-radius: 4px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--hairline); overflow: hidden; }
 .meterFill { display: block; height: 100%; background: var(--green); border-radius: 4px; transition: width 0.4s; }

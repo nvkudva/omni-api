@@ -4,46 +4,6 @@ import styles from "./ui.module.css";
 
 const cx = (...names) => names.filter(Boolean).join(" ");
 
-export function Page({ title, subtitle, actions, children }) {
-  return (
-    <section class={styles.page}>
-      <header class={styles.pageHeader}>
-        <div>
-          <h1 class={styles.pageTitle}>{title}</h1>
-          {subtitle && <p class={styles.pageSubtitle}>{subtitle}</p>}
-        </div>
-        {actions && <div class={styles.row}>{actions}</div>}
-      </header>
-      {children}
-    </section>
-  );
-}
-
-export function Columns({ children }) {
-  return <div class={styles.columns}>{children}</div>;
-}
-
-export function Stack({ children }) {
-  return <div class={styles.stack}>{children}</div>;
-}
-
-export function Card({ title, meta, actions, flush, children }) {
-  return (
-    <div class={styles.card}>
-      {(title || actions || meta) && (
-        <div class={styles.cardHeader}>
-          <div class={styles.cardTitleGroup}>
-            {title && <h2 class={styles.cardTitle}>{title}</h2>}
-            {meta && <span class={styles.meta}>{meta}</span>}
-          </div>
-          {actions && <div class={styles.row}>{actions}</div>}
-        </div>
-      )}
-      <div class={flush ? styles.cardBodyFlush : styles.cardBody}>{children}</div>
-    </div>
-  );
-}
-
 // `trailing` is intentionally rendered as a sibling of the <label> element, never
 // inside it, so interactive controls (e.g. a Reset button) do not activate the field.
 export function Field({ label, hint, trailing, children }) {
@@ -138,22 +98,6 @@ export function CurlBlock({ code }) {
         <pre class={styles.code}>{code}</pre>
       </div>
     </details>
-  );
-}
-
-export function Bars({ rows, format = (value) => `${(value * 100).toFixed(1)}%` }) {
-  return (
-    <div class={styles.bars}>
-      {rows.map((row) => (
-        <div key={row.label} class={cx(styles.bar, row.top && styles.barTop)}>
-          <span class={styles.barLabel} title={row.label}>{row.label}</span>
-          <span class={styles.barTrack}>
-            <span class={styles.barFill} style={{ width: `${Math.max(0, Math.min(1, row.value)) * 100}%` }} />
-          </span>
-          <span class={styles.barValue}>{format(row.value)}</span>
-        </div>
-      ))}
-    </div>
   );
 }
 
