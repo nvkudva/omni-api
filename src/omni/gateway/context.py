@@ -44,22 +44,24 @@ def build(settings: dict) -> Context:
 
     for role in PYTHON_WORKERS:
         socket = config.socket_path(role)
+        # the client always dials the stable link; spawn repoints it at each generation's socket
         clients[role] = uds_client(role)
         workers.append(supervisor.Worker(
             name=role,
-            argv=[sys.executable, "-m", "uvicorn", f"omni.workers.{role}:app", "--uds", str(socket),
+            argv=[sys.executable, "-m", "uvicorn", f"omni.workers.{role}:app", "--uds", "{uds}",
                   "--log-level", "warning"],
             client=uds_client(role, timeout_=2.0),
             health_path="/health",
-            uds=socket,
+            uds_link=socket,
         ))
 
     worker_map = {worker.name: worker for worker in workers}
+    pool = supervisor.Supervisor(workers)
     return Context(
         settings=settings,
         clients=clients,
         workers=worker_map,
-        pool=supervisor.Supervisor(workers),
+        pool=pool,
         chat_url=chat_url,
-        proxy=Proxy(clients, worker_map),
+        proxy=Proxy(clients, worker_map, pool),
     )

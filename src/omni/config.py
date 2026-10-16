@@ -155,7 +155,17 @@ def ensure_dirs() -> None:
 
 
 def socket_path(role: str) -> Path:
+    """The stable path every client connects to. It is a symlink to the current worker generation.
+
+    Clients keep one path forever, while each worker generation binds its own file, so a worker that
+    is slow to exit can only ever unlink the socket it bound itself.
+    """
     return RUN_DIR / f"{role}.sock"
+
+
+def socket_target(role: str, token: str) -> Path:
+    """The real socket one worker generation binds. `token` must be unique per spawn."""
+    return RUN_DIR / f"{role}.{token}.sock"
 
 
 def idle_seconds(settings: dict) -> float:

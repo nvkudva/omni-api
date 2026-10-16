@@ -80,6 +80,18 @@ class Supervisor:
             }
         return statuses
 
+    def note_unreachable(self, role: str) -> None:
+        """A request could not open a connection to a worker health checks still call ready.
+
+        That is usually a stale socket: a client pool keeps working over a connection whose file has
+        gone away, while every new connection fails. Ask the watch loop to restart the worker, so the
+        next request after a moment or two finds a live socket instead of a stream of 503s.
+        """
+        worker = self.workers.get(role)
+        if worker is not None and worker.status == "ready":
+            log.warning("%s did not accept a new connection while marked ready; restarting it", role)
+            worker.restart_requested = True
+
     async def _watch(self) -> None:
         while True:
             await asyncio.gather(*(self._check(worker) for worker in self.workers.values()))
@@ -99,6 +111,11 @@ class Supervisor:
             exit_code = worker.process.poll()
             if exit_code is not None:
                 log.warning("%s exited with %s", worker.name, exit_code)
+                await asyncio.to_thread(process.terminate, worker)
+                self._schedule_restart(worker, now)
+                return
+            if worker.restart_requested:
+                worker.restart_requested = False
                 await asyncio.to_thread(process.terminate, worker)
                 self._schedule_restart(worker, now)
                 return

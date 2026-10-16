@@ -4,6 +4,7 @@ The pidfile records the command line as well as the pid, so a stale pidfile whos
 recycled by an unrelated process is never signalled.
 """
 import contextlib
+import itertools
 import json
 import logging
 import os
@@ -26,16 +27,30 @@ STOP_GRACE_SECONDS = 5.0
 # how long to wait before retrying a worker whose command could not be executed
 SPAWN_RETRY_SECONDS = 30.0
 
+# Distinguishes this gateway's worker generations, so each binds a socket of its own.
+_generations = itertools.count(1)
+
 # psutil.Process objects are kept between calls because cpu_percent measures since the previous call.
 _tracked: dict[int, psutil.Process] = {}
 
 
 def spawn(worker: "Worker") -> None:
-    """Start the worker in its own process group, logging to logs/<name>.log."""
+    """Start the worker in its own process group, logging to logs/<name>.log.
+
+    A UDS worker binds a fresh socket per generation and the stable `<role>.sock` link is repointed at
+    it, so no generation can unlink a socket another generation is still serving on.
+    """
     if worker.process is not None and worker.process.poll() is None:
         log.warning("%s is already running (pid %s); not spawning again", worker.name, worker.process.pid)
         return
-    if worker.uds:
+    if worker.uds_link is not None:
+        token = f"{os.getpid()}.{next(_generations)}"
+        worker.uds = config.socket_target(worker.name, token)
+        worker.command = [part.replace("{uds}", str(worker.uds)) for part in worker.argv]
+    else:
+        worker.uds = None
+        worker.command = list(worker.argv)
+    if worker.uds is not None:
         worker.uds.unlink(missing_ok=True)
     logfile_path = config.LOG_DIR / f"{worker.name}.log"
     try:
@@ -46,7 +61,7 @@ def spawn(worker: "Worker") -> None:
         return
     try:
         worker.process = subprocess.Popen(
-            worker.argv,
+            worker.command,
             stdin=subprocess.DEVNULL,
             stdout=logfile,
             stderr=subprocess.STDOUT,
@@ -55,7 +70,7 @@ def spawn(worker: "Worker") -> None:
         )
     except OSError as error:
         # a missing binary (e.g. ollama not installed) must not take the gateway down
-        log.error("cannot start %s (%s): %s", worker.name, worker.argv[0], error)
+        log.error("cannot start %s (%s): %s", worker.name, worker.command[0], error)
         worker.process = None
         worker.status = "failed"
         worker.next_start = time.monotonic() + SPAWN_RETRY_SECONDS
@@ -66,6 +81,7 @@ def spawn(worker: "Worker") -> None:
         worker.ps = psutil.Process(worker.process.pid)
     except psutil.Error:
         worker.ps = None
+    _publish_link(worker)
     _write_pidfile(worker)
     worker.status, worker.failed_probes = "starting", 0
     log.info("started %s (pid %s)", worker.name, worker.process.pid)
@@ -79,13 +95,42 @@ def terminate(worker: "Worker") -> None:
     worker.ps = None
     worker.status = "stopped"
     worker.pidfile.unlink(missing_ok=True)
-    if worker.uds:
+    if worker.uds is not None:
         worker.uds.unlink(missing_ok=True)
+    _unpublish_link(worker)
+    worker.uds = None
+
+
+def _publish_link(worker: "Worker") -> None:
+    """Point <role>.sock at this generation's socket, atomically, so clients never see it missing."""
+    if worker.uds_link is None or worker.uds is None:
+        return
+    temporary = worker.uds_link.with_name(f".{worker.uds_link.name}.{os.getpid()}.tmp")
+    try:
+        temporary.unlink(missing_ok=True)
+        os.symlink(worker.uds, temporary)
+        os.replace(temporary, worker.uds_link)  # atomic rename over any link a previous generation left
+    except OSError:
+        temporary.unlink(missing_ok=True)
+        log.exception("cannot publish %s", worker.uds_link)
+
+
+def _unpublish_link(worker: "Worker") -> None:
+    """Remove <role>.sock only while it still points at the socket this generation bound."""
+    link = worker.uds_link
+    if link is None or worker.uds is None:
+        return
+    try:
+        if link.is_symlink() and Path(os.readlink(link)) == worker.uds:
+            link.unlink(missing_ok=True)
+    except OSError:
+        log.exception("cannot remove %s", link)
 
 
 def _write_pidfile(worker: "Worker") -> None:
     assert worker.process is not None
-    payload = {"pid": worker.process.pid, "argv": worker.argv}
+    # the argv the process was really started with, so a recycled pid is never signalled
+    payload = {"pid": worker.process.pid, "argv": worker.command or worker.argv}
     try:
         worker.pidfile.write_text(json.dumps(payload))
     except OSError:
@@ -93,6 +138,8 @@ def _write_pidfile(worker: "Worker") -> None:
 
 
 def _kill_group(pgid: int, wait=None) -> None:
+    if pgid <= 0:
+        return
     with contextlib.suppress(ProcessLookupError):
         os.killpg(pgid, signal.SIGTERM)
     deadline = time.monotonic() + STOP_GRACE_SECONDS
@@ -109,6 +156,8 @@ def _kill_group(pgid: int, wait=None) -> None:
 
 
 def _group_alive(pgid: int) -> bool:
+    if pgid <= 0:
+        return False
     try:
         os.killpg(pgid, 0)
     except ProcessLookupError:
@@ -154,6 +203,7 @@ def _read_pidfile(path: Path) -> tuple[int, list[str]] | None:
 def kill_leftovers() -> list[str]:
     """Stop worker groups recorded by a gateway that died without cleaning up."""
     stopped = []
+    touched = []  # roles whose socket files this start may safely remove
     config.RUN_DIR.mkdir(parents=True, exist_ok=True)
     for pidfile in config.RUN_DIR.glob("*.pid"):
         if pidfile == config.PIDFILE:
@@ -161,9 +211,11 @@ def kill_leftovers() -> list[str]:
         record = _read_pidfile(pidfile)
         pidfile.unlink(missing_ok=True)
         if record is None:
+            touched.append(pidfile.stem)  # nothing is left to protect
             continue
         pid, argv = record
         if not _group_alive(pid):
+            touched.append(pidfile.stem)  # the worker is already gone; its socket is stale
             continue
         if argv and not is_ours(pid, argv):
             log.warning("pid %s recorded in %s is not our worker any more; leaving it alone", pid, pidfile.name)
@@ -173,7 +225,25 @@ def kill_leftovers() -> list[str]:
             continue
         _kill_group(pid)
         stopped.append(pidfile.stem)
+        touched.append(pidfile.stem)
+    _clean_sockets(touched)
     return stopped
+
+
+def _clean_sockets(touched: list[str]) -> None:
+    """Drop the sockets and links of workers this start stopped, or found already gone.
+
+    uvicorn never unlinks its own --uds, so a gateway that died without cleanup leaves both a socket
+    file and the link pointing at it behind. Sockets of a live process we chose to leave alone are kept.
+    """
+    for name in touched:
+        for path in config.RUN_DIR.glob(f"{name}.*.sock"):
+            path.unlink(missing_ok=True)
+    for path in config.RUN_DIR.glob("*.sock"):
+        # a link whose target still exists points at a live generation; anything else is a leftover
+        if not path.is_symlink() or path.exists():
+            continue
+        path.unlink(missing_ok=True)
 
 
 def _prune() -> None:

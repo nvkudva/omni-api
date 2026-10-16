@@ -133,15 +133,21 @@ def register(app: FastAPI, ctx: Context) -> None:
                          else [f"{model} is not downloaded yet; loading downloads it first"])
         return registry.overload_warnings() + size_warnings
 
-    async def set_residency(role: str, model: str, load: bool) -> None:
+    async def set_residency(role: str, model: str, load: bool) -> bool | None:
+        """Load or unload the role's model. Returns whether it now sits in memory, when the worker says."""
         if registry.runner(role) == "ollama":
             if load:
                 await registry.ollama_load(clients["chat"], role, model)
             else:
                 await registry.ollama_unload(clients["chat"], role, model)
-            return
+            return None
         response = await clients[role].post("/load" if load else "/unload", timeout=None)
         response.raise_for_status()
+        try:
+            report = response.json()
+        except ValueError:
+            return None
+        return bool(report.get("loaded")) if isinstance(report, dict) and "loaded" in report else None
 
     async def residency(request: Request, load: bool) -> JSONResponse:
         role, model, force = await residency_request(request)
@@ -149,12 +155,15 @@ def register(app: FastAPI, ctx: Context) -> None:
         if warnings and not force:
             return error_response(409, "; ".join(warnings) + ". Send force: true to load anyway.", "overload")
         try:
-            await set_residency(role, model, load)
+            loaded = await set_residency(role, model, load)
         except httpx.TransportError:
-            return error_response(503, f"{role} is not running ({ctx.proxy.state(role)}); start it first", "unavailable")
+            pool.note_unreachable(role)
+            return error_response(503, ctx.proxy.unavailable(role), "unavailable")
         except httpx.HTTPStatusError as error:
             return error_response(502, f"{role}: {error.response.text}", "upstream_error")
-        return JSONResponse({"role": role, "model": model, "loaded": load, "warnings": warnings})
+        # report what the worker actually holds, falling back to the request when it does not say
+        return JSONResponse({"role": role, "model": model,
+                             "loaded": load if loaded is None else loaded, "warnings": warnings})
 
     @app.post("/admin/models/load")
     async def admin_load(request: Request) -> JSONResponse:

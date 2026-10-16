@@ -13,10 +13,15 @@ from omni import config
 @dataclass
 class Worker:
     name: str
+    # The argv template. A `{uds}` token, if present, is replaced with this generation's socket path.
     argv: list[str]
     client: httpx.AsyncClient
     health_path: str
+    # The stable path clients connect to; spawn republishes it as a symlink to the current generation.
+    uds_link: Path | None = None
+    # The socket this generation bound, and the argv it was actually started with. Both are set by spawn.
     uds: Path | None = None
+    command: list[str] = field(default_factory=list)
     env: dict[str, str] = field(default_factory=dict)
     timeout: float = 2.0
     process: subprocess.Popen | None = None
@@ -27,6 +32,8 @@ class Worker:
     ready_since: float = 0.0
     next_start: float = 0.0
     held: bool = False
+    # set when a request could not reach a worker that health checks still called ready
+    restart_requested: bool = False
     # the worker's own report: which model it serves, and whether that model is in memory
     model: str = ""
     loaded: bool = False

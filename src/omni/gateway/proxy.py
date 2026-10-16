@@ -2,6 +2,7 @@
 rewritten into the same OpenAI shape the rest of omni uses."""
 import json
 import logging
+from typing import TYPE_CHECKING
 
 import httpx
 from fastapi import HTTPException, Request
@@ -11,6 +12,9 @@ from starlette.background import BackgroundTask
 from omni import config
 from omni.errors import error_response
 from omni.supervisor.worker import Worker
+
+if TYPE_CHECKING:
+    from omni.supervisor.pool import Supervisor
 
 log = logging.getLogger("omni.gateway")
 
@@ -34,14 +38,24 @@ def uds_client(role: str, timeout_: httpx.Timeout | float = None) -> httpx.Async
 
 
 class Proxy:
-    def __init__(self, clients: dict[str, httpx.AsyncClient], workers: dict[str, Worker]):
+    def __init__(self, clients: dict[str, httpx.AsyncClient], workers: dict[str, Worker],
+                 pool: "Supervisor | None" = None):
         self.clients = clients
         self.workers = workers
+        self.pool = pool
 
     def state(self, role: str) -> str:
         """A human-readable worker state for a 503 message."""
         worker = self.workers.get(role)
         return worker.status if worker else "external"
+
+    def unavailable(self, role: str) -> str:
+        """Why a role could not be reached, in words that match what the operator will see next."""
+        state = self.state(role)
+        if state == "ready":
+            return (f"{role} stopped accepting connections ({state}); restarting it — "
+                    f"GET /health shows progress")
+        return f"{role} is not ready ({state}); GET /health shows progress"
 
     async def read_body(self, request: Request, max_bytes: int) -> bytes:
         """Buffer the request body, refusing anything bigger than `max_bytes`."""
@@ -67,8 +81,9 @@ class Proxy:
         try:
             upstream = await self.clients[role].send(upstream_request, stream=True)
         except httpx.TransportError:
-            return error_response(
-                503, f"{role} is not ready ({self.state(role)}); GET /health shows progress", "unavailable")
+            if self.pool is not None:
+                self.pool.note_unreachable(role)
+            return error_response(503, self.unavailable(role), "unavailable")
         if upstream.status_code >= 400:
             await upstream.aread()
             await upstream.aclose()

@@ -5,6 +5,7 @@ Every response must use the one OpenAI error shape, whatever the failure.
 import unittest
 from unittest.mock import AsyncMock, patch
 
+import httpx
 from fastapi.testclient import TestClient
 
 from omni import gateway
@@ -104,6 +105,21 @@ class Gateway(unittest.TestCase):
         # 'nope' is not a worker either way, so the name check fires first; this documents the order
         response = self.client.post("/admin/workers/chat/delete")
         self.assertIn(response.status_code, (400, 404, 409))
+
+    def test_admin_load_reports_the_workers_own_loaded_flag(self):
+        """The worker's report is the truth: a load that left nothing resident must not claim `loaded`."""
+        report = httpx.Response(200, json={"loaded": False},
+                                request=httpx.Request("POST", "http://worker/load"))
+        with patch.object(httpx.AsyncClient, "post", new=AsyncMock(return_value=report)):
+            response = self.client.post("/admin/models/load", json={"role": "stt", "force": True})
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["loaded"])
+
+    def test_admin_unload_reaches_a_transport_failure_as_a_restart(self):
+        with patch.object(httpx.AsyncClient, "post", new=AsyncMock(side_effect=httpx.ConnectError("no socket"))):
+            response = self.client.post("/admin/models/unload", json={"role": "stt"})
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(_error(response)["type"], "unavailable")
 
 
 if __name__ == "__main__":
