@@ -210,7 +210,7 @@ Set `OMNI_HOME` to move the state directory (default `~/.omni-api`):
 
 | Path | Contents |
 |---|---|
-| `run/` | pidfiles and worker sockets |
+| `run/` | pidfiles, one socket per worker generation, and the stable `<role>.sock` link clients dial |
 | `logs/` | one log per worker, plus `omni.log` |
 
 Ports:
