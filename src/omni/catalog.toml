@@ -1,0 +1,29 @@
+[gateway]
+host = "127.0.0.1"
+port = 10000
+idle_unload_minutes = 10
+
+[chat]
+model = "qwen2.5:3b"
+
+[decide]
+model = "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0"
+
+[embed]
+model = "embeddinggemma-2"
+
+[stt]
+model = "mlx-community/parakeet-tdt-0.6b-v3"
+
+[tts]
+model = "prince-canuma/Kokoro-82M-4bit"
+voice = "af_heart"
+
+[image]
+model = "Qwen/Qwen-Image-2.1"
+steps = 40
+
+[video]
+model = "dgrauet/ltx-2.5-mlx-q8"
+frames = 97
+fps = 24

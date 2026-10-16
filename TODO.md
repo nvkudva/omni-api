@@ -1,0 +1,20 @@
+- [ ] M1a: uv project skeleton, config.toml loader, supervisor (process groups, pidfile, restart), gateway on :10000, chat via Ollama; proof: curl /v1/chat/completions on :10000, `omni down` leaves no orphans
+- [ ] M1b: decide worker (Vega 0.8B, vegaml) on unix socket + /v1/systemone shim; proof: golden noul/choice/score tests, MPS works, `omni bench decide`
+- [ ] M2: embed worker (EmbeddingGemma-2); proof: cosine >= 0.9999 vs Hyperlight in-process vectors for text, image, audio; indexing benchmark vs in-process
+- [ ] M3: stt worker (Parakeet TDT 0.6B v3) and tts worker (Kokoro-82M); proof: `omni test stt`, `omni test tts`
+- [ ] M4: `omni init`, `pull`, `status`, `logs`, `test`, `bench`; proof: fresh config -> init -> pull all -> serve -> test all pass
+- [ ] M5: Hyperlight switches embed, chat and transcribe to omni-api; Tauri spawns `omni serve`
+- [ ] Later: WS /v1/realtime (openWakeWord, Silero VAD, streaming stt/tts), agent loop, computer-use grounding model, TUI
+- [x] Prototype: gateway + all five endpoints working end to end; static playground at /playground covers every endpoint
+- [ ] Warm embed at worker start or show "loading model" in playground: cold first embed takes ~45 s (MPS warmup), warm 0.03 s
+- [x] Drop ollajev: decide via Ollama logprobs, Ollama on its configured address, `omni init` installs Ollama
+- [x] Ollama default runner: decide=OneJev 0.8B GGUF, embed=embeddinggemma-2; image role via Qwen-Image-2.1 diffusers worker; playground Image tab
+- [ ] Verify Qwen-Image-2.1 generation end to end through the gateway (load time, s/step at 1024²)
+- [x] Playground audio fix; chat image attach gated on Ollama vision capability
+- [x] Video role (LTX-2.5 distilled on MLX) with job API and playground Video tab
+- [x] Models admin: list/install/delete/set default per role, memory check and warnings; playground Models tab
+- [ ] Verify LTX-2.5 video generation end to end (75 GB q8 download; consider q4)
+- [ ] Retry Ollama pulls for embeddinggemma-2 and OneJev 0.8B (failed: IPv6 network unreachable)
+- [x] Playground rebuilt as Preact + CSS modules + Vite (web/ → src/omni/static/app), Apple-style light/dark design
+- [x] Model management: HF search filtered per role, load/unload, worker start/stop/restart, CPU/load overload checks with force override; Models tab UI
+- [ ] Defaults dropdown for HF roles lists every cached repo; filter to the role's runtime like search does
