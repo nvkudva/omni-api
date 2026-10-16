@@ -25,6 +25,7 @@
 
 .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .fieldLabel { display: flex; justify-content: space-between; align-items: baseline; font-size: 12px; font-weight: 500; color: var(--text-2); }
+.fieldLabel label { cursor: pointer; }
 .fieldTrailing { font-variant-numeric: tabular-nums; color: var(--text); }
 .hint { font-size: 12px; color: var(--text-2); }
 
@@ -117,6 +118,7 @@
 .notice_info { background: var(--accent-soft); color: var(--text); }
 
 .empty { margin: 0; padding: 28px 12px; text-align: center; color: var(--text-3); font-size: 13px; }
+.empty .spinner { vertical-align: -2px; margin-right: 6px; }
 .meta { font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; }

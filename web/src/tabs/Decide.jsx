@@ -1,7 +1,11 @@
 import { useState } from "preact/hooks";
-import * as api from "../api.js";
+import { record } from "../api/client.js";
+import { decide } from "../api/endpoints.js";
+import { models } from "../api/models.js";
+import { curlJson } from "../lib/curl.js";
+import { since } from "../lib/format.js";
 import * as store from "../store.js";
-import * as ui from "../ui.jsx";
+import * as ui from "../components/ui.jsx";
 import styles from "./tabs.module.css";
 
 const DEFAULT_STATE = "Hi, I was charged twice for my subscription this month and nobody has answered my last two emails. Please fix this today.";
@@ -86,7 +90,7 @@ export default function Decide() {
   const [error, setError] = useState("");
   const [meta, setMeta] = useState("");
 
-  const decideModels = api.models.value.data.filter((entry) => entry.role === "decide").map((entry) => entry.id);
+  const decideModels = models.value.data.filter((entry) => entry.role === "decide").map((entry) => entry.id);
   const parsed = parseQuestions(questionsText);
 
   const body = (questions) => {
@@ -114,26 +118,21 @@ export default function Decide() {
     setError("");
     const start = performance.now();
     try {
-      const response = await fetch("/v1/systemone", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body(parsed.questions)),
-      });
-      const elapsed = api.since(start);
-      api.record("decide", response.status, elapsed);
-      if (!response.ok) throw new Error(await api.errorText(response));
-      const data = await response.json();
+      const { status, data } = await decide(body(parsed.questions));
+      const elapsed = since(start);
+      record("decide", status, elapsed);
       const tokens = data.usage?.prompt_tokens ?? data.usage?.input_tokens ?? "?";
       setResult({ data, questions: parsed.questions });
       setMeta(`${data.model ?? model ?? "default"} · ${elapsed} ms · ${tokens} tokens`);
     } catch (failure) {
+      record("decide", failure.status ?? 0, since(start));
       setError(failure.message);
     } finally {
       setBusy(false);
     }
   };
 
-  const curl = parsed.error ? "# questions are not valid JSON" : api.curlJson("/v1/systemone", body(parsed.questions));
+  const curl = parsed.error ? "# questions are not valid JSON" : curlJson("/v1/systemone", body(parsed.questions));
   const answers = result ? Object.entries(result.data.answers ?? {}) : [];
 
   return (
@@ -144,7 +143,7 @@ export default function Decide() {
             <ui.Field label="Model">
               <select value={model} onChange={(event) => choose(event.currentTarget.value)}>
                 <option value="">default model</option>
-                {decideModels.map((name) => <option value={name}>{name}</option>)}
+                {decideModels.map((name) => <option key={name} value={name}>{name}</option>)}
               </select>
             </ui.Field>
             <ui.Field label="State">
@@ -166,7 +165,7 @@ export default function Decide() {
           <ui.Stack>
             {error && <ui.ErrorText>{error}</ui.ErrorText>}
             {answers.length
-              ? answers.map(([name, answer]) => <Answer name={name} question={result.questions[name]} answer={answer} />)
+              ? answers.map(([name, answer]) => <Answer key={name} name={name} question={result.questions[name]} answer={answer} />)
               : !error && <ui.Empty>Answers show as probability distributions.</ui.Empty>}
             {result && <ui.Code>{JSON.stringify(result.data, null, 2)}</ui.Code>}
             <ui.CurlBlock code={curl} />

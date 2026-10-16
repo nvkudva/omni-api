@@ -1,6 +1,9 @@
 import { useState } from "preact/hooks";
-import * as api from "../api.js";
-import * as ui from "../ui.jsx";
+import { record } from "../api/client.js";
+import { embed } from "../api/endpoints.js";
+import { curlJson } from "../lib/curl.js";
+import { since } from "../lib/format.js";
+import * as ui from "../components/ui.jsx";
 import styles from "./tabs.module.css";
 
 const DEFAULT_QUERY = "how do I get my money back?";
@@ -18,15 +21,14 @@ function bodies(query, documentsText) {
   return [{ input: query.trim(), input_type: "query" }, { input: documents, input_type: "document" }];
 }
 
-async function embed(body) {
-  const response = await api.postJson("/v1/embeddings", body);
-  return response.json();
-}
-
 function dot(left, right) {
   let sum = 0;
   for (let index = 0; index < left.length; index++) sum += left[index] * right[index];
   return sum;
+}
+
+function isVector(value) {
+  return Array.isArray(value) && value.length > 0 && value.every(Number.isFinite);
 }
 
 export default function Embed() {
@@ -38,7 +40,7 @@ export default function Embed() {
   const [meta, setMeta] = useState("");
 
   const [queryBody, documentBody] = bodies(query, documents);
-  const curl = `${api.curlJson("/v1/embeddings", queryBody)}\n\n${api.curlJson("/v1/embeddings", documentBody)}`;
+  const curl = `${curlJson("/v1/embeddings", queryBody)}\n\n${curlJson("/v1/embeddings", documentBody)}`;
 
   const rank = async () => {
     if (!queryBody.input || !documentBody.input.length) return;
@@ -47,17 +49,27 @@ export default function Embed() {
     const start = performance.now();
     try {
       const [queryResult, documentResult] = await Promise.all([embed(queryBody), embed(documentBody)]);
-      const elapsed = api.since(start);
-      api.record("embed", 200, elapsed);
-      const vector = queryResult.data[0].embedding;
-      const ranked = documentResult.data
-        .map((item) => ({ label: documentBody.input[item.index], value: dot(vector, item.embedding) }))
+      const elapsed = since(start);
+      record("embed", 200, elapsed);
+      const queryData = queryResult.data;
+      const vector = queryData.data?.[0]?.embedding;
+      // Guard before the cosine loop: both sides must be non-empty and equal length.
+      if (!isVector(vector)) throw new Error("query embedding is empty or contains non-finite values");
+      const documentsData = documentResult.data.data ?? [];
+      if (documentsData.length === 0) throw new Error("the server returned no document embeddings");
+      for (const item of documentsData) {
+        if (!isVector(item.embedding) || item.embedding.length !== vector.length) {
+          throw new Error(`document embedding "${documentBody.input[item.index] ?? item.index}" is empty or does not match the query dimension (${vector.length})`);
+        }
+      }
+      const ranked = documentsData
+        .map((item) => ({ label: documentBody.input[item.index] ?? `#${item.index}`, value: dot(vector, item.embedding) }))
         .sort((left, right) => right.value - left.value)
         .map((row, position) => ({ ...row, top: position === 0 }));
       setResult({
         query: queryBody.input,
         rows: ranked,
-        summary: `${queryResult.model} · ${vector.length} dims · query ${queryResult.usage?.prompt_tokens} + docs ${documentResult.usage?.prompt_tokens} tokens`,
+        summary: `${queryData.model} · ${vector.length} dims · query ${queryData.usage?.prompt_tokens} + docs ${documentResult.data.usage?.prompt_tokens} tokens`,
         preview: `query vector: [${vector.slice(0, 8).map((value) => value.toFixed(4)).join(", ")}, …]`,
       });
       setMeta(`${elapsed} ms`);

@@ -1,6 +1,20 @@
 import { useEffect, useState } from "preact/hooks";
-import * as api from "../api.js";
-import * as ui from "../ui.jsx";
+import { ndjson } from "../api/client.js";
+import {
+  adminModels,
+  deleteModel,
+  loadRole,
+  memory as fetchMemory,
+  pullModel,
+  searchModels,
+  setRoleDefault,
+  unloadRole,
+  workerAction,
+} from "../api/endpoints.js";
+import { loadModels } from "../api/models.js";
+import { gb } from "../lib/format.js";
+import { usePolling } from "../hooks/usePolling.js";
+import * as ui from "../components/ui.jsx";
 import styles from "./tabs.module.css";
 
 const MEMORY_POLL_MS = 5000;
@@ -11,23 +25,18 @@ const HINTS = {
 
 function modelDetail(model) {
   const detail = [model.parameters, model.quantization].filter(Boolean).join(" · ");
-  return `${api.gb(model.size_bytes)}${detail ? ` · ${detail}` : ""}`;
-}
-
-async function postAdmin(path, body) {
-  const response = await api.postJson(path, body);
-  return response.json();
+  return `${gb(model.size_bytes)}${detail ? ` · ${detail}` : ""}`;
 }
 
 async function setResidency(role, load, model) {
-  const path = load ? "/admin/models/load" : "/admin/models/unload";
+  const call = load ? loadRole : unloadRole;
   try {
-    return await postAdmin(path, { role, model });
+    return await call({ role, model });
   } catch (error) {
     if (!load || !error.message.includes("force: true")) throw error;
     const reason = error.message.replace(/ Send force: true.*$/, "");
     if (!confirm(`${reason}\n\nLoad anyway?`)) return null;
-    return postAdmin(path, { role, model, force: true });
+    return call({ role, model, force: true });
   }
 }
 
@@ -57,9 +66,9 @@ function RoleRow({ role, config, installed, onChanged }) {
 
   const choose = async (model) => {
     try {
-      const result = await postAdmin("/admin/models/default", { role, model });
+      const result = await setRoleDefault({ role, model });
       onChanged(result.warnings?.join(" ") ?? "");
-      api.loadModels();
+      loadModels();
     } catch (error) {
       onChanged(error.message);
     }
@@ -71,10 +80,10 @@ function RoleRow({ role, config, installed, onChanged }) {
       <td class={styles.mono}>{config.runner}</td>
       <td>
         <select class={styles.tableSelect} value={config.default} onChange={(event) => choose(event.currentTarget.value)}>
-          {names.map((name) => <option value={name}>{name}</option>)}
+          {names.map((name) => <option key={name} value={name}>{name}</option>)}
         </select>
       </td>
-      <td class={styles.numeric}>{current ? api.gb(current.size_bytes) : "not downloaded"}</td>
+      <td class={styles.numeric}>{current ? gb(current.size_bytes) : "not downloaded"}</td>
       <td class={styles.actionCell}>
         <span class={styles.buttons}>
           <ui.Button small disabled={busy} onClick={load}>Load</ui.Button>
@@ -90,14 +99,14 @@ function InstalledRows({ catalog, onChanged }) {
   const remove = async (runner, model) => {
     if (!confirm(`Delete ${model}? This frees its disk space; reinstalling downloads it again.`)) return;
     try {
-      await postAdmin("/admin/models/delete", { role: roleFor(runner), model });
+      await deleteModel({ role: roleFor(runner), model });
       onChanged("");
     } catch (error) {
       onChanged(error.message);
     }
   };
   return Object.entries(catalog.installed).flatMap(([runner, models]) => models.map((model) => (
-    <tr>
+    <tr key={`${runner}:${model.name}`}>
       <td class={styles.mono}>{runner}</td>
       <td class={styles.mono}>{model.name}</td>
       <td class={styles.numeric}>{modelDetail(model)}</td>
@@ -119,7 +128,7 @@ function Search({ catalog, onPick }) {
     setError("");
     try {
       const params = new URLSearchParams({ role, q: query.trim() });
-      setResults((await api.getJson(`/admin/models/search?${params}`)).results);
+      setResults((await searchModels(params)).results);
     } catch (failure) {
       setError(failure.message);
     } finally {
@@ -133,7 +142,7 @@ function Search({ catalog, onPick }) {
         <ui.Grid>
           <ui.Field label="Role">
             <select value={role} onChange={(event) => { setRole(event.currentTarget.value); setResults(null); }}>
-              {roles.map((name) => <option value={name}>{name}</option>)}
+              {roles.map((name) => <option key={name} value={name}>{name}</option>)}
             </select>
           </ui.Field>
           <ui.Field label="Query">
@@ -150,7 +159,7 @@ function Search({ catalog, onPick }) {
               <thead><tr><th>Model</th><th>Downloads</th><th>Likes</th><th /></tr></thead>
               <tbody>
                 {results.map((result) => (
-                  <tr>
+                  <tr key={result.id}>
                     <td class={styles.mono}><a class={styles.link} href={`https://huggingface.co/${result.id}`} target="_blank" rel="noreferrer">{result.id}</a></td>
                     <td class={styles.numeric}>{result.downloads.toLocaleString()}</td>
                     <td class={styles.numeric}>{result.likes.toLocaleString()}</td>
@@ -186,12 +195,12 @@ function Install({ catalog, pick, onInstalled }) {
     setBusy(true);
     setProgress({ status: "starting…", fraction: 0 });
     try {
-      const response = await api.postJson("/admin/models/pull", { role, model: name });
+      const response = await pullModel({ role, model: name });
       const warnings = [];
-      for await (const event of api.ndjson(response)) {
+      for await (const event of ndjson(response)) {
         if (event.error) throw new Error(event.error);
         if (event.warning) warnings.push(event.warning);
-        const sizeText = event.total ? ` · ${api.gb(event.completed ?? 0)} / ${api.gb(event.total)}` : "";
+        const sizeText = event.total ? ` · ${gb(event.completed ?? 0)} / ${gb(event.total)}` : "";
         setProgress({ status: `${event.status ?? "working"}${sizeText}`, fraction: event.total ? (event.completed ?? 0) / event.total : 0, warnings });
       }
       setProgress({ status: `installed ${name} — pick it as a default above`, fraction: 1, warnings });
@@ -209,7 +218,7 @@ function Install({ catalog, pick, onInstalled }) {
         <ui.Grid>
           <ui.Field label="Role">
             <select value={role} onChange={(event) => setRole(event.currentTarget.value)}>
-              {roles.map((name) => <option value={name}>{name}</option>)}
+              {roles.map((name) => <option key={name} value={name}>{name}</option>)}
             </select>
           </ui.Field>
           <ui.Field label="Model" hint={HINTS[runner] ?? HINTS.other}>
@@ -234,20 +243,13 @@ function Install({ catalog, pick, onInstalled }) {
 
 function useMemory(active) {
   const [memory, setMemory] = useState(null);
-  useEffect(() => {
-    if (!active) return;
-    const load = async () => {
-      if (document.hidden) return;
-      try {
-        setMemory(await api.getJson("/admin/memory"));
-      } catch {
-        setMemory(null);
-      }
-    };
-    load();
-    const timer = setInterval(load, MEMORY_POLL_MS);
-    return () => clearInterval(timer);
-  }, [active]);
+  usePolling(async () => {
+    try {
+      setMemory(await fetchMemory());
+    } catch {
+      setMemory(null);
+    }
+  }, MEMORY_POLL_MS, { active });
   return memory;
 }
 
@@ -257,8 +259,8 @@ function OllamaRow({ model, roles, onChanged }) {
   return (
     <tr>
       <td class={styles.mono}>{model.name}</td>
-      <td class={styles.numeric}>{api.gb(model.size_bytes)}</td>
-      <td class={styles.numeric}>{api.gb(model.vram_bytes)}</td>
+      <td class={styles.numeric}>{gb(model.size_bytes)}</td>
+      <td class={styles.numeric}>{gb(model.vram_bytes)}</td>
       <td class={styles.actionCell}><ui.Button small disabled={busy} onClick={() => run(() => setResidency(role, false, model.name), `unloaded ${model.name}`)}>Unload</ui.Button></td>
     </tr>
   );
@@ -266,14 +268,14 @@ function OllamaRow({ model, roles, onChanged }) {
 
 function WorkerRow({ name, worker, onChanged }) {
   const [busy, run] = useAction(onChanged);
-  const control = (action) => run(() => postAdmin(`/admin/workers/${name}/${action}`), `${name}: ${action} sent`);
+  const control = (action) => run(() => workerAction(name, action), `${name}: ${action} sent`);
   const stopped = worker.status === "stopped";
   return (
     <tr>
       <td><span class={styles.nameCell}><ui.Dot status={worker.status} />{name}</span></td>
       <td class={styles.numeric}>{worker.status}</td>
       <td class={styles.numeric}>{worker.cpu_percent.toFixed(0)}%</td>
-      <td class={styles.numeric}>{api.gb(worker.rss_bytes)}</td>
+      <td class={styles.numeric}>{gb(worker.rss_bytes)}</td>
       <td class={styles.actionCell}>
         <span class={styles.buttons}>
           {stopped
@@ -293,20 +295,20 @@ function Memory({ active, roles, onChanged }) {
   const fraction = used / memory.total_bytes;
   const [load1, load5, load15] = memory.load_average.map((value) => value.toFixed(2));
   return (
-    <ui.Card title="Memory" meta={`${api.gb(used)} of ${api.gb(memory.total_bytes)} used`}>
+    <ui.Card title="Memory" meta={`${gb(used)} of ${gb(memory.total_bytes)} used`}>
       <ui.Stack>
         <ui.Meter fraction={fraction} high={fraction > 0.85} />
-        <ui.Meta>RAM {api.gb(memory.available_bytes)} free · swap {api.gb(memory.swap_used_bytes)} used · disk {api.gb(memory.disk_free_bytes)} free</ui.Meta>
+        <ui.Meta>RAM {gb(memory.available_bytes)} free · swap {gb(memory.swap_used_bytes)} used · disk {gb(memory.disk_free_bytes)} free</ui.Meta>
         <ui.Meter fraction={memory.cpu_percent / 100} high={memory.cpu_percent > 90 || memory.load_average[0] > memory.cpu_count} />
         <ui.Meta>CPU {memory.cpu_percent.toFixed(0)}% · load {load1} / {load5} / {load15} on {memory.cpu_count} cores</ui.Meta>
-        {memory.warnings.map((warning) => <ui.Notice>{warning}</ui.Notice>)}
+        {memory.warnings.map((warning, index) => <ui.Notice key={index}>{warning}</ui.Notice>)}
         <h3 class={styles.subhead}>Loaded in Ollama</h3>
         {memory.ollama.length
           ? (
             <table>
               <thead><tr><th>Model</th><th>Size</th><th>On GPU</th><th /></tr></thead>
               <tbody>
-                {memory.ollama.map((model) => <OllamaRow model={model} roles={roles} onChanged={onChanged} />)}
+                {memory.ollama.map((model) => <OllamaRow key={model.name} model={model} roles={roles} onChanged={onChanged} />)}
               </tbody>
             </table>
           )
@@ -315,7 +317,7 @@ function Memory({ active, roles, onChanged }) {
         <table>
           <thead><tr><th>Worker</th><th>Status</th><th>CPU</th><th>Memory</th><th /></tr></thead>
           <tbody>
-            {Object.entries(memory.workers).map(([name, worker]) => <WorkerRow name={name} worker={worker} onChanged={onChanged} />)}
+            {Object.entries(memory.workers).map(([name, worker]) => <WorkerRow key={name} name={name} worker={worker} onChanged={onChanged} />)}
           </tbody>
         </table>
       </ui.Stack>
@@ -331,7 +333,7 @@ export default function Models({ active }) {
 
   const refresh = async () => {
     try {
-      setCatalog(await api.getJson("/admin/models"));
+      setCatalog(await adminModels());
       setError("");
     } catch (failure) {
       setError(failure.message);
@@ -352,6 +354,7 @@ export default function Models({ active }) {
       <ui.Stack>
         {error && <ui.ErrorText>{error}</ui.ErrorText>}
         {notice && <ui.Notice>{notice}</ui.Notice>}
+        {!catalog && !error && <ui.Empty><ui.Spinner /> loading catalog…</ui.Empty>}
         {catalog && (
           <>
             <ui.Card title="Defaults" flush>
@@ -359,7 +362,7 @@ export default function Models({ active }) {
                 <thead><tr><th>Role</th><th>Runner</th><th>Default</th><th>Size</th><th /></tr></thead>
                 <tbody>
                   {Object.entries(catalog.roles).map(([role, config]) => (
-                    <RoleRow role={role} config={config} installed={catalog.installed} onChanged={changed} />
+                    <RoleRow key={role} role={role} config={config} installed={catalog.installed} onChanged={changed} />
                   ))}
                 </tbody>
               </table>

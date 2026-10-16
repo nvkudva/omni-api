@@ -1,52 +1,11 @@
-import { signal } from "@preact/signals";
 import { useEffect, useRef, useState } from "preact/hooks";
-import * as api from "../api.js";
-import * as ui from "../ui.jsx";
+import { ORIGIN } from "../api/client.js";
+import { transcribe } from "../api/endpoints.js";
+import { clock } from "../lib/format.js";
+import * as ui from "../components/ui.jsx";
 import styles from "./tabs.module.css";
 
 const FORMATS = ["verbose_json", "json", "text"];
-
-const format = signal("verbose_json");
-const clip = signal(null);
-const output = signal(null);
-const busy = signal(false);
-const meta = signal("");
-
-function setClip(blob, name) {
-  clip.value = { blob, name, url: URL.createObjectURL(blob) };
-}
-
-function clock(seconds) {
-  const whole = Math.floor(seconds);
-  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
-}
-
-export async function transcribe(blob = clip.value?.blob, name = clip.value?.name) {
-  if (!blob) return null;
-  const responseFormat = format.value;
-  const form = new FormData();
-  form.append("file", blob, name);
-  form.append("response_format", responseFormat);
-  busy.value = true;
-  output.value = { pending: true };
-  const start = performance.now();
-  try {
-    const response = await fetch("/v1/audio/transcriptions", { method: "POST", body: form });
-    const elapsed = api.since(start);
-    api.record("stt", response.status, elapsed);
-    if (!response.ok) throw new Error(await api.errorText(response));
-    const result = responseFormat === "text" ? await response.text() : await response.json();
-    output.value = { result, format: responseFormat };
-    const duration = result.duration;
-    meta.value = duration ? `${elapsed} ms · ${duration.toFixed(1)} s audio · ${(duration / (elapsed / 1000)).toFixed(1)}× realtime` : `${elapsed} ms`;
-    return result;
-  } catch (error) {
-    output.value = { error: error.message };
-    return null;
-  } finally {
-    busy.value = false;
-  }
-}
 
 function drawWave(canvas, analyser) {
   const context = canvas.getContext("2d");
@@ -72,8 +31,7 @@ function drawWave(canvas, analyser) {
   return () => cancelAnimationFrame(frame);
 }
 
-function Transcript({ audio }) {
-  const state = output.value;
+function Transcript({ state, audio }) {
   if (!state) return <ui.Empty>Recording stops → transcribes automatically. Click a segment to play from there.</ui.Empty>;
   if (state.pending) return <ui.Empty>Transcribing…</ui.Empty>;
   if (state.error) return <ui.ErrorText>{state.error}</ui.ErrorText>;
@@ -88,8 +46,8 @@ function Transcript({ audio }) {
       <p class={styles.transcript}>{state.result.text}</p>
       {state.result.segments?.length > 0 && (
         <ul class={styles.segments}>
-          {state.result.segments.map((segment) => (
-            <li>
+          {state.result.segments.map((segment, index) => (
+            <li key={index}>
               <button type="button" class={styles.segment} onClick={() => seek(segment)}>
                 <span class={styles.timestamp}>{segment.start.toFixed(2)}–{segment.end.toFixed(2)}</span>
                 <span>{segment.text}</span>
@@ -104,14 +62,59 @@ function Transcript({ audio }) {
 }
 
 export default function Stt() {
+  const [format, setFormat] = useState("verbose_json");
+  const [clip, setClip] = useState(null);
+  const [output, setOutput] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [meta, setMeta] = useState("");
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [micError, setMicError] = useState("");
   const recorder = useRef(null);
   const canvas = useRef(null);
   const audio = useRef(null);
+  const clipRef = useRef(null);
+  const formatRef = useRef(format);
+  const abort = useRef(null);
+  const alive = useRef(true);
+  formatRef.current = format;
 
-  useEffect(() => () => recorder.current?.stop(), []);
+  useEffect(() => () => {
+    alive.current = false;
+    recorder.current?.stop();
+    abort.current?.abort();
+    if (clipRef.current?.url) URL.revokeObjectURL(clipRef.current.url);
+  }, []);
+
+  const applyClip = (blob, name) => {
+    if (clipRef.current?.url) URL.revokeObjectURL(clipRef.current.url);
+    const next = { blob, name, url: URL.createObjectURL(blob) };
+    clipRef.current = next;
+    setClip(next);
+  };
+
+  const run = async (blob, name) => {
+    if (!blob) return;
+    const responseFormat = formatRef.current;
+    const controller = new AbortController();
+    abort.current = controller;
+    setBusy(true);
+    setOutput({ pending: true });
+    setMeta("");
+    try {
+      const { result, elapsed: ms } = await transcribe(blob, name, responseFormat, controller.signal);
+      setOutput({ result, format: responseFormat });
+      const duration = result?.duration;
+      setMeta(duration
+        ? `${ms} ms · ${duration.toFixed(1)} s audio · ${(duration / (ms / 1000)).toFixed(1)}× realtime`
+        : `${ms} ms`);
+    } catch (error) {
+      setOutput(error.name === "AbortError" ? null : { error: error.message });
+    } finally {
+      abort.current = null;
+      setBusy(false);
+    }
+  };
 
   const start = async () => {
     setMicError("");
@@ -138,12 +141,15 @@ export default function Stt() {
       clearInterval(timer);
       stream.getTracks().forEach((track) => track.stop());
       audioContext.close();
-      const type = media.mimeType || "audio/webm";
-      const extension = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
-      setClip(new Blob(chunks, { type }), `recording.${extension}`);
       recorder.current = null;
       setRecording(false);
-      transcribe();
+      if (!alive.current) return;
+      const type = media.mimeType || "audio/webm";
+      const extension = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+      const name = `recording.${extension}`;
+      const blob = new Blob(chunks, { type });
+      applyClip(blob, name);
+      run(blob, name);
     };
     media.start();
     recorder.current = media;
@@ -152,8 +158,8 @@ export default function Stt() {
   };
 
   const toggle = () => (recorder.current ? recorder.current.stop() : start());
-  const current = clip.value;
-  const curl = `curl -s ${api.ORIGIN}/v1/audio/transcriptions \\\n  -F file=@${current?.name ?? "speech.wav"} \\\n  -F response_format=${format.value}`;
+  const current = clip;
+  const curl = `curl -s ${ORIGIN}/v1/audio/transcriptions \\\n  -F file=@${current?.name ?? "speech.wav"} \\\n  -F response_format=${format}`;
 
   return (
     <ui.Page title="Speech to text" subtitle="Record or upload audio, get a transcript with segment timings.">
@@ -164,8 +170,8 @@ export default function Stt() {
               <ui.Segmented
                 label="Response format"
                 options={FORMATS.map((value) => ({ value, label: value }))}
-                value={format.value}
-                onChange={(value) => { format.value = value; }}
+                value={format}
+                onChange={setFormat}
               />
             </ui.Field>
             <div class={styles.recorder}>
@@ -174,7 +180,7 @@ export default function Stt() {
               <canvas ref={canvas} class={styles.wave} width={600} height={48} />
             </div>
             {micError && <ui.ErrorText>{micError}</ui.ErrorText>}
-            <ui.DropZone accept="audio/*,video/*" onFile={(file) => setClip(file, file.name)}>
+            <ui.DropZone accept="audio/*,video/*" onFile={(file) => applyClip(file, file.name)}>
               Drop audio here or click to choose (wav, mp3, m4a, webm, ogg…)
             </ui.DropZone>
             {current && (
@@ -183,15 +189,15 @@ export default function Stt() {
               </ui.Field>
             )}
             <ui.Row end>
-              <ui.Button variant="primary" disabled={!current || busy.value} onClick={() => transcribe()}>
-                {busy.value ? "Transcribing…" : "Transcribe"}
+              <ui.Button variant="primary" disabled={!current || busy} onClick={() => run(current.blob, current.name)}>
+                {busy ? "Transcribing…" : "Transcribe"}
               </ui.Button>
             </ui.Row>
           </ui.Stack>
         </ui.Card>
-        <ui.Card title="Transcript" meta={meta.value}>
+        <ui.Card title="Transcript" meta={meta}>
           <ui.Stack>
-            <Transcript audio={audio} />
+            <Transcript state={output} audio={audio} />
             <ui.CurlBlock code={curl} />
           </ui.Stack>
         </ui.Card>

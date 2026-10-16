@@ -1,11 +1,17 @@
-import { useEffect, useRef, useState } from "preact/hooks";
-import * as api from "../api.js";
+import { memo } from "preact/compat";
+import { signal } from "@preact/signals";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { errorText, readDataUrl, record, sseEvents } from "../api/client.js";
+import { chatStream } from "../api/endpoints.js";
+import { models } from "../api/models.js";
+import { curlJson } from "../lib/curl.js";
+import { shorten, since } from "../lib/format.js";
 import * as store from "../store.js";
-import * as ui from "../ui.jsx";
+import * as ui from "../components/ui.jsx";
 import styles from "./tabs.module.css";
 
 function chatModels() {
-  const { data, defaults } = api.models.value;
+  const { data, defaults } = models.value;
   const names = data.filter((model) => model.role === "chat").map((model) => model.id);
   const saved = store.get("omni.chat.model", defaults.chat);
   if (saved && !names.includes(saved)) names.unshift(saved);
@@ -13,7 +19,7 @@ function chatModels() {
 }
 
 function hasVision(name) {
-  const model = api.models.value.data.find((entry) => entry.id === name);
+  const model = models.value.data.find((entry) => entry.id === name);
   return model?.capabilities?.includes("vision") ?? false;
 }
 
@@ -21,7 +27,7 @@ function toWire(message, shortenImages = false) {
   if (!message.images?.length) return { role: message.role, content: message.content };
   const images = message.images.map((url) => ({
     type: "image_url",
-    image_url: { url: shortenImages ? api.shorten(url) : url },
+    image_url: { url: shortenImages ? shorten(url) : url },
   }));
   return { role: message.role, content: [{ type: "text", text: message.content }, ...images] };
 }
@@ -39,16 +45,34 @@ function timing(firstToken, elapsed, usage) {
   return text;
 }
 
-function Message({ message }) {
+// Memoised so committed bubbles never re-render while a reply streams or the
+// composer changes.
+const Message = memo(function Message({ message }) {
   const mine = message.role === "user";
   return (
     <div class={mine ? styles.mine : styles.theirs}>
       {message.images?.length > 0 && (
-        <div class={styles.thumbs}>{message.images.map((url) => <img class={styles.thumb} src={url} alt="" />)}</div>
+        <div class={styles.thumbs}>
+          {message.images.map((url, index) => <img key={index} class={styles.thumb} src={url} alt="" />)}
+        </div>
       )}
       <div class={mine ? styles.bubbleMine : styles.bubbleTheirs}>{message.content || <ui.Spinner />}</div>
     </div>
   );
+});
+
+const NEAR_BOTTOM_PX = 80;
+
+function StreamingMessage({ stream, thread }) {
+  const text = stream.value;
+  useEffect(() => {
+    const element = thread.current;
+    if (!element) return;
+    if (element.scrollHeight - element.scrollTop - element.clientHeight <= NEAR_BOTTOM_PX) {
+      element.scrollTop = element.scrollHeight;
+    }
+  }, [text]);
+  return <Message message={{ role: "assistant", content: text }} />;
 }
 
 export default function Chat() {
@@ -63,18 +87,26 @@ export default function Chat() {
   const abort = useRef(null);
   const thread = useRef(null);
   const fileInput = useRef(null);
+  const stream = useMemo(() => signal(""), []);
 
   const names = chatModels();
   const selected = model || names[0] || "";
   const vision = hasVision(selected);
 
+  useEffect(() => () => abort.current?.abort(), []);
+
   useEffect(() => {
     if (!vision) setImages([]);
   }, [vision]);
 
+  // Auto-scroll only when the user is already near the bottom.
   useEffect(() => {
-    thread.current?.scrollTo({ top: thread.current.scrollHeight });
-  }, [messages]);
+    const element = thread.current;
+    if (!element) return;
+    if (element.scrollHeight - element.scrollTop - element.clientHeight <= NEAR_BOTTOM_PX) {
+      element.scrollTop = element.scrollHeight;
+    }
+  }, [messages.length]);
 
   const choose = (name) => {
     setModel(name);
@@ -82,55 +114,56 @@ export default function Chat() {
   };
 
   const attach = async (files) => {
-    const urls = await Promise.all([...files].map(api.readDataUrl));
+    const urls = await Promise.all([...files].map(readDataUrl));
     setImages((current) => [...current, ...urls]);
   };
 
   const send = async () => {
     const text = input.trim();
     if (!text || streaming) return;
-    const history = [...messages, { role: "user", content: text, images }];
+    const history = [...messages, { id: crypto.randomUUID(), role: "user", content: text, images }];
     const body = requestBody(selected, system, history);
-    setMessages([...history, { role: "assistant", content: "" }]);
+    setMessages(history);
     setInput("");
     setImages([]);
-    setStreaming(true);
     setMeta("");
+    stream.value = "";
+    setStreaming(true);
     abort.current = new AbortController();
     const start = performance.now();
     let reply = "";
     let firstToken = null;
     let usage = null;
     let status = 0;
-    const show = (content) => setMessages([...history, { role: "assistant", content }]);
+    const commit = (content) => setMessages([...history, { id: crypto.randomUUID(), role: "assistant", content }]);
     try {
-      const response = await fetch("/v1/chat/completions", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-        signal: abort.current.signal,
-      });
+      const response = await chatStream(body, abort.current.signal);
       status = response.status;
-      if (!response.ok) throw new Error(await api.errorText(response));
-      for await (const event of api.sseEvents(response)) {
+      if (!response.ok) throw new Error(await errorText(response));
+      for await (const event of sseEvents(response)) {
         if (event.usage) usage = event.usage;
         const delta = event.choices?.[0]?.delta?.content;
         if (!delta) continue;
-        firstToken ??= api.since(start);
+        firstToken ??= since(start);
         reply += delta;
-        show(reply);
+        stream.value = reply;
       }
-      const elapsed = api.since(start);
-      api.record("chat", status, elapsed);
+      const elapsed = since(start);
+      record("chat", status, elapsed);
       setMeta(timing(firstToken ?? elapsed, elapsed, usage));
       setLast({ model: selected, message: { role: "assistant", content: reply }, usage });
+      commit(reply);
     } catch (error) {
-      if (error.name !== "AbortError") {
-        api.record("chat", status || 0, api.since(start));
-        show(`⚠ ${error.message}`);
+      if (error.name === "AbortError") {
+        // Keep whatever streamed so far; drop an empty placeholder.
+        if (reply) commit(reply);
+      } else {
+        record("chat", status || 0, since(start));
+        commit(`⚠ ${error.message}`);
       }
     } finally {
       setStreaming(false);
+      stream.value = "";
       abort.current = null;
     }
   };
@@ -143,7 +176,7 @@ export default function Chat() {
 
   const draft = { role: "user", content: input || "Hello!", images };
   const sample = messages.length ? messages : [draft];
-  const curl = api.curlJson("/v1/chat/completions", requestBody(selected, system, sample, true), " \\\n  --no-buffer");
+  const curl = curlJson("/v1/chat/completions", requestBody(selected, system, sample, true), " \\\n  --no-buffer");
 
   return (
     <ui.Page title="Chat" subtitle="Streaming completions from the chat role, OpenAI wire format.">
@@ -157,7 +190,7 @@ export default function Chat() {
           <div class={styles.chat}>
             <div class={styles.toolbar}>
               <select aria-label="chat model" value={selected} onChange={(event) => choose(event.currentTarget.value)}>
-                {names.length ? names.map((name) => <option value={name}>{name}</option>) : <option value="">no chat models</option>}
+                {names.length ? names.map((name) => <option key={name} value={name}>{name}</option>) : <option value="">no chat models</option>}
               </select>
               {vision && <span class={styles.badge}>vision</span>}
             </div>
@@ -165,13 +198,16 @@ export default function Chat() {
               <textarea rows={2} placeholder="System prompt (optional)" value={system} onInput={(event) => setSystem(event.currentTarget.value)} />
             </div>
             <div class={styles.thread} ref={thread}>
-              {messages.length ? messages.map((message) => <Message message={message} />) : <ui.Empty>Say something. Replies stream token by token.</ui.Empty>}
+              {messages.length
+                ? messages.map((message) => <Message key={message.id} message={message} />)
+                : <ui.Empty>Say something. Replies stream token by token.</ui.Empty>}
+              {streaming && <StreamingMessage stream={stream} thread={thread} />}
             </div>
             <div class={styles.composer}>
               {images.length > 0 && (
                 <div class={styles.thumbs}>
                   {images.map((url, index) => (
-                    <button type="button" class={styles.thumbButton} title="Remove" onClick={() => setImages(images.filter((_, other) => other !== index))}>
+                    <button key={index} type="button" class={styles.thumbButton} title="Remove" onClick={() => setImages(images.filter((_, other) => other !== index))}>
                       <img class={styles.thumb} src={url} alt="attachment" />
                     </button>
                   ))}

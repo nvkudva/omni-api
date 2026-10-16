@@ -1,26 +1,22 @@
+"""Text to speech: POST /v1/audio/speech and GET /v1/audio/voices on Kokoro through mlx-audio."""
 import asyncio
 import io
 import wave
-from typing import Literal
 
 import numpy as np
 from fastapi import HTTPException
 from fastapi.responses import Response
-from pydantic import BaseModel, Field
 
-from omni import config, workers
+from omni import config, schemas, workers
 
-# Kokoro's American (a) and British (b) English voices; misaki[en] covers only these two.
-VOICES = [
-    "af_heart", "af_alloy", "af_aoede", "af_bella", "af_jessica", "af_kore", "af_nicole", "af_nova",
-    "af_river", "af_sarah", "af_sky", "am_adam", "am_echo", "am_eric", "am_fenrir", "am_liam",
-    "am_michael", "am_onyx", "am_puck", "bf_alice", "bf_emma", "bf_isabella", "bf_lily",
-    "bm_daniel", "bm_fable", "bm_george", "bm_lewis",
-]
+VOICES = schemas.TTS_VOICES
 
 settings = config.load()
 model_name = settings["tts"]["model"]
 default_voice = settings["tts"]["voice"]
+# fail fast on a bad shipped default instead of on the first request
+if default_voice not in VOICES:
+    raise config.ConfigError(f"tts.voice {default_voice!r} is not a known Kokoro voice")
 
 
 def _load():
@@ -33,14 +29,6 @@ model = workers.Lazy(_load, config.idle_seconds(settings))
 app = workers.app(model)
 
 
-class SpeechRequest(BaseModel):
-    input: str = Field(min_length=1, max_length=4096)
-    model: str | None = None
-    voice: str | None = None
-    speed: float = Field(1.0, ge=0.5, le=2.0)
-    response_format: Literal["wav", "pcm"] = "wav"
-
-
 def _synthesize(text: str, voice: str, speed: float) -> tuple[np.ndarray, int]:
     chunks = []
     sample_rate = 24000
@@ -48,7 +36,7 @@ def _synthesize(text: str, voice: str, speed: float) -> tuple[np.ndarray, int]:
         for segment in speaker.generate(text=text, voice=voice, speed=speed, lang_code=voice[0]):
             chunks.append(np.asarray(segment.audio, dtype=np.float32).reshape(-1))
             sample_rate = getattr(segment, "sample_rate", sample_rate)
-    return np.concatenate(chunks) if chunks else np.zeros(0, dtype=np.float32), sample_rate
+    return (np.concatenate(chunks) if chunks else np.zeros(0, dtype=np.float32)), sample_rate
 
 
 def _pcm16(samples: np.ndarray) -> bytes:
@@ -72,15 +60,19 @@ def health() -> dict:
 
 @app.get("/v1/audio/voices")
 def voices() -> dict:
-    return {"default": default_voice, "voices": VOICES}
+    return {"default": default_voice, "voices": list(VOICES)}
 
 
 @app.post("/v1/audio/speech")
-async def speech(req: SpeechRequest) -> Response:
+async def speech(req: schemas.SpeechRequest) -> Response:
+    if not schemas.model_matches(req.model, model_name, "tts"):
+        raise HTTPException(400, f"model: this worker serves only {model_name}")
     voice = req.voice or default_voice
     if voice not in VOICES:
         raise HTTPException(422, f"unknown voice {voice!r}; GET /v1/audio/voices lists them")
     samples, sample_rate = await asyncio.to_thread(_synthesize, req.input, voice, req.speed)
+    if samples.size == 0:
+        raise HTTPException(500, "synthesis produced no audio for this input")
     pcm = _pcm16(samples)
     if req.response_format == "pcm":
         return Response(pcm, media_type="audio/pcm", headers={"x-sample-rate": str(sample_rate)})

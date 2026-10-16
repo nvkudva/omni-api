@@ -6,8 +6,11 @@ import math
 
 import httpx
 
+from omni.errors import UpstreamError
+
 LETTERS = "ABCDEFGHIJ"
 TOP_LOGPROBS = 20
+MAX_CONCURRENCY = 4
 NOUL_WITHOUT_INSTRUCTIONS = "Is the statement true, or is the answer to the question yes?"
 NOUL_DEFAULT_TRUE = "the statement is true / the answer is yes"
 NOUL_DEFAULT_FALSE = "the statement is false / the answer is no"
@@ -26,7 +29,8 @@ def _option(label, description) -> str:
 def question(spec: dict) -> dict:
     """A systemone question spec -> {type, question, options, names, legend}; ValueError when malformed."""
     if not isinstance(spec, dict):
-        raise ValueError("each question: an object with type, instructions and criteria")
+        # ValueError, not TypeError: the gateway maps it to a 400 with the same body as a bad field
+        raise ValueError("each question: an object with type, instructions and criteria")  # noqa: TRY004
     kind = spec.get("type", "choice")
     criteria = spec.get("criteria")
     instructions = spec.get("instructions")
@@ -71,13 +75,18 @@ def prompt(state: str, rendered: dict) -> str:
             "<|im_start|>assistant\n<think>\n\n</think>\n\n")
 
 
-def letter_probabilities(top_logprobs: list[dict], count: int) -> list[float]:
+def letter_probabilities(top_logprobs: list, count: int) -> list[float]:
     """Probability mass on each option letter among the top next tokens, renormalised; uniform if none appear."""
     probabilities = [0.0] * count
     for candidate in top_logprobs:
-        letter = candidate["token"].strip()
+        if not isinstance(candidate, dict):
+            continue
+        token, logprob = candidate.get("token"), candidate.get("logprob")
+        if not isinstance(token, str) or not isinstance(logprob, (int, float)) or isinstance(logprob, bool):
+            continue
+        letter = token.strip().upper()
         if len(letter) == 1 and letter in LETTERS[:count]:
-            probabilities[LETTERS.index(letter)] += math.exp(candidate["logprob"])
+            probabilities[LETTERS.index(letter)] += math.exp(logprob)
     total = sum(probabilities)
     if total == 0:
         return [1.0 / count] * count
@@ -100,7 +109,7 @@ def score_confidence(probabilities: list[float]) -> float:
     likeliest = max(range(count), key=probabilities.__getitem__)
     spread = sum(p * abs(index - likeliest) for index, p in enumerate(probabilities))
     uniform = sum(abs(index - (count - 1) / 2) for index in range(count)) / count
-    return _clip01(1.0 - spread / uniform)
+    return _clip01(1.0 - spread / uniform) if uniform else 1.0
 
 
 def answer(rendered: dict, probabilities: list[float]) -> dict:
@@ -128,6 +137,15 @@ def answer(rendered: dict, probabilities: list[float]) -> dict:
     }
 
 
+def top_logprobs(reply: dict) -> list:
+    """The first-token logprob list from an Ollama reply, or [] when the reply has no usable logprobs."""
+    entries = reply.get("logprobs")
+    if not isinstance(entries, list) or not entries or not isinstance(entries[0], dict):
+        return []
+    candidates = entries[0].get("top_logprobs")
+    return candidates if isinstance(candidates, list) else []
+
+
 async def _ask(client: httpx.AsyncClient, model: str, text: str) -> dict:
     response = await client.post("/api/generate", json={
         "model": model,
@@ -139,7 +157,10 @@ async def _ask(client: httpx.AsyncClient, model: str, text: str) -> dict:
         "options": {"num_predict": 1, "temperature": 0},
     })
     response.raise_for_status()
-    return response.json()
+    try:
+        return response.json()
+    except ValueError as error:
+        raise UpstreamError("ollama returned a non-JSON decision") from error
 
 
 async def run(client: httpx.AsyncClient, model: str, payload: dict) -> dict:
@@ -152,11 +173,20 @@ async def run(client: httpx.AsyncClient, model: str, payload: dict) -> dict:
     state = payload["state"]
     state = state if isinstance(state, str) else json.dumps(state, ensure_ascii=False, indent=2)
     rendered = {question_id: question(spec) for question_id, spec in questions.items()}
-    replies = await asyncio.gather(*(_ask(client, model, prompt(state, item)) for item in rendered.values()))
+
+    semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
+
+    async def ask(item: dict) -> dict:
+        async with semaphore:
+            return await _ask(client, model, prompt(state, item))
+
+    replies = await asyncio.gather(*(ask(item) for item in rendered.values()))
     answers = {}
     input_tokens = 0
     for (question_id, item), reply in zip(rendered.items(), replies):
-        top = reply["logprobs"][0]["top_logprobs"] if reply.get("logprobs") else []
-        answers[question_id] = answer(item, letter_probabilities(top, len(item["options"])))
-        input_tokens += reply.get("prompt_eval_count", 0)
-    return {"model": model, "answers": answers, "usage": {"input_tokens": input_tokens, "output_tokens": 0}}
+        answers[question_id] = answer(item, letter_probabilities(top_logprobs(reply), len(item["options"])))
+        input_tokens += reply.get("prompt_eval_count", 0) or 0
+    output_tokens = len(replies)
+    return {"model": model, "answers": answers,
+            "usage": {"prompt_tokens": input_tokens, "completion_tokens": output_tokens,
+                      "total_tokens": input_tokens + output_tokens}}

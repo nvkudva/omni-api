@@ -1,8 +1,12 @@
 import { useEffect, useState } from "preact/hooks";
-import * as api from "./api.js";
+import { pollHealth } from "./api/health.js";
+import { loadModels } from "./api/models.js";
+import { usePolling } from "./hooks/usePolling.js";
+import { useTheme } from "./hooks/useTheme.js";
+import { GatewayStatus, LastRequest } from "./components/GatewayStatus.jsx";
 import * as store from "./store.js";
-import * as ui from "./ui.jsx";
-import { Icon } from "./icons.jsx";
+import * as ui from "./components/ui.jsx";
+import { Icon } from "./components/Icon.jsx";
 import styles from "./App.module.css";
 import Chat from "./tabs/Chat.jsx";
 import Decide from "./tabs/Decide.jsx";
@@ -40,45 +44,6 @@ const THEMES = [
   { value: "dark", label: "Dark" },
 ];
 
-function useTheme() {
-  const [theme, setTheme] = useState(() => store.get("omni.theme", "system"));
-  useEffect(() => {
-    const media = matchMedia("(prefers-color-scheme: dark)");
-    const apply = () => {
-      const resolved = theme === "system" ? (media.matches ? "dark" : "light") : theme;
-      document.documentElement.dataset.theme = resolved;
-    };
-    apply();
-    store.set("omni.theme", theme);
-    media.addEventListener("change", apply);
-    return () => media.removeEventListener("change", apply);
-  }, [theme]);
-  return [theme, setTheme];
-}
-
-function GatewayStatus() {
-  const health = api.health.value;
-  if (!health) return <span class={styles.status}><ui.Spinner /> connecting</span>;
-  if (!health.ok) return <span class={styles.status}><ui.Dot status="down" /> gateway down</span>;
-  const workers = Object.values(health.workers);
-  const ready = workers.filter((worker) => worker.status === "ready" || worker.status === "external").length;
-  const status = ready === workers.length ? "ready" : "starting";
-  return <span class={styles.status}><ui.Dot status={status} /> {ready} of {workers.length} workers ready</span>;
-}
-
-function LastRequest() {
-  const last = api.lastRequest.value;
-  if (!last) return <span class={styles.lastRequest}>No requests yet</span>;
-  const failed = last.status >= 400;
-  return (
-    <span class={styles.lastRequest}>
-      <span class={styles.route}>{last.route}</span>
-      <span class={failed ? styles.failed : ""}>{last.status}</span>
-      <span>{last.elapsed} ms</span>
-    </span>
-  );
-}
-
 export default function App() {
   const [tab, setTab] = useState(() => {
     const saved = store.get("omni.tab", "chat");
@@ -87,11 +52,11 @@ export default function App() {
   const [theme, setTheme] = useTheme();
 
   useEffect(() => {
-    api.loadModels();
-    api.pollHealth();
-    const timer = setInterval(api.pollHealth, 3000);
-    return () => clearInterval(timer);
+    loadModels();
   }, []);
+
+  // Pauses itself while the document is hidden.
+  usePolling(pollHealth, 3000);
 
   const choose = (id) => {
     setTab(id);
@@ -109,11 +74,12 @@ export default function App() {
           </div>
         </div>
         {SECTIONS.map((section) => (
-          <div class={styles.section}>
+          <div class={styles.section} key={section.title}>
             <div class={styles.sectionTitle}>{section.title}</div>
             {section.tabs.map((entry) => (
               <button
                 type="button"
+                key={entry.id}
                 class={`${styles.navItem} ${entry.id === tab ? styles.navItemOn : ""}`}
                 aria-current={entry.id === tab ? "page" : undefined}
                 onClick={() => choose(entry.id)}
@@ -130,11 +96,7 @@ export default function App() {
         </div>
       </nav>
       <main class={styles.main}>
-        {TABS.map((entry) => (
-          <div hidden={entry.id !== tab}>
-            <entry.component active={entry.id === tab} />
-          </div>
-        ))}
+        {TABS.map((entry) => entry.id === tab && <entry.component key={entry.id} active />)}
       </main>
     </div>
   );

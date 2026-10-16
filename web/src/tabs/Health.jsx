@@ -1,10 +1,11 @@
-import * as api from "../api.js";
-import * as ui from "../ui.jsx";
+import { health, healthError, pollHealth } from "../api/health.js";
+import { loadModels, models } from "../api/models.js";
+import * as ui from "../components/ui.jsx";
 import styles from "./tabs.module.css";
 
 function WorkerRows({ workers }) {
   return Object.entries(workers).map(([name, worker]) => (
-    <tr>
+    <tr key={name}>
       <td><span class={styles.nameCell}><ui.Dot status={worker.status} />{name}</span></td>
       <td>{worker.status}</td>
       <td class={styles.mono}>{worker.pid ?? worker.url ?? "—"}</td>
@@ -14,9 +15,9 @@ function WorkerRows({ workers }) {
 }
 
 function ModelRows() {
-  const { data, defaults } = api.models.value;
+  const { data, defaults } = models.value;
   return data.map((model) => (
-    <tr>
+    <tr key={`${model.role}:${model.id}`}>
       <td>{model.role}</td>
       <td class={styles.mono}>{model.id}{defaults[model.role] === model.id ? "  (default)" : ""}</td>
     </tr>
@@ -24,20 +25,28 @@ function ModelRows() {
 }
 
 export default function Health() {
-  const health = api.health.value;
+  const value = health.value;
+  const error = healthError.value;
   const refresh = () => {
-    api.pollHealth();
-    api.loadModels();
+    pollHealth();
+    loadModels();
   };
 
   return (
     <ui.Page title="Health" subtitle="Worker processes and the models they serve." actions={<ui.Button onClick={refresh}>Refresh</ui.Button>}>
       <ui.Stack>
-        <ui.Card title="Workers" flush>
-          <table>
-            <thead><tr><th>Worker</th><th>Status</th><th>pid / url</th><th>Restarts</th></tr></thead>
-            <tbody>{health && <WorkerRows workers={health.workers ?? {}} />}</tbody>
-          </table>
+        {error && <ui.ErrorText>health request failed: {error}</ui.ErrorText>}
+        <ui.Card title="Workers" flush={!!value}>
+          {value ? (
+            <table>
+              <thead><tr><th>Worker</th><th>Status</th><th>pid / url</th><th>Restarts</th></tr></thead>
+              <tbody><WorkerRows workers={value.workers ?? {}} /></tbody>
+            </table>
+          ) : error ? (
+            <ui.Empty>health unavailable</ui.Empty>
+          ) : (
+            <ui.Empty><ui.Spinner /> checking gateway…</ui.Empty>
+          )}
         </ui.Card>
         <ui.Card title="Models" flush>
           <table>
@@ -46,7 +55,7 @@ export default function Health() {
           </table>
         </ui.Card>
         <ui.Card title="Raw">
-          <ui.Code>{`GET /health\n${JSON.stringify(health, null, 2)}`}</ui.Code>
+          <ui.Code>{`GET /health\n${JSON.stringify(value, null, 2)}`}</ui.Code>
         </ui.Card>
       </ui.Stack>
     </ui.Page>

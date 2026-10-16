@@ -44,7 +44,9 @@
 
 @media (max-width: 720px) {
   .shell { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-  .sidebar { flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--hairline); padding: 10px; }
+  .sidebar { flex-direction: row; align-items: center; gap: 10px; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--hairline); padding: 10px; }
   .section { flex-direction: row; }
-  .sectionTitle, .sidebarFooter, .brand { display: none; }
+  .sectionTitle, .brand, .lastRequest { display: none; }
+  /* Keep the theme toggle reachable on mobile; only the request readout is hidden. */
+  .sidebarFooter { margin-top: 0; flex-direction: row; align-items: center; padding: 0 0 0 8px; border-top: none; }
 }

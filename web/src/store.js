@@ -8,5 +8,9 @@ export function get(key, fallback) {
 }
 
 export function set(key, value) {
-  localStorage.setItem(key, JSON.stringify(value));
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Safari private mode / quota exceeded: persistence is best-effort.
+  }
 }

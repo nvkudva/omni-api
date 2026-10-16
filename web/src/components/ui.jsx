@@ -1,4 +1,5 @@
-import { useRef, useState } from "preact/hooks";
+import { cloneElement, isValidElement, toChildArray } from "preact";
+import { useEffect, useId, useRef, useState } from "preact/hooks";
 import styles from "./ui.module.css";
 
 const cx = (...names) => names.filter(Boolean).join(" ");
@@ -43,18 +44,25 @@ export function Card({ title, meta, actions, flush, children }) {
   );
 }
 
+// `trailing` is intentionally rendered as a sibling of the <label> element, never
+// inside it, so interactive controls (e.g. a Reset button) do not activate the field.
 export function Field({ label, hint, trailing, children }) {
+  const id = useId();
+  const list = toChildArray(children);
+  const control = list.length === 1 && isValidElement(list[0]) && !list[0].props?.id
+    ? cloneElement(list[0], { id })
+    : children;
   return (
-    <label class={styles.field}>
+    <div class={styles.field}>
       {(label || trailing) && (
         <span class={styles.fieldLabel}>
-          <span>{label}</span>
+          {label && <label htmlFor={id}>{label}</label>}
           {trailing && <span class={styles.fieldTrailing}>{trailing}</span>}
         </span>
       )}
-      {children}
+      {control}
       {hint && <span class={styles.hint}>{hint}</span>}
-    </label>
+    </div>
   );
 }
 
@@ -77,6 +85,7 @@ export function Segmented({ options, value, onChange, label }) {
         <button
           type="button"
           role="radio"
+          key={option.value}
           aria-checked={option.value === value}
           class={cx(styles.segment, option.value === value && styles.segmentOn)}
           onClick={() => onChange(option.value)}
@@ -102,11 +111,19 @@ export function Code({ children }) {
 }
 
 export function CurlBlock({ code }) {
-  const [copied, setCopied] = useState(false);
+  const [state, setState] = useState("idle");
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
   const copy = async () => {
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1200);
+    let next = "copied";
+    try {
+      await navigator.clipboard.writeText(code);
+    } catch {
+      next = "failed";
+    }
+    setState(next);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setState("idle"), 1200);
   };
   return (
     <details class={styles.curl}>
@@ -115,7 +132,9 @@ export function CurlBlock({ code }) {
         <span>curl</span>
       </summary>
       <div class={styles.curlBody}>
-        <Button small variant="plain" class={styles.copy} onClick={copy}>{copied ? "Copied" : "Copy"}</Button>
+        <Button small variant="plain" class={styles.copy} onClick={copy}>
+          {state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : "Copy"}
+        </Button>
         <pre class={styles.code}>{code}</pre>
       </div>
     </details>
@@ -126,7 +145,7 @@ export function Bars({ rows, format = (value) => `${(value * 100).toFixed(1)}%` 
   return (
     <div class={styles.bars}>
       {rows.map((row) => (
-        <div class={cx(styles.bar, row.top && styles.barTop)}>
+        <div key={row.label} class={cx(styles.bar, row.top && styles.barTop)}>
           <span class={styles.barLabel} title={row.label}>{row.label}</span>
           <span class={styles.barTrack}>
             <span class={styles.barFill} style={{ width: `${Math.max(0, Math.min(1, row.value)) * 100}%` }} />
@@ -168,7 +187,7 @@ export function Dot({ status }) {
 }
 
 export function Spinner() {
-  return <span class={styles.spinner} aria-label="working" />;
+  return <span class={styles.spinner} role="status" aria-label="working" />;
 }
 
 export function DropZone({ accept, onFile, children }) {

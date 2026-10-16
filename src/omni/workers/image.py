@@ -1,17 +1,16 @@
+"""Text to image: POST /v1/images/generations on Qwen-Image-2.1 through diffusers (MPS, bf16)."""
 import asyncio
 import base64
 import io
 import time
 
 from fastapi import HTTPException
-from pydantic import BaseModel, Field
 
-from omni import config, workers
-
-MAX_SIDE = 2048
+from omni import config, schemas, workers
 
 settings = config.load()
 model_name = settings["image"]["model"]
+default_steps = settings["image"]["steps"]
 
 
 def _load():
@@ -31,32 +30,13 @@ model = workers.Lazy(_load, config.idle_seconds(settings), _empty_cache)
 app = workers.app(model)
 
 
-class ImageRequest(BaseModel):
-    prompt: str = Field(min_length=1, max_length=4000)
-    model: str | None = None
-    n: int = Field(1, ge=1, le=4)
-    size: str = Field("1024x1024", pattern=r"^\d{3,4}x\d{3,4}$")
-    negative_prompt: str | None = None
-    steps: int = Field(settings["image"]["steps"], ge=1, le=100)
-    seed: int | None = None
-    response_format: str = Field("b64_json", pattern="^b64_json$")
-
-
-def _dimensions(size: str) -> tuple[int, int]:
-    width, height = (int(side) for side in size.split("x"))
-    if not (256 <= width <= MAX_SIDE and 256 <= height <= MAX_SIDE):
-        raise HTTPException(400, f"size: each side between 256 and {MAX_SIDE}")
-    # the transformer patches latents in 16-pixel blocks
-    return width - width % 16, height - height % 16
-
-
-def _generate(req: ImageRequest, width: int, height: int) -> list[str]:
+def _generate(req: schemas.ImageRequest, width: int, height: int, steps: int) -> list[str]:
     import torch
 
     generator = None if req.seed is None else torch.Generator("mps").manual_seed(req.seed)
     with model.use() as pipe:
         images = pipe(prompt=req.prompt, negative_prompt=req.negative_prompt, width=width, height=height,
-                      num_inference_steps=req.steps, num_images_per_prompt=req.n, generator=generator).images
+                      num_inference_steps=steps, num_images_per_prompt=req.n, generator=generator).images
     encoded = []
     for image in images:
         buffer = io.BytesIO()
@@ -71,8 +51,14 @@ def health() -> dict:
 
 
 @app.post("/v1/images/generations")
-async def generations(req: ImageRequest) -> dict:
-    width, height = _dimensions(req.size)
-    images = await asyncio.to_thread(_generate, req, width, height)
-    return {"created": int(time.time()), "model": model_name,
-            "data": [{"b64_json": image, "revised_prompt": req.prompt} for image in images]}
+async def generations(req: schemas.ImageRequest) -> dict:
+    if not schemas.model_matches(req.model, model_name, "image"):
+        raise HTTPException(400, f"model: this worker serves only {model_name}")
+    try:
+        width, height = schemas.parse_size(req.size, max_side=schemas.IMAGE_MAX_SIDE, align=schemas.IMAGE_ALIGN)
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
+    steps = req.steps if req.steps is not None else default_steps
+    images = await asyncio.to_thread(_generate, req, width, height, steps)
+    return {"created": int(time.time()), "model": model_name, "size": f"{width}x{height}",
+            "data": [{"b64_json": image, "revised_prompt": None} for image in images]}

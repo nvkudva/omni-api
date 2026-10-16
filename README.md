@@ -21,7 +21,7 @@ omni brings all of that together:
 | Goal | How |
 |---|---|
 | **One endpoint** | A single gateway on `127.0.0.1:10000` routes by path. Apps never see engine ports. |
-| **Roles, not models** | Apps call `chat`, `decide`, `embed`, `image`, `stt` and `tts`. Config maps each role to a model, so swapping one never breaks an app. |
+| **Roles, not models** | Apps call `chat`, `decide`, `embed`, `image`, `video`, `stt` and `tts`. Config maps each role to a model, so swapping one never breaks an app. |
 | **OpenAI-compatible** | `/v1/chat/completions`, `/v1/embeddings`, `/v1/images/generations`, `/v1/audio/transcriptions` and `/v1/audio/speech` follow OpenAI's wire format. Errors use OpenAI's shape. |
 | **Light on memory** | Workers load their model on the first request and unload it after 10 idle minutes. |
 | **Self-healing** | A supervisor health-checks every worker and restarts it with backoff. `omni down` leaves no orphan processes. |
@@ -65,14 +65,14 @@ apps ──► 127.0.0.1:10000  omni gateway (FastAPI + httpx streaming proxy)
            /playground, /static      ──► built playground (src/omni/static/app)
 ```
 
-- **Gateway** (`gateway.py`): FastAPI app that streams each request through to its worker with httpx. It fills in the default chat model when the request leaves `model` out.
-- **Supervisor** (`supervisor.py`):
-  - Spawns each worker in its own process group and probes `/health` every 2 s.
-  - Restarts failed workers with exponential backoff.
-  - On start and on `down`, kills leftovers from earlier runs.
+- **Gateway** (`gateway/`): the FastAPI app (`gateway/app.py`) builds the shared context and mounts one module per route family (`gateway/routes/`). `gateway/proxy.py` streams each request through to its worker with httpx, filling in the default chat model when the request leaves `model` out.
+- **Supervisor** (`supervisor/`):
+  - `pool.py` spawns each worker in its own process group and probes `/health` every 2 s.
+  - Restarts failed workers with exponential backoff, one lock per worker so a restart and the watch loop never overlap.
+  - `process.py` records each child's pid and command line, so on `down` only a pid that is still ours is signalled; leftover workers from an earlier run are cleaned up on start.
 - **Workers** (`workers/`): each role runs in its own uvicorn process, so a crash or memory spike in one model never takes down the others. Each loads its model on first use behind one lock and unloads it when idle.
 - **Chat, decide and embed** use the machine's own Ollama address (`OLLAMA_HOST`, else `127.0.0.1:11434`). If nothing answers there, omni spawns `ollama serve` on that same address; it never moves Ollama to another port.
-- **Decide** (`decide.py`) turns each question into a lettered multiple-choice prompt, asks Ollama for one token with `top_logprobs`, and turns the option-letter probabilities into noul / choice / score answers. The prompt is OneJev's `qev-labels-v2` format, rendered as raw Qwen ChatML with thinking off.
+- **Decide** (`inference/decide.py`) turns each question into a lettered multiple-choice prompt, asks Ollama for one token with `top_logprobs`, and turns the option-letter probabilities into noul / choice / score answers. The prompt is OneJev's `qev-labels-v2` format, rendered as raw Qwen ChatML with thinking off.
 - **Image** (`workers/image.py`) runs `QwenImage21Pipeline` from diffusers on MPS in bf16. `[image] steps` sets the default step count.
 
 ---
