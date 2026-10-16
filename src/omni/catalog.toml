@@ -13,8 +13,10 @@ model = "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0"
 model = "embeddinggemma-2"
 
 [stt]
-# 4-bit MLX (group 64): the multilingual v3 encoder, quantized, ~0.6 GB instead of ~2.5 GB.
-model = "animaslabs/parakeet-tdt-0.6b-v3-mlx-4bit"
+# parakeet-mlx builds a dense model from config.json and loads it strictly, so a
+# 4-bit pack cannot work: animaslabs/parakeet-tdt-0.6b-v3-mlx-4bit fails with
+# "442 parameters not in model" (its .scales/.biases have nowhere to go).
+model = "mlx-community/parakeet-tdt-0.6b-v3"
 
 [tts]
 model = "prince-canuma/Kokoro-82M-4bit"

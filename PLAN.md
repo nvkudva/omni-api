@@ -27,7 +27,7 @@ apps ──► 127.0.0.1:10000  omni-api gateway (FastAPI + httpx streaming prox
 | chat / summarize | Gemma 4 E2B (alternative: Qwen 3.5 4B, chosen by `omni bench chat`) | Ollama | ~2–4 GB |
 | decide | Vega 0.8B public-intents (`vegaml`; upgrade: Vega 4B; audio decisions: LiquidAI d1-omni-600M) | Python worker | ~2 GB |
 | embed | EmbeddingGemma-2 (text, image, audio) | Python worker, sentence-transformers | ~1–2 GB |
-| stt | Parakeet TDT 0.6B v3, 4-bit MLX (fallback: Whisper large-v3-turbo via mlx-whisper) | Python worker, parakeet-mlx | ~0.6 GB |
+| stt | Parakeet TDT 0.6B v3 (fallback: Whisper large-v3-turbo via mlx-whisper) | Python worker, parakeet-mlx | ~2 GB |
 | tts | Kokoro-82M | Python worker, kokoro-onnx | <0.5 GB |
 Memory figures are estimates; measure them and record real values in `catalog.toml`.
 

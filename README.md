@@ -38,7 +38,7 @@ omni brings all of that together:
 | **embed** | `POST /v1/embeddings` | `embeddinggemma-2` (text) | Ollama |
 | **image** | `POST /v1/images/generations` | `Qwen/Qwen-Image-2.1` | diffusers (MPS, bf16) |
 | **video** | `POST /v1/videos`, `GET /v1/videos/{id}`, `GET /v1/videos/{id}/content` | `dgrauet/ltx-2.5-mlx-q4` | ltx-2-mlx (LTX-2.5 distilled, 4-bit) |
-| **stt** | `POST /v1/audio/transcriptions` | `animaslabs/parakeet-tdt-0.6b-v3-mlx-4bit` | parakeet-mlx (4-bit) |
+| **stt** | `POST /v1/audio/transcriptions` | `mlx-community/parakeet-tdt-0.6b-v3` | parakeet-mlx |
 | **tts** | `POST /v1/audio/speech`, `GET /v1/audio/voices` | `prince-canuma/Kokoro-82M-4bit` (27 voices) | mlx-audio |
 | — | `GET /health`, `GET /v1/models` | | |
 | — | `GET /admin/models`, `GET /admin/models/search`, `POST /admin/models/{pull,delete,default,load,unload}`, `POST /admin/workers/{name}/{start,stop,restart}`, `GET /admin/memory` | list, search Hugging Face (per-role filter), install, delete, switch, load and unload models; start, stop and restart workers; memory, CPU and load with overload warnings | |
@@ -226,7 +226,8 @@ Ports:
 
 - **The first request to each role is slow.** It loads the model, and some roles download on first use:
   - **image:** loading Qwen-Image-2.1 takes about a minute; each 1024² image takes minutes at 40 steps.
-  - **video:** the LTX-2.5 4-bit pack is about 51 GB plus its Gemma text encoder; loading takes minutes. Ollama can't run video models, so this runs on MLX.
+  - **video:** the LTX-2.5 4-bit pack is about 51 GB plus its Gemma text encoder; loading takes minutes. Ollama can't run video models, so this runs on MLX. The pack lives in a gated Hugging Face repo (`dgrauet/ltx-2.5-mlx-q4`, as does the q8 one), so accept its terms before the first run.
+  - **stt stays unquantized:** parakeet-mlx loads dense checkpoints only, so a 4-bit parakeet pack cannot load.
   - **tts:** the first call also downloads a spaCy model and voice weights.
 - **Background runs inside agent sandboxes** may be stopped after a time limit. For long sessions, run `omni serve` in your own terminal.
 - **tts voices:** American and British English only, since misaki[en] covers just those two.
