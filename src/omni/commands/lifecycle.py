@@ -84,6 +84,26 @@ def _wait_gone(pid: int, timeout: float) -> bool:
     return not _alive(pid)
 
 
+def address(settings: dict) -> tuple[str, int]:
+    """The host and port the running gateway bound, falling back to the configured ones."""
+    record = _read_record()
+    return record.get("host", settings["gateway"]["host"]), record.get("port", settings["gateway"]["port"])
+
+
+# runs detached from the gateway, so it outlives the `down` that stops the gateway that launched it
+RELAUNCH_SCRIPT = 'sleep 1; "$0" -m omni.cli down; if [ "$1" = restart ]; then "$0" -m omni.cli --host "$2" --port "$3" up; fi'
+
+
+def relaunch(host: str, port: int, restart: bool) -> None:
+    """Stop the gateway from outside it, and start it again when `restart`. Returns at once."""
+    config.ensure_dirs()
+    with (config.LOG_DIR / "omni.log").open("ab") as logfile:
+        subprocess.Popen(
+            ["sh", "-c", RELAUNCH_SCRIPT, sys.executable, "restart" if restart else "stop", host, str(port)],
+            stdin=subprocess.DEVNULL, stdout=logfile, stderr=subprocess.STDOUT, start_new_session=True,
+        )
+
+
 def serve(host: str, port: int) -> int:
     """Run the gateway in the foreground."""
     import uvicorn

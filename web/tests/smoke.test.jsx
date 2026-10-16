@@ -25,6 +25,7 @@ const pages = {
   Tts: (await import("../src/tabs/Tts.jsx")).default,
   Models: (await import("../src/tabs/Models.jsx")).default,
   Health: (await import("../src/tabs/Health.jsx")).default,
+  Settings: (await import("../src/tabs/Settings.jsx")).default,
 };
 
 const ENDPOINTS = {
@@ -90,14 +91,19 @@ describe("pages render before the first poll", () => {
     });
   }
 
-  test("App renders the sidebar and a role page", () => {
+  test("App renders the header, the role cards and a role page", () => {
     const html = render(<App />);
-    for (const word of ["Chat", "Speech to text", "Models", "Health"]) expect(html).toContain(word);
+    for (const word of ["Chat", "Speech to text", "Settings"]) expect(html).toContain(word);
     // every role card carries its own endpoint, and a switch that is not yet usable
     expect(html).toContain("POST /v1/chat/completions");
     expect(html).toContain("POST /v1/audio/transcriptions");
     expect(html).toContain("checking…");
     expect(html).toContain("waiting for the gateway");
+  });
+
+  test("Settings lists its sections beside the server controls", () => {
+    const html = render(<pages.Settings />);
+    for (const word of ["Server", "Runtime", "Logs", "Models", "Health", "Appearance", "Workers"]) expect(html).toContain(word);
   });
 
   test("each page shows its own endpoint", () => {
@@ -111,7 +117,7 @@ describe("pages render before the first poll", () => {
 describe("pages render against a live-looking runtime", () => {
   beforeEach(seed);
 
-  test("the sidebar shows each role's model, memory and loaded state", () => {
+  test("the role cards show each role's model, memory and loaded state", () => {
     const html = render(<App />);
     expect(html).toContain(MODEL);
     expect(html).toContain(gb(BYTES));
@@ -123,7 +129,7 @@ describe("pages render against a live-looking runtime", () => {
     for (const [name, Page] of Object.entries(pages)) {
       const html = render(<Page active />);
       // Models fetches its catalog in an effect, which never runs here
-      if (name !== "Models") expect(html).toContain(MODEL);
+      if (name !== "Models" && name !== "Settings") expect(html).toContain(MODEL);
       expect(html).not.toContain("undefined");
       expect(html).not.toContain("NaN");
       expect(html).not.toContain("[object Object]");

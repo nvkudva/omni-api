@@ -5,38 +5,13 @@ import { models } from "../api/models.js";
 import { runtime } from "../api/roles.js";
 import { curlJson } from "../lib/curl.js";
 import { since } from "../lib/format.js";
+import * as questionSet from "../lib/questions.js";
 import * as store from "../store.js";
 import * as ui from "../components/ui.jsx";
+import { QuestionBuilder } from "../components/QuestionBuilder.jsx";
 import { Distribution, Panel, RequestBody, Turn, UiJson, Workbench, useTurnState } from "../components/workbench.jsx";
 import { useJsonRequest } from "../hooks/useJsonRequest.js";
 import styles from "./Decide.module.css";
-
-const DEFAULT_STATE = "Hi, I was charged twice for my subscription this month and nobody has answered my last two emails. Please fix this today.";
-const DEFAULT_QUESTIONS = JSON.stringify({
-  intent: {
-    type: "choice",
-    instructions: "What does the customer want?",
-    criteria: {
-      refund: "money returned or a duplicate charge reversed",
-      technical_help: "a bug, outage or integration problem",
-      other: "none of the other options fits",
-    },
-  },
-  urgency: {
-    type: "score",
-    instructions: "How urgent is this message?",
-    criteria: ["Can wait", "Needs attention this week", "Needs attention today"],
-  },
-  is_frustrated: { type: "noul", instructions: "Does the customer sound frustrated?" },
-}, null, 2);
-
-function parseQuestions(text) {
-  try {
-    return { questions: JSON.parse(text) };
-  } catch (error) {
-    return { error: error.message };
-  }
-}
 
 function viewFor(type, answer) {
   if (type === "noul") {
@@ -99,33 +74,67 @@ function Answers({ questions, data }) {
   );
 }
 
+function initialRows() {
+  const saved = store.get("omni.decide.rows", null);
+  if (Array.isArray(saved)) return saved;
+  return questionSet.rowsFromQuestions(questionSet.EXAMPLES[questionSet.DEFAULT_EXAMPLE].questions);
+}
+
+function validationError(rows) {
+  try {
+    questionSet.questionsFromRows(rows);
+    return "";
+  } catch (failure) {
+    return failure.message;
+  }
+}
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function adoptRequest(body) {
+  if (!isPlainObject(body)) throw new Error("the body must be a JSON object");
+  if (typeof body.state !== "string") throw new Error("state must be a string");
+  if (!isPlainObject(body.questions)) throw new Error("questions must be an object");
+  return {
+    state: body.state,
+    rows: questionSet.rowsFromQuestions(body.questions),
+    model: typeof body.model === "string" ? body.model : "",
+  };
+}
+
 export default function Decide() {
   const [model, setModel] = useState(() => store.get("omni.decide.model", ""));
-  const [state, setState] = useState(DEFAULT_STATE);
-  const [questionsText, setQuestionsText] = useState(() => store.get("omni.decide.questions", DEFAULT_QUESTIONS));
+  const [state, setState] = useState(() => store.get("omni.decide.state", questionSet.EXAMPLES[questionSet.DEFAULT_EXAMPLE].state));
+  const [rows, setRows] = useState(initialRows);
   const [turns, setTurns] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [requestError, setRequestError] = useState("");
   const [view, setView] = useState("ui");
   const turnState = useTurnState();
 
   const decideModels = models.value.data.filter((entry) => entry.role === "decide").map((entry) => entry.id);
-  const parsed = parseQuestions(questionsText);
+  const rowsError = validationError(rows);
   const role = runtime.value.roles.decide;
 
   const body = {
     state,
-    ...(parsed.questions ? { questions: parsed.questions } : {}),
+    questions: questionSet.questionsFromRows(rows, { strict: false }),
     ...(model ? { model } : {}),
   };
   const json = useJsonRequest(view, body);
-  const curl = parsed.error && view === "ui"
-    ? "# questions are not valid JSON"
-    : curlJson("/v1/systemone", view === "json" && !json.error ? json.body : body);
+  const curl = curlJson("/v1/systemone", view === "json" && !json.error ? json.body : body);
 
-  const editQuestions = (text) => {
-    setQuestionsText(text);
-    store.set("omni.decide.questions", text);
+  const editState = (text) => {
+    setState(text);
+    store.set("omni.decide.state", text);
+  };
+
+  const editRows = (next) => {
+    setRows(next);
+    store.set("omni.decide.rows", next);
   };
 
   const choose = (name) => {
@@ -133,9 +142,35 @@ export default function Decide() {
     store.set("omni.decide.model", name);
   };
 
+  const loadExample = (key) => {
+    const example = questionSet.EXAMPLES[key];
+    if (!example) return;
+    editState(example.state);
+    editRows(questionSet.rowsFromQuestions(example.questions));
+    setRequestError("");
+  };
+
+  const changeView = (next) => {
+    if (next === view) return;
+    if (view === "json") {
+      try {
+        if (json.error) throw new Error(json.error);
+        const adopted = adoptRequest(json.body);
+        editState(adopted.state);
+        editRows(adopted.rows);
+        choose(adopted.model);
+      } catch (failure) {
+        setRequestError(`Not a valid request: ${failure.message}`);
+        return;
+      }
+    }
+    setRequestError("");
+    setView(next);
+  };
+
   const send = async () => {
     const payload = view === "json" ? json.body : body;
-    if (!payload || (view === "ui" && parsed.error)) return;
+    if (!payload || (view === "ui" && rowsError)) return;
     setBusy(true);
     setError("");
     const start = performance.now();
@@ -154,7 +189,15 @@ export default function Decide() {
     }
   };
 
-  const disableSend = busy || (view === "ui" && Boolean(parsed.error)) || !state.trim();
+  const disableSend = busy || (view === "ui" && Boolean(rowsError)) || !state.trim();
+
+  const sendOnShortcut = (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !disableSend) {
+      event.preventDefault();
+      send();
+    }
+  };
+
   const openId = turnState.open ?? turns[turns.length - 1]?.id;
 
   const readout = [
@@ -180,24 +223,29 @@ export default function Decide() {
     >
       <Panel
         title="Request"
-        tools={<UiJson view={view} onChange={setView} />}
+        tools={(
+          <>
+            <select aria-label="load an example" value="" onChange={(event) => loadExample(event.currentTarget.value)}>
+              <option value="">Examples…</option>
+              {Object.entries(questionSet.EXAMPLES).map(([key, example]) => <option key={key} value={key}>{example.label}</option>)}
+            </select>
+            <UiJson view={view} onChange={changeView} />
+          </>
+        )}
         foot={(
           <>
-            {parsed.error && view === "ui" && <span class={styles.turnMeta}>questions JSON: {parsed.error}</span>}
+            {view === "ui" && rowsError && <span class={styles.turnMeta}>{rowsError}</span>}
+            {requestError && <span class={styles.turnMeta}>{requestError}</span>}
             <ui.Button variant="primary" disabled={disableSend} onClick={send}>{busy ? "Deciding…" : "Decide"}</ui.Button>
           </>
         )}
       >
         <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error}>
-          <ui.Field label="State">
-            <textarea rows={4} value={state} onInput={(event) => setState(event.currentTarget.value)} />
+          <ui.Field label="State" hint="⌘/Ctrl + Enter to decide">
+            <textarea rows={4} value={state} onInput={(event) => editState(event.currentTarget.value)} onKeyDown={sendOnShortcut} />
           </ui.Field>
-          <ui.Field
-            label="Questions"
-            trailing={<ui.Button small variant="plain" onClick={() => editQuestions(DEFAULT_QUESTIONS)}>Reset</ui.Button>}
-            hint={<><b>noul</b> yes/no · <b>choice</b> criteria is <code>{"{label: description}"}</code> · <b>score</b> criteria is an ordered list of levels.</>}
-          >
-            <textarea class={styles.questions} rows={18} spellcheck={false} value={questionsText} onInput={(event) => editQuestions(event.currentTarget.value)} />
+          <ui.Field label="Questions">
+            <QuestionBuilder rows={rows} onRows={editRows} />
           </ui.Field>
         </RequestBody>
       </Panel>

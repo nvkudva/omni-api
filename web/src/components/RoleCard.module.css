@@ -1,5 +1,3 @@
-.list { display: flex; flex-direction: column; gap: 8px; }
-
 .card {
   display: flex; flex-direction: column; gap: 5px;
   padding: 9px 10px 8px;
@@ -40,6 +38,7 @@
 
 .foot { display: flex; align-items: center; gap: 6px; margin-top: 1px; }
 .status { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--text-2); }
+.problem { font-size: 10.5px; line-height: 1.35; color: var(--red); overflow-wrap: anywhere; }
 .switch {
   margin-left: auto; position: relative; width: 34px; height: 19px; flex: none; padding: 0;
   border-radius: 999px; border: 1px solid var(--hairline-strong);
@@ -55,19 +54,3 @@
 .switchOn::after { transform: translateX(15px); }
 .switch:disabled { opacity: 0.5; cursor: default; }
 .switch:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
-
-/* System items (Models, Health) keep the plain nav shape. */
-.navItem {
-  display: flex; align-items: center; gap: 9px;
-  height: 30px; padding: 0 8px; width: 100%;
-  border: none; border-radius: 7px; background: transparent;
-  font-size: 13px; text-align: left; cursor: pointer; color: var(--text);
-}
-.navItem:hover { background: var(--hairline); }
-.navItem:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent); }
-.navItemOn, .navItemOn:hover { background: var(--accent); color: #fff; }
-.navIcon {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; border-radius: 5px; color: #fff; flex: none;
-  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.1);
-}

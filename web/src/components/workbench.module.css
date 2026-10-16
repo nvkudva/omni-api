@@ -2,12 +2,12 @@
    the right, and an instrument readout across the top. Modelled on the ollajev
    playground. Read top-down: shell, instrument bar, grid, panel, turn, distribution. */
 
-.shell { display: flex; flex-direction: column; min-height: 100%; }
+.shell { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
 
 /* --- instrument bar ------------------------------------------------------ */
 
 .bar {
-  position: sticky; top: 0; z-index: 2;
+  flex: none;
   border-bottom: 1px solid var(--hairline);
   background: var(--surface);
   padding: 16px 22px 14px;
@@ -33,14 +33,19 @@
 /* --- grid ---------------------------------------------------------------- */
 
 .main {
-  flex: 1;
-  padding: 16px 22px 28px;
+  flex: 1; min-height: 0; overflow: hidden;
+  padding: 16px 22px 20px;
   display: grid; gap: 18px;
   grid-template-columns: minmax(0, 47fr) minmax(0, 53fr);
-  align-items: start;
+  grid-template-rows: minmax(0, 1fr);
 }
-@media (max-width: 1020px) { .main { grid-template-columns: minmax(0, 1fr); } }
-.mainSingle { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 1020px) {
+  .main { overflow: auto; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-auto-rows: minmax(420px, auto); }
+}
+.mainSingle {
+  overflow: auto; align-content: start;
+  grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-auto-rows: auto;
+}
 
 /* --- panel --------------------------------------------------------------- */
 
@@ -49,7 +54,7 @@
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  display: flex; flex-direction: column; min-width: 0;
+  display: flex; flex-direction: column; min-width: 0; min-height: 0;
 }
 .panelHead {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
@@ -58,8 +63,9 @@
 .panelTitleGroup { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; }
 .panelTitle { font-size: 13.5px; font-weight: 600; }
 .panelMeta { font-family: var(--mono); font-size: 11.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
-.panelTools { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
-.panelBody { padding: 16px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.panelTools { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.panelTools select { width: auto; max-width: 150px; }
+.panelBody { flex: 1; min-height: 0; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .panelBodyFlush { padding: 14px; }
 .panelFoot {
   padding: 12px 16px; border-top: 1px solid var(--hairline);

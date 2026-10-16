@@ -46,6 +46,7 @@ function StatusDot({ status, loaded }) {
  */
 export function RoleCard({ role, active, onOpen }) {
   const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState("");
   const state = runtime.value.roles[role] ?? { ...ROLE_META[role], role, ...UNKNOWN };
 
   const running = state.loaded;
@@ -59,12 +60,12 @@ export function RoleCard({ role, active, onOpen }) {
     event.stopPropagation();
     const next = !pinned;
     setBusy(true);
+    setProblem("");
     try {
       await setPinned(role, next);
     } catch (error) {
       if (error.code !== "overload") {
-        // Publish the failure where the readout already lives.
-        runtime.value = { ...runtime.value, error: error.message };
+        setProblem(error.message);
       } else {
         // Something about this model stands in the way. Show it, and let the person decide.
         const go = await ask({
@@ -79,7 +80,7 @@ export function RoleCard({ role, active, onOpen }) {
           try {
             await setPinned(role, next, { force: true });
           } catch (forced) {
-            runtime.value = { ...runtime.value, error: forced.message };
+            setProblem(forced.message);
           }
         }
       }
@@ -130,6 +131,7 @@ export function RoleCard({ role, active, onOpen }) {
           onClick={flip}
         />
       </span>
+      {problem && <span class={styles.problem} role="alert">{problem}</span>}
     </div>
   );
 }

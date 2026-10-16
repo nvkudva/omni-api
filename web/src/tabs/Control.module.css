@@ -1,0 +1,7 @@
+.facts { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px 24px; }
+.facts > div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.facts dt { color: var(--text-3); font-size: 11px; }
+.facts dd { margin: 0; font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+
+.tunable { display: flex; gap: 8px; align-items: center; }
+.tunable input { max-width: 260px; }

@@ -7,7 +7,6 @@ import { GatewayStatus, LastRequest } from "./components/GatewayStatus.jsx";
 import { ConfirmHost } from "./components/Confirm.jsx";
 import { RoleCard } from "./components/RoleCard.jsx";
 import * as store from "./store.js";
-import * as ui from "./components/ui.jsx";
 import { Icon } from "./components/Icon.jsx";
 import styles from "./App.module.css";
 import Chat from "./tabs/Chat.jsx";
@@ -17,45 +16,28 @@ import Image from "./tabs/Image.jsx";
 import Video from "./tabs/Video.jsx";
 import Stt from "./tabs/Stt.jsx";
 import Tts from "./tabs/Tts.jsx";
-import Models from "./tabs/Models.jsx";
-import Health from "./tabs/Health.jsx";
+import Settings from "./tabs/Settings.jsx";
 
-const ROLE_SECTIONS = [
-  { title: "Language", roles: ["chat", "decide", "embed"] },
-  { title: "Media", roles: ["image", "video"] },
-  { title: "Speech", roles: ["stt", "tts"] },
-];
+const ROLES = ["chat", "decide", "embed", "image", "video", "stt", "tts"];
 
-const SYSTEM = [
-  { id: "models", label: "Models", color: "#8e8e93", component: Models },
-  { id: "health", label: "Health", color: "#34c759", component: Health },
-];
+const COMPONENTS = { chat: Chat, decide: Decide, embed: Embed, image: Image, video: Video, stt: Stt, tts: Tts };
+const TAB_IDS = [...Object.keys(ROLE_META), "settings"];
 
-const COMPONENTS = {
-  chat: Chat,
-  decide: Decide,
-  embed: Embed,
-  image: Image,
-  video: Video,
-  stt: Stt,
-  tts: Tts,
-  ...Object.fromEntries(SYSTEM.map((entry) => [entry.id, entry.component])),
-};
-const TAB_IDS = [...Object.keys(ROLE_META), ...SYSTEM.map((entry) => entry.id)];
+// Models and Health used to be tabs of their own; they live in Settings now.
+const RETIRED_TABS = { models: "settings", health: "settings" };
 
-const THEMES = [
-  { value: "system", label: "Auto" },
-  { value: "light", label: "Light" },
-  { value: "dark", label: "Dark" },
-];
+const THEME_ORDER = ["system", "light", "dark"];
+const THEME_LABEL = { system: "Auto", light: "Light", dark: "Dark" };
+
+function savedTab() {
+  const saved = store.get("omni.tab", "chat");
+  const tab = RETIRED_TABS[saved] ?? saved;
+  return TAB_IDS.includes(tab) ? tab : "chat";
+}
 
 export default function App() {
-  const [tab, setTab] = useState(() => {
-    const saved = store.get("omni.tab", "chat");
-    return TAB_IDS.includes(saved) ? saved : "chat";
-  });
+  const [tab, setTab] = useState(savedTab);
   const [theme, setTheme] = useTheme();
-  const Page = COMPONENTS[tab] ?? Chat;
 
   usePolling(loadModels, 30000, { immediate: true });
 
@@ -67,48 +49,48 @@ export default function App() {
     store.set("omni.tab", id);
   };
 
+  const nextTheme = THEME_ORDER[(THEME_ORDER.indexOf(theme) + 1) % THEME_ORDER.length];
+  const settingsOpen = tab === "settings";
+  const Page = COMPONENTS[tab];
+
   return (
     <div class={styles.shell}>
-      <nav class={styles.sidebar} aria-label="Playground sections">
+      <header class={styles.header}>
         <div class={styles.brand}>
-          <img src={`${import.meta.env?.BASE_URL ?? "/"}favicon.svg`} alt="" width="28" height="28" />
-          <div>
-            <div class={styles.brandName}>omni</div>
-            <GatewayStatus />
-          </div>
+          <img src={`${import.meta.env?.BASE_URL ?? "/"}favicon.svg`} alt="" width="26" height="26" />
+          <span class={styles.brandName}>omni</span>
+          <GatewayStatus />
         </div>
-        {ROLE_SECTIONS.map((section) => (
-          <div class={styles.section} key={section.title}>
-            <div class={styles.sectionTitle}>{section.title}</div>
-            <div class={styles.cards}>
-              {section.roles.map((role) => (
-                <RoleCard key={role} role={role} active={role === tab} onOpen={choose} />
-              ))}
-            </div>
-          </div>
+        <LastRequest />
+        <div class={styles.actions}>
+          <button
+            type="button"
+            class={styles.iconButton}
+            title={`Theme: ${THEME_LABEL[theme]} (switch to ${THEME_LABEL[nextTheme]})`}
+            aria-label={`Theme: ${THEME_LABEL[theme]}. Switch to ${THEME_LABEL[nextTheme]}`}
+            onClick={() => setTheme(nextTheme)}
+          >
+            <Icon name={theme} size={17} />
+          </button>
+          <button
+            type="button"
+            class={`${styles.iconButton} ${settingsOpen ? styles.iconButtonOn : ""}`}
+            title="Settings"
+            aria-label="Settings"
+            aria-current={settingsOpen ? "page" : undefined}
+            onClick={() => choose("settings")}
+          >
+            <Icon name="settings" size={17} />
+          </button>
+        </div>
+      </header>
+      <nav class={styles.cards} aria-label="Models">
+        {ROLES.map((role) => (
+          <RoleCard key={role} role={role} active={role === tab} onOpen={choose} />
         ))}
-        <div class={styles.section}>
-          <div class={styles.sectionTitle}>System</div>
-          {SYSTEM.map((entry) => (
-            <button
-              type="button"
-              key={entry.id}
-              class={`${styles.sysItem} ${entry.id === tab ? styles.sysOn : ""}`}
-              aria-current={entry.id === tab ? "page" : undefined}
-              onClick={() => choose(entry.id)}
-            >
-              <span class={styles.sysIcon} style={{ background: entry.color }}><Icon name={entry.id} /></span>
-              {entry.label}
-            </button>
-          ))}
-        </div>
-        <div class={styles.sidebarFooter}>
-          <LastRequest />
-          <ui.Segmented label="Appearance" options={THEMES} value={theme} onChange={setTheme} />
-        </div>
       </nav>
       <main class={styles.main}>
-        <Page key={tab} active />
+        {settingsOpen ? <Settings key="settings" theme={theme} onTheme={setTheme} /> : <Page key={tab} active />}
       </main>
       <ConfirmHost />
     </div>

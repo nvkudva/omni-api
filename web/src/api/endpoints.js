@@ -99,3 +99,8 @@ export async function pullModel(body, abortSignal) {
 }
 
 export const workerAction = (name, action) => postAdmin(`/admin/workers/${name}/${action}`, {});
+
+export const serverInfo = () => getJson("/admin/server");
+export const serverAction = (action) => postAdmin(`/admin/server/${action}`, {});
+export const saveSetting = (body) => postAdmin("/admin/settings", body);
+export const serverLogs = (lines) => getJson(`/admin/logs?lines=${lines}`);
