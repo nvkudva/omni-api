@@ -181,12 +181,24 @@ curl localhost:10000/admin/models/pull -H 'content-type: application/json' -d '{
 curl localhost:10000/admin/models/default -H 'content-type: application/json' -d '{"role": "chat", "model": "qwen2.5vl:7b"}'
 curl localhost:10000/admin/memory                      # RAM, swap, disk, CPU %, load average, per-worker status/RSS/CPU
 curl 'localhost:10000/admin/models/search?role=tts&q=kokoro'   # only repos the role's runtime can run
-curl localhost:10000/admin/models/load -H 'content-type: application/json' -d '{"role": "chat"}'   # 409 on memory/CPU overload; add "force": true
+curl localhost:10000/admin/models/load -H 'content-type: application/json' -d '{"role": "chat"}'   # 409 on a problem with this model; add "force": true
 curl localhost:10000/admin/models/unload -H 'content-type: application/json' -d '{"role": "chat"}'
+curl localhost:10000/admin/pins -H 'content-type: application/json' -d '{"role": "stt", "pinned": true}'  # keep it loaded
 curl -X POST localhost:10000/admin/workers/tts/stop    # start | stop | restart; ollama runs outside omni
 ```
 
-Every error uses the same shape: `{"error": {"message": "...", "type": "..."}}`.
+Every error uses the same shape: `{"error": {"message": "...", "type": "..."}}`. A `load` or a `pin`
+that is refused because of something about *that* model answers `409` with `type: "overload"` and the
+reasons in `error.blockers`; machine-wide pressure (swap, CPU, load average) is returned as
+`advisories` instead, and never blocks a load.
+
+### Keeping a model warm
+
+A worker drops its model after `idle_unload_minutes` with no use, so the card switch in the playground
+is a *pin*: turning it on loads the model now and holds it — a worker is re-loaded before it would
+idle out, and an Ollama model is held with `keep_alive = -1`. Pins persist in
+`~/.omni-api/pins.json` and are re-applied at startup, so a pinned role is warm again within a minute
+of `omni up` without anyone sending a request.
 
 ---
 
@@ -224,11 +236,16 @@ Ports:
 
 ## Notes and limits
 
-- **The first request to each role is slow.** It loads the model, and some roles download on first use:
+- **The first request to each role is slow.** It loads the model, and some roles download on first use.
+  Pin the ones you use often (the card switch in the playground, or `POST /admin/pins`) and they stay
+  loaded instead:
   - **image:** loading Qwen-Image-2.1 takes about a minute; each 1024² image takes minutes at 40 steps.
   - **video:** the LTX-2.5 4-bit pack is about 51 GB plus its Gemma text encoder; loading takes minutes. Ollama can't run video models, so this runs on MLX. The pack lives in a gated Hugging Face repo (`dgrauet/ltx-2.5-mlx-q4`, as does the q8 one), so accept its terms before the first run.
   - **stt stays unquantized:** parakeet-mlx loads dense checkpoints only, so a 4-bit parakeet pack cannot load.
   - **tts:** the first call also downloads a spaCy model and voice weights.
+- **Ollama roles are never downloaded by a load.** `POST /admin/models/load` (and a pin) answers `409`
+  `conflict` for an Ollama model that is not installed; install it with `POST /admin/models/pull` first.
+  Worker roles are different — loading them does download the repo on first use.
 - **Background runs inside agent sandboxes** may be stopped after a time limit. For long sessions, run `omni serve` in your own terminal.
 - **tts voices:** American and British English only, since misaki[en] covers just those two.
 - **Not yet built:** `pull`, `logs`, `test`, `bench`, and the WebSocket `/v1/realtime` (wake word, VAD and streaming speech).

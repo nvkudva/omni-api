@@ -2,20 +2,24 @@
 
 Every response must use the one OpenAI error shape, whatever the failure.
 """
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import httpx
 from fastapi.testclient import TestClient
 
-from omni import gateway
+from omni import config, gateway
+from omni.gateway import residency
 from omni.registry import ROLES
 
 
 def _error(response):
     body = response.json()
     assert set(body) == {"error"}, body
-    assert set(body["error"]) == {"message", "type"}, body
+    # every error carries a message and a type; a refusal may add the blockers beside them
+    assert {"message", "type"} <= set(body["error"]), body
     return body["error"]
 
 
@@ -120,6 +124,61 @@ class Gateway(unittest.TestCase):
             response = self.client.post("/admin/models/unload", json={"role": "stt"})
         self.assertEqual(response.status_code, 503)
         self.assertEqual(_error(response)["type"], "unavailable")
+
+    def test_an_ambient_warning_advises_but_never_gates_a_load(self):
+        """Machine-wide pressure is the same whatever you load, so it must not ask for confirmation."""
+        plan = residency.Plan(["6.4 GB swapped out: models will run slowly"], [], None)
+        with patch.object(residency, "plan", new=AsyncMock(return_value=plan)), \
+                patch.object(residency, "set_residency", new=AsyncMock(return_value=True)):
+            response = self.client.post("/admin/models/load", json={"role": "stt"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["advisories"], ["6.4 GB swapped out: models will run slowly"])
+
+    def test_a_blocker_about_this_model_still_asks_for_force(self):
+        plan = residency.Plan([], ["needs 40.0 GB of disk; only 5.0 GB free"], None)
+        with patch.object(residency, "plan", new=AsyncMock(return_value=plan)), \
+                patch.object(residency, "set_residency", new=AsyncMock(return_value=True)):
+            response = self.client.post("/admin/models/load", json={"role": "stt"})
+        self.assertEqual(response.status_code, 409)
+        error = _error(response)
+        self.assertEqual(error["type"], "overload")
+        # the blockers travel as a list, so the client does not have to re-parse the sentence
+        self.assertEqual(error["blockers"], ["needs 40.0 GB of disk; only 5.0 GB free"])
+
+    def test_pinning_records_the_role_and_health_reports_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pins = Path(directory) / "pins.json"
+            with patch.object(config, "PINS", pins), \
+                    patch.object(residency, "plan", new=AsyncMock(return_value=residency.Plan([], [], None))), \
+                    patch.object(residency, "set_residency", new=AsyncMock(return_value=True)):
+                response = self.client.post("/admin/pins", json={"role": "stt", "pinned": True})
+                self.assertEqual(response.status_code, 200)
+                self.assertTrue(response.json()["pinned"])
+                self.assertEqual(self.client.get("/health").json()["pins"], ["stt"])
+                again = self.client.post("/admin/pins", json={"role": "stt", "pinned": False})
+                self.assertFalse(again.json()["pinned"])
+                self.assertEqual(self.client.get("/health").json()["pins"], [])
+
+    def test_pinning_an_uninstalled_ollama_model_is_a_conflict(self):
+        fatal = residency.Plan([], [], "qwen2.5:3b is not installed; install it first")
+        with patch.object(residency, "plan", new=AsyncMock(return_value=fatal)), \
+                patch.object(residency, "set_residency", new=AsyncMock()):
+            response = self.client.post("/admin/pins", json={"role": "chat", "pinned": True})
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(_error(response)["type"], "conflict")
+
+    def test_a_pin_stands_even_when_the_worker_is_not_up_yet(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pins = Path(directory) / "pins.json"
+            with patch.object(config, "PINS", pins), \
+                    patch.object(residency, "plan", new=AsyncMock(return_value=residency.Plan([], [], None))), \
+                    patch.object(residency, "set_residency",
+                                 new=AsyncMock(side_effect=httpx.ConnectError("no socket"))):
+                response = self.client.post("/admin/pins", json={"role": "stt", "pinned": True})
+                self.assertTrue(response.json()["pinned"])
+                self.assertFalse(response.json()["loaded"])
+                self.assertEqual(config.load_pins(), ["stt"])
+            self.assertEqual(response.status_code, 200)
 
 
 if __name__ == "__main__":

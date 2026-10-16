@@ -18,8 +18,11 @@ def _gb(size: int) -> str:
     return f"{size / GB:.1f} GB"
 
 
-def fit_warnings(size_bytes: int) -> list[str]:
-    """Why a model of this many bytes of weights may not fit on this machine right now."""
+def fit_blockers(size_bytes: int) -> list[str]:
+    """Reasons a model of this many bytes may not fit on this machine right now.
+
+    These are about *this* model, so they are worth a confirmation; a person may still force it.
+    """
     warnings = []
     ram = psutil.virtual_memory()
     disk_free = shutil.disk_usage(disk_usage_root()).free
@@ -34,8 +37,12 @@ def fit_warnings(size_bytes: int) -> list[str]:
     return warnings
 
 
-def overload_warnings(cpu: float | None = None) -> list[str]:
-    """Why loading another model right now would push the machine over."""
+def overload_advisories(cpu: float | None = None) -> list[str]:
+    """Machine-wide pressure. Worth showing, but never a reason to refuse loading one model.
+
+    These describe the machine, not the model: they are the same whatever you load, so gating a load
+    on them would put a confirmation in front of every single load.
+    """
     warnings = []
     ram = psutil.virtual_memory()
     swap = psutil.swap_memory()
@@ -76,5 +83,5 @@ async def memory(client: httpx.AsyncClient, workers: dict[str, dict]) -> dict:
         "cpu_count": os.cpu_count(),
         "load_average": os.getloadavg(),
         "workers": workers,
-        "warnings": overload_warnings(cpu),
+        "warnings": overload_advisories(cpu),
     }

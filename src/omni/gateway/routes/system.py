@@ -4,7 +4,7 @@ import asyncio
 import httpx
 from fastapi import FastAPI
 
-from omni import registry
+from omni import config, registry
 from omni.gateway.context import Context
 
 READY_STATES = ("ready", "external")
@@ -38,4 +38,5 @@ def register(app: FastAPI, ctx: Context) -> None:
             statuses["chat"] = {"status": "external", "url": ctx.chat_url}
         # a worker the admin stopped on purpose is not a reason for the gateway to report itself unhealthy
         ok = all(entry["status"] in READY_STATES or entry.get("held") for entry in statuses.values())
-        return {"ok": ok, "workers": statuses}
+        # the pins a person set, so the sidebar can show which cards are meant to stay warm
+        return {"ok": ok, "workers": statuses, "pins": config.load_pins()}

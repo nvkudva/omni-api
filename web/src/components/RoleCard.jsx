@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
-import { ROLE_META, runtime, toggleRole } from "../api/roles.js";
+import { ask } from "./Confirm.jsx";
+import { ROLE_META, runtime, setPinned } from "../api/roles.js";
 import { gb } from "../lib/format.js";
 import { cx } from "../lib/cx.js";
 import { Dot } from "./ui.jsx";
@@ -19,7 +20,15 @@ const STATUS_WORD = {
 
 // What a card shows before the first runtime poll answers (or while the gateway
 // is unreachable): the role's own metadata, with nothing claimed about the model.
-const UNKNOWN = { model: null, loaded: false, runningModel: null, memoryBytes: 0, status: "unknown", held: false };
+const UNKNOWN = {
+  model: null,
+  loaded: false,
+  pinned: false,
+  runningModel: null,
+  memoryBytes: 0,
+  status: "unknown",
+  held: false,
+};
 
 function StatusDot({ status, loaded }) {
   if (loaded) return <Dot status="ready" />;
@@ -29,26 +38,51 @@ function StatusDot({ status, loaded }) {
 
 /**
  * One role in the sidebar: what it is, where its endpoint lives, which model is
- * serving it right now, how much memory that model holds, and a switch that
- * loads or unloads it. The card opens the role's page; the switch stands alone.
+ * serving it right now, how much memory that model holds, and a switch that keeps
+ * the model warm — on loads it and holds it, off unloads it.
+ *
+ * The card opens the role's page; the switch stands alone, so a click on it must
+ * not also navigate.
  */
 export function RoleCard({ role, active, onOpen }) {
   const [busy, setBusy] = useState(false);
   const state = runtime.value.roles[role] ?? { ...ROLE_META[role], role, ...UNKNOWN };
 
   const running = state.loaded;
+  const pinned = state.pinned;
   const checking = state.status === "unknown";
   const shownModel = state.runningModel ?? state.model ?? "—";
-  const word = STATUS_WORD[state.status] ?? state.status;
+  // a pinned model that is not in memory yet is on its way there, not idle
+  const word = pinned && !running ? "loading…" : STATUS_WORD[state.status] ?? state.status;
 
   const flip = async (event) => {
     event.stopPropagation();
+    const next = !pinned;
     setBusy(true);
     try {
-      await toggleRole(role, !running);
+      await setPinned(role, next);
     } catch (error) {
-      // Publish the failure where the readout already lives.
-      runtime.value = { ...runtime.value, error: error.message };
+      if (error.code !== "overload") {
+        // Publish the failure where the readout already lives.
+        runtime.value = { ...runtime.value, error: error.message };
+      } else {
+        // Something about this model stands in the way. Show it, and let the person decide.
+        const go = await ask({
+          title: `Keep ${state.label} warm anyway?`,
+          message: `${state.model} on this machine:`,
+          reasons: error.blockers,
+          advisories: runtime.value.warnings,
+          confirmLabel: "Load anyway",
+          cancelLabel: "Not now",
+        });
+        if (go) {
+          try {
+            await setPinned(role, next, { force: true });
+          } catch (forced) {
+            runtime.value = { ...runtime.value, error: forced.message };
+          }
+        }
+      }
     } finally {
       setBusy(false);
     }
@@ -71,6 +105,7 @@ export function RoleCard({ role, active, onOpen }) {
       <span class={styles.top}>
         <span class={styles.badge} style={{ background: state.color }}><Icon name={role} /></span>
         <span class={styles.name}>{state.label}</span>
+        {pinned && <span class={styles.warm} title="kept warm: this model stays loaded">warm</span>}
         <span class={styles.runner}>{state.runner}</span>
       </span>
       <span class={styles.endpoint} title={state.endpoint}>{state.endpoint}</span>
@@ -86,11 +121,12 @@ export function RoleCard({ role, active, onOpen }) {
         <button
           type="button"
           role="switch"
-          aria-checked={running}
-          aria-label={`${running ? "unload" : "load"} ${state.label}`}
-          title={checking ? "waiting for the gateway" : running ? `Unload ${shownModel}` : `Load ${state.model}`}
+          aria-checked={pinned}
+          aria-label={`${pinned ? "stop keeping warm" : "keep warm"} ${state.label}`}
+          title={checking ? "waiting for the gateway"
+            : pinned ? `Stop keeping ${shownModel} warm` : `Keep ${state.model} warm (loads it now and holds it)`}
           disabled={busy || checking}
-          class={cx(styles.switch, running && styles.switchOn)}
+          class={cx(styles.switch, pinned && styles.switchOn)}
           onClick={flip}
         />
       </span>

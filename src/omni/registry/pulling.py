@@ -7,7 +7,7 @@ import httpx
 from huggingface_hub.errors import HfHubHTTPError
 
 from omni.registry import huggingface
-from omni.registry.memory import fit_warnings
+from omni.registry.memory import fit_blockers
 from omni.registry.roles import runner
 
 PROGRESS_SECONDS = 2.0
@@ -36,7 +36,7 @@ async def _ollama_pull(client: httpx.AsyncClient, model: str) -> AsyncIterator[d
                 # the biggest layer is the weights; its size is the first sign of whether they fit
                 if not warned and event.get("total", 0) > SIZE_WARNING_THRESHOLD:
                     warned = True
-                    for warning in fit_warnings(event["total"]):
+                    for warning in fit_blockers(event["total"]):
                         yield {"warning": warning}
                 yield event
     except httpx.HTTPError as error:
@@ -49,7 +49,7 @@ async def _hf_pull(repo_id: str) -> AsyncIterator[dict]:
     except (HfHubHTTPError, OSError) as error:
         yield {"error": f"huggingface: {error}"}
         return
-    for warning in fit_warnings(total):
+    for warning in fit_blockers(total):
         yield {"warning": warning}
     download = asyncio.create_task(asyncio.to_thread(huggingface.download, repo_id))
     folder = huggingface.cache_dir(repo_id)

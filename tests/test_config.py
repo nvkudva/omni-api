@@ -79,6 +79,39 @@ class Overrides(unittest.TestCase):
             config._toml_value(None)
 
 
+class Pins(unittest.TestCase):
+    def test_a_missing_file_means_nothing_is_pinned(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(config, "PINS", Path(directory) / "pins.json"):
+            self.assertEqual(config.load_pins(), [])
+
+    def test_save_and_load_round_trip_in_role_order(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(config, "PINS", Path(directory) / "pins.json"):
+            self.assertEqual(config.save_pins(["stt", "chat"]), ["chat", "stt"])
+            self.assertEqual(config.load_pins(), ["chat", "stt"])
+
+    def test_a_name_that_is_not_a_role_is_dropped(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(config, "PINS", Path(directory) / "pins.json"):
+            self.assertEqual(config.save_pins(["stt", "nope"]), ["stt"])
+            self.assertEqual(config.load_pins(), ["stt"])
+
+    def test_a_corrupt_file_reads_as_empty(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pins = Path(directory) / "pins.json"
+            pins.write_text("{not json")
+            with patch.object(config, "PINS", pins):
+                self.assertEqual(config.load_pins(), [])
+
+    def test_a_file_of_the_wrong_shape_reads_as_empty(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pins = Path(directory) / "pins.json"
+            pins.write_text('{"pinned": "stt"}')
+            with patch.object(config, "PINS", pins):
+                self.assertEqual(config.load_pins(), [])
+
+
 class OllamaUrl(unittest.TestCase):
     def test_default(self):
         with patch.dict("os.environ", {}, clear=True):

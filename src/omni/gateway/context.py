@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import httpx
 
 from omni import config, supervisor
+from omni.gateway.keepwarm import KeepWarm
 from omni.gateway.proxy import Proxy, timeout, uds_client
 from omni.registry import PYTHON_WORKERS
 
@@ -17,6 +18,7 @@ class Context:
     pool: supervisor.Supervisor
     chat_url: str
     proxy: Proxy
+    keepwarm: KeepWarm | None = None
 
 
 def _ollama_running(url: str) -> bool:
@@ -57,7 +59,7 @@ def build(settings: dict) -> Context:
 
     worker_map = {worker.name: worker for worker in workers}
     pool = supervisor.Supervisor(workers)
-    return Context(
+    ctx = Context(
         settings=settings,
         clients=clients,
         workers=worker_map,
@@ -65,3 +67,5 @@ def build(settings: dict) -> Context:
         chat_url=chat_url,
         proxy=Proxy(clients, worker_map, pool),
     )
+    ctx.keepwarm = KeepWarm(ctx)
+    return ctx

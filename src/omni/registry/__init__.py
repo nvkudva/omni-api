@@ -21,7 +21,7 @@ from omni.registry.huggingface import (
 from omni.registry.huggingface import (
     size as hf_size,
 )
-from omni.registry.memory import fit_warnings, memory, overload_warnings
+from omni.registry.memory import fit_blockers, memory, overload_advisories
 from omni.registry.ollama import (
     capabilities,
 )
@@ -54,7 +54,7 @@ __all__ = [
     "ROLES",
     "cache_dir",
     "capabilities",
-    "fit_warnings",
+    "fit_blockers",
     "folder_size",
     "hf_delete",
     "hf_installed",
@@ -66,7 +66,7 @@ __all__ = [
     "ollama_installed",
     "ollama_load",
     "ollama_unload",
-    "overload_warnings",
+    "overload_advisories",
     "pull",
     "runner",
     "search",

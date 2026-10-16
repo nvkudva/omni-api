@@ -14,6 +14,7 @@ RUN_DIR = HOME / "run"
 LOG_DIR = HOME / "logs"
 VIDEO_DIR = HOME / "videos"
 PIDFILE = RUN_DIR / "omni.pid"
+PINS = HOME / "pins.json"
 USER_CONFIG = HOME / "config.toml"
 CATALOG = Path(__file__).with_name("catalog.toml")
 OLLAMA_DEFAULT_PORT = 11434
@@ -170,3 +171,31 @@ def socket_target(role: str, token: str) -> Path:
 
 def idle_seconds(settings: dict) -> float:
     return float(settings["gateway"]["idle_unload_minutes"]) * 60
+
+
+def load_pins() -> list[str]:
+    """The roles whose models should stay resident, in role order. Unknown names are dropped."""
+    try:
+        raw = json.loads(PINS.read_text())
+    except (OSError, ValueError):
+        return []
+    names = raw.get("pinned") if isinstance(raw, dict) else raw
+    if not isinstance(names, list):
+        return []
+    return [role for role in ROLES if role in names]
+
+
+def save_pins(names) -> list[str]:
+    """Store the pinned roles, dropping anything that is not a role. Returns what was stored.
+
+    Written to a sibling temp file and renamed, so a crash cannot truncate the file.
+    """
+    pinned = [role for role in ROLES if role in set(names)]
+    try:
+        PINS.parent.mkdir(parents=True, exist_ok=True)
+        temporary = PINS.with_name(f".{PINS.name}.tmp")
+        temporary.write_text(json.dumps({"pinned": pinned}, indent=2))
+        os.replace(temporary, PINS)
+    except OSError:
+        return load_pins()
+    return pinned

@@ -5,16 +5,22 @@ export const ORIGIN = location.origin;
 export const lastRequest = signal(null);
 
 export async function errorText(response) {
-  const body = await response.text();
+  return parseError(await response.text()).message;
+}
+
+// The error body is `{"error": {"message", "type", ...}}`. The type is worth keeping: it tells a
+// caller whether a refusal is forceable (`overload`) or final (`conflict`), and a refusal may also
+// carry the blockers themselves.
+function parseError(body) {
   try {
     const parsed = JSON.parse(body);
     const detail = parsed.error?.message ?? parsed.detail ?? body;
-    if (Array.isArray(detail)) {
-      return detail.map((item) => item?.msg ?? JSON.stringify(item)).join("; ");
-    }
-    return detail;
+    const message = Array.isArray(detail)
+      ? detail.map((item) => item?.msg ?? JSON.stringify(item)).join("; ")
+      : detail;
+    return { message, code: parsed.error?.type ?? "", blockers: parsed.error?.blockers ?? [] };
   } catch {
-    return body;
+    return { message: body, code: "", blockers: [] };
   }
 }
 
@@ -24,8 +30,11 @@ export function record(route, status, elapsed) {
 
 async function assertOk(response) {
   if (response.ok) return response;
-  const error = new Error(await errorText(response));
+  const { message, code, blockers } = parseError(await response.text());
+  const error = new Error(message);
   error.status = response.status;
+  error.code = code;
+  error.blockers = blockers;
   throw error;
 }
 

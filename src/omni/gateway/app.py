@@ -28,9 +28,13 @@ def create() -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         await ctx.pool.start()
+        if ctx.keepwarm is not None:
+            ctx.keepwarm.start()
         try:
             yield
         finally:
+            if ctx.keepwarm is not None:
+                await ctx.keepwarm.stop()
             await ctx.pool.stop()
             await asyncio.gather(*(client.aclose() for client in ctx.clients.values()))
 

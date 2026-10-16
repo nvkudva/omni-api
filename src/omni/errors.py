@@ -33,12 +33,15 @@ class UpstreamError(RuntimeError):
     """A downstream engine (Ollama, a model runtime) answered in a shape we cannot use."""
 
 
-def error_response(status: int, message: str, kind: str | None = None) -> JSONResponse:
-    """The OpenAI error body for any status code."""
-    return JSONResponse(
-        {"error": {"message": str(message), "type": kind or TYPE_BY_STATUS.get(status, "server_error")}},
-        status_code=status,
-    )
+def error_response(status: int, message: str, kind: str | None = None, **extra) -> JSONResponse:
+    """The OpenAI error body for any status code.
+
+    `extra` adds fields beside `message` and `type` — for a refusal, the blockers themselves, so a
+    client can show them as a list instead of re-parsing the sentence.
+    """
+    error = {"message": str(message), "type": kind or TYPE_BY_STATUS.get(status, "server_error")}
+    error.update(extra)
+    return JSONResponse({"error": error}, status_code=status)
 
 
 def validation_message(error: RequestValidationError) -> str:

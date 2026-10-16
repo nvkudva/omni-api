@@ -14,6 +14,7 @@ import {
 import { loadModels } from "../api/models.js";
 import { gb } from "../lib/format.js";
 import { usePolling } from "../hooks/usePolling.js";
+import { ask } from "../components/Confirm.jsx";
 import * as ui from "../components/ui.jsx";
 import { Panel, Workbench } from "../components/workbench.jsx";
 import styles from "./tabs.module.css";
@@ -29,18 +30,15 @@ function modelDetail(model) {
   return `${gb(model.size_bytes)}${detail ? ` · ${detail}` : ""}`;
 }
 
-async function setResidency(role, load, model) {
+function setResidency(role, load, model, { force = false } = {}) {
   const call = load ? loadRole : unloadRole;
-  try {
-    return await call({ role, model });
-  } catch (error) {
-    if (!load || !error.message.includes("force: true")) throw error;
-    const reason = error.message.replace(/ Send force: true.*$/, "");
-    if (!confirm(`${reason}\n\nLoad anyway?`)) return null;
-    return call({ role, model, force: true });
-  }
+  return call({ role, model, force });
 }
 
+/**
+ * Run an action, and if the gateway refuses because of something about this model, ask before
+ * forcing it. `action` is called with `{ force: true }` on the retry.
+ */
 function useAction(onChanged) {
   const [busy, setBusy] = useState(false);
   const run = async (action, done) => {
@@ -49,7 +47,22 @@ function useAction(onChanged) {
       const result = await action();
       if (result) onChanged(done);
     } catch (error) {
-      onChanged(error.message);
+      if (error.code !== "overload") {
+        onChanged(error.message);
+      } else if (await ask({
+        title: "Load anyway?",
+        message: "This model has a problem on this machine:",
+        reasons: error.blockers,
+        confirmLabel: "Load anyway",
+        cancelLabel: "Not now",
+      })) {
+        try {
+          const forced = await action({ force: true });
+          if (forced) onChanged(done);
+        } catch (forced) {
+          onChanged(forced.message);
+        }
+      }
     } finally {
       setBusy(false);
     }
@@ -62,8 +75,8 @@ export function RoleRow({ role, config, installed, onChanged }) {
   if (!names.includes(config.default)) names.unshift(config.default);
   const current = (installed[config.runner] ?? []).find((model) => model.name === config.default);
   const [busy, run] = useAction(onChanged);
-  const load = () => run(() => setResidency(role, true), `loaded ${config.default}`);
-  const unload = () => run(() => setResidency(role, false), `unloaded ${config.default}`);
+  const load = () => run((options) => setResidency(role, true, config.default, options), `loaded ${config.default}`);
+  const unload = () => run(() => setResidency(role, false, config.default), `unloaded ${config.default}`);
 
   const choose = async (model) => {
     try {
@@ -98,7 +111,13 @@ export function RoleRow({ role, config, installed, onChanged }) {
 export function InstalledRows({ catalog, onChanged }) {
   const roleFor = (runner) => Object.entries(catalog.roles).find(([, config]) => config.runner === runner)?.[0];
   const remove = async (runner, model) => {
-    if (!confirm(`Delete ${model}? This frees its disk space; reinstalling downloads it again.`)) return;
+    const go = await ask({
+      title: `Delete ${model}?`,
+      message: "This frees its disk space. Installing it again downloads it all over.",
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!go) return;
     try {
       await deleteModel({ role: roleFor(runner), model });
       onChanged("");

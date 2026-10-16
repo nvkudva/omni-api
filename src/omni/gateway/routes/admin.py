@@ -9,6 +9,7 @@ from huggingface_hub.errors import HfHubHTTPError
 
 from omni import config, registry
 from omni.errors import error_response
+from omni.gateway import residency
 from omni.gateway.context import Context
 from omni.gateway.http import json_object
 
@@ -99,7 +100,7 @@ def register(app: FastAPI, ctx: Context) -> None:
         settings[role]["model"] = model
         if role in registry.PYTHON_WORKERS:
             await pool.restart(role)
-        return JSONResponse({"role": role, "model": model, "warnings": registry.fit_warnings(match["size_bytes"])})
+        return JSONResponse({"role": role, "model": model, "warnings": registry.fit_blockers(match["size_bytes"])})
 
     @app.get("/admin/models/search")
     async def admin_search(role: str, q: str = "", limit: int = Query(20, ge=1, le=50)) -> JSONResponse:
@@ -123,55 +124,84 @@ def register(app: FastAPI, ctx: Context) -> None:
                                      f"make {model} the default first")
         return role, model, bool(payload.get("force"))
 
-    async def load_warnings(role: str, model: str) -> list[str]:
-        try:
-            available = await installed_for(role)
-        except (httpx.HTTPError, *HF_ERRORS):
-            available = []
-        match = next((entry for entry in available if entry["name"] in (model, f"{model}:latest")), None)
-        size_warnings = (registry.fit_warnings(match["size_bytes"]) if match
-                         else [f"{model} is not downloaded yet; loading downloads it first"])
-        return registry.overload_warnings() + size_warnings
+    async def residence(role: str, model: str, load: bool, force: bool) -> JSONResponse:
+        """Load or unload, refusing without force only for something about this model.
 
-    async def set_residency(role: str, model: str, load: bool) -> bool | None:
-        """Load or unload the role's model. Returns whether it now sits in memory, when the worker says."""
-        if registry.runner(role) == "ollama":
-            if load:
-                await registry.ollama_load(clients["chat"], role, model)
-            else:
-                await registry.ollama_unload(clients["chat"], role, model)
-            return None
-        response = await clients[role].post("/load" if load else "/unload", timeout=None)
-        response.raise_for_status()
+        Machine-wide pressure (swap, CPU, load) is reported as advice, never as a gate: it is the same
+        whatever you load, so gating on it would put a confirmation in front of every single load.
+        """
+        plan = await residency.plan(ctx, role, model) if load else residency.Plan([], [], None)
+        if plan.fatal:
+            return error_response(409, plan.fatal, "conflict")
+        if plan.blockers and not force:
+            return error_response(409, "; ".join(plan.blockers) + ". Send force: true to load anyway.",
+                                  "overload", blockers=plan.blockers)
         try:
-            report = response.json()
-        except ValueError:
-            return None
-        return bool(report.get("loaded")) if isinstance(report, dict) and "loaded" in report else None
-
-    async def residency(request: Request, load: bool) -> JSONResponse:
-        role, model, force = await residency_request(request)
-        warnings = await load_warnings(role, model) if load else []
-        if warnings and not force:
-            return error_response(409, "; ".join(warnings) + ". Send force: true to load anyway.", "overload")
-        try:
-            loaded = await set_residency(role, model, load)
+            loaded = await residency.set_residency(ctx, role, model, load)
         except httpx.TransportError:
             pool.note_unreachable(role)
             return error_response(503, ctx.proxy.unavailable(role), "unavailable")
         except httpx.HTTPStatusError as error:
             return error_response(502, f"{role}: {error.response.text}", "upstream_error")
-        # report what the worker actually holds, falling back to the request when it does not say
-        return JSONResponse({"role": role, "model": model,
-                             "loaded": load if loaded is None else loaded, "warnings": warnings})
+        # report what the runtime actually holds, falling back to the request when it does not say
+        return JSONResponse({"role": role, "model": model, "loaded": load if loaded is None else loaded,
+                             "advisories": plan.advisories, "blockers": plan.blockers})
+
+    async def residency_route(request: Request, load: bool) -> JSONResponse:
+        role, model, force = await residency_request(request)
+        return await residence(role, model, load, force)
 
     @app.post("/admin/models/load")
     async def admin_load(request: Request) -> JSONResponse:
-        return await residency(request, load=True)
+        return await residency_route(request, load=True)
 
     @app.post("/admin/models/unload")
     async def admin_unload(request: Request) -> JSONResponse:
-        return await residency(request, load=False)
+        return await residency_route(request, load=False)
+
+    @app.get("/admin/pins")
+    async def admin_pins() -> dict:
+        return {"pinned": config.load_pins()}
+
+    @app.post("/admin/pins")
+    async def admin_set_pin(request: Request) -> JSONResponse:
+        """Keep a role's model resident (pinned), or stop keeping it and unload it.
+
+        Pinning loads the model now and holds it: a worker is re-loaded before it would idle out, and
+        an Ollama model is held with keep_alive = -1. The same refusal as a plain load applies. A pin
+        is a standing instruction, so it is recorded even when the worker is not up to act on it yet.
+        """
+        payload = await json_object(request)
+        role = payload.get("role")
+        if role not in registry.ROLES:
+            raise _bad_role()
+        pinned = bool(payload.get("pinned"))
+        model = str(payload.get("model") or settings[role]["model"]).strip()
+        if role in registry.PYTHON_WORKERS and model != settings[role]["model"]:
+            raise HTTPException(400, f"the {role} worker serves only its default, {settings[role]['model']}")
+        force = bool(payload.get("force"))
+        advisories, blockers = [], []
+        if pinned:
+            plan = await residency.plan(ctx, role, model)
+            advisories, blockers = plan.advisories, plan.blockers
+            if plan.fatal:
+                return error_response(409, plan.fatal, "conflict")
+            if blockers and not force:
+                return error_response(409, "; ".join(blockers) + ". Send force: true to load anyway.",
+                                      "overload", blockers=blockers)
+        try:
+            loaded = await residency.set_residency(ctx, role, model, pinned, keep_warm=pinned)
+        except httpx.TransportError:
+            # the worker is not up yet: the pin stands, and the keep-warm loop loads it once it is
+            pool.note_unreachable(role)
+            loaded = False
+        except httpx.HTTPStatusError as error:
+            return error_response(502, f"{role}: {error.response.text}", "upstream_error")
+        current = config.load_pins()
+        stored = config.save_pins([*current, role] if pinned else [name for name in current if name != role])
+        return JSONResponse({"role": role, "model": model, "pinned": role in stored,
+                             "loaded": pinned if loaded is None else bool(loaded), "pins": stored,
+                             "advisories": advisories, "blockers": blockers})
 
     @app.post("/admin/workers/{name}/{action}")
     async def admin_worker(name: str, action: str) -> JSONResponse:

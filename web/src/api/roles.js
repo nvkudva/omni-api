@@ -1,6 +1,6 @@
 import { signal } from "@preact/signals";
 import { getJson } from "./client.js";
-import { loadRole, unloadRole } from "./endpoints.js";
+import { pinRole } from "./endpoints.js";
 import { health, healthError } from "./health.js";
 
 // One line per role: what it is, where its endpoint lives, which runtime serves
@@ -18,7 +18,7 @@ export const ROLE_META = {
 export const ROLE_ORDER = ["chat", "decide", "embed", "stt", "tts", "image", "video"];
 export const OLLAMA_ROLES = new Set(["chat", "decide", "embed"]);
 
-export const runtime = signal({ ready: false, error: "", roles: {}, warnings: [], memory: null });
+export const runtime = signal({ ready: false, error: "", roles: {}, warnings: [], memory: null, pins: [] });
 
 const resident = (ollama, name) =>
   (ollama ?? []).find((model) => model.name === name || model.name === `${name}:latest`);
@@ -29,6 +29,8 @@ function roleState(role, defaults, health, memory) {
   const worker = (health?.workers ?? {})[role];
   const memoryWorker = (memory?.workers ?? {})[role];
   const model = defaults?.[role] ?? "—";
+  // a pinned role is one the gateway is keeping resident on purpose, so its card stays on
+  const pinned = (health?.pins ?? []).includes(role);
 
   if (OLLAMA_ROLES.has(role)) {
     // Ollama's models outlive the role: remember what it pulled, then match it.
@@ -38,6 +40,7 @@ function roleState(role, defaults, health, memory) {
       role,
       model,
       loaded: Boolean(running),
+      pinned,
       runningModel: running?.name ?? null,
       memoryBytes: running?.size_bytes ?? 0,
       status: running ? "loaded" : "idle",
@@ -55,6 +58,7 @@ function roleState(role, defaults, health, memory) {
     role,
     model,
     loaded,
+    pinned,
     runningModel: loaded ? (worker?.model || model) : null,
     memoryBytes: loaded ? (worker?.rss_bytes ?? memoryWorker?.rss_bytes ?? 0) : 0,
     status,
@@ -100,6 +104,7 @@ export async function pollRuntime() {
       roles,
       warnings: memory?.warnings ?? [],
       memory: attributed,
+      pins: healthResponse.pins ?? [],
     };
     return runtime.value;
   } catch (error) {
@@ -110,22 +115,12 @@ export async function pollRuntime() {
 }
 
 /**
- * Load or unload a role's default model. An overload refusal comes back as a 409
- * asking for `force: true`; confirm with the person, then retry.
+ * Keep a role's model resident, or stop keeping it and unload it. A refusal about the model itself
+ * comes back as a 409 with `blockers`; retry with `force: true` once the person has seen them.
  */
-export async function toggleRole(role, load) {
+export async function setPinned(role, pinned, { force = false } = {}) {
   const model = runtime.value.roles[role]?.model;
-  const call = load ? loadRole : unloadRole;
-  try {
-    const result = await call({ role, model });
-    await pollRuntime();
-    return result;
-  } catch (error) {
-    if (!load || !String(error.message).includes("force: true")) throw error;
-    const reason = String(error.message).replace(/ Send force: true.*$/, "");
-    if (!confirm(`${reason}\n\nLoad ${model} anyway?`)) return null;
-    const forced = await call({ role, model, force: true });
-    await pollRuntime();
-    return forced;
-  }
+  const result = await pinRole({ role, model, pinned, force });
+  await pollRuntime();
+  return result;
 }

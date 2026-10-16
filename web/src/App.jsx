@@ -4,6 +4,7 @@ import { pollRuntime, ROLE_META } from "./api/roles.js";
 import { usePolling } from "./hooks/usePolling.js";
 import { useTheme } from "./hooks/useTheme.js";
 import { GatewayStatus, LastRequest } from "./components/GatewayStatus.jsx";
+import { ConfirmHost } from "./components/Confirm.jsx";
 import { RoleCard } from "./components/RoleCard.jsx";
 import * as store from "./store.js";
 import * as ui from "./components/ui.jsx";
@@ -109,6 +110,7 @@ export default function App() {
       <main class={styles.main}>
         <Page key={tab} active />
       </main>
+      <ConfirmHost />
     </div>
   );
 }

@@ -6,7 +6,7 @@
  * Browser globals come from `tests/globals.js` (see bunfig.toml). The pages are
  * loaded dynamically so those globals exist before the app modules run.
  */
-import { beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { render } from "preact-render-to-string";
 
 const { default: App } = await import("../src/App.jsx");
@@ -14,6 +14,7 @@ const { runtime, ROLE_META, ROLE_ORDER } = await import("../src/api/roles.js");
 const { models } = await import("../src/api/models.js");
 const { health } = await import("../src/api/health.js");
 const { gb } = await import("../src/lib/format.js");
+const { ask, ConfirmHost, ConfirmDialog, pendingConfirm } = await import("../src/components/Confirm.jsx");
 const pages = {
   Chat: (await import("../src/tabs/Chat.jsx")).default,
   Decide: (await import("../src/tabs/Decide.jsx")).default,
@@ -39,7 +40,7 @@ const ENDPOINTS = {
 // nothing has answered yet: what the app looks like on a cold load, or with the
 // gateway unreachable.
 function reset() {
-  runtime.value = { ready: false, error: "", roles: {}, warnings: [], memory: null };
+  runtime.value = { ready: false, error: "", roles: {}, warnings: [], memory: null, pins: [] };
   models.value = { data: [], defaults: {} };
   health.value = null;
 }
@@ -49,15 +50,16 @@ function reset() {
 const MODEL = "org/model-4bit";
 const BYTES = 5_368_709_120;
 
-function seed() {
+function seed({ pinned = [] } = {}) {
   runtime.value = {
     ready: true,
     error: "",
     warnings: ["9.4 GB swapped out: models will run slowly"],
     memory: null,
+    pins: pinned,
     roles: Object.fromEntries(ROLE_ORDER.map((role) => [role, {
-      ...ROLE_META[role], role, model: MODEL, loaded: true, runningModel: MODEL,
-      memoryBytes: BYTES, status: "ready", cpuPercent: 12.5, held: false,
+      ...ROLE_META[role], role, model: MODEL, loaded: true, pinned: pinned.includes(role),
+      runningModel: MODEL, memoryBytes: BYTES, status: "ready", cpuPercent: 12.5, held: false,
     }])),
   };
   models.value = {
@@ -66,6 +68,7 @@ function seed() {
   };
   health.value = {
     ok: true,
+    pins: pinned,
     workers: Object.fromEntries(ROLE_ORDER.map((role) => [role, {
       status: "ready", pid: 4242, restarts: 0, rss_bytes: BYTES, cpu_percent: 12.5,
       held: false, model: MODEL, loaded: true,
@@ -125,5 +128,70 @@ describe("pages render against a live-looking runtime", () => {
       expect(html).not.toContain("NaN");
       expect(html).not.toContain("[object Object]");
     }
+  });
+});
+
+describe("keeping a model warm", () => {
+  beforeEach(reset);
+
+  test("a pinned role reads as warm, with its switch on", () => {
+    seed({ pinned: ["chat"] });
+    const html = render(<App />);
+    expect(html).toContain(">warm<");
+    expect(html).toContain('aria-checked="true"');
+    expect(html).toContain("stop keeping warm Chat");
+  });
+
+  test("a pinned role whose model is still loading says so", () => {
+    seed({ pinned: ["chat"] });
+    runtime.value = {
+      ...runtime.value,
+      roles: { ...runtime.value.roles, chat: { ...runtime.value.roles.chat, loaded: false } },
+    };
+    const html = render(<App />);
+    // pinned but not resident: on its way, not idle
+    expect(html).toContain("loading…");
+    expect(html).not.toContain(">idle<");
+  });
+
+  test("an unpinned role is not claimed as warm", () => {
+    seed();
+    const html = render(<App />);
+    expect(html).not.toContain(">warm<");
+    expect(html).toContain("keep warm Chat");
+  });
+});
+
+describe("confirmations render in the app, not the browser", () => {
+  afterEach(() => {
+    pendingConfirm.value = null;
+  });
+
+  test("the dialog shows each reason as a list item", () => {
+    const html = render(
+      <ConfirmDialog
+        title="Load anyway?"
+        message="This model has a problem on this machine:"
+        reasons={["needs 40.0 GB of disk; only 5.0 GB free", "6.4 GB swapped out"]}
+        confirmLabel="Load anyway"
+      />,
+    );
+    expect(html).toContain('role="alertdialog"');
+    expect(html).toContain("Load anyway?");
+    expect(html).toContain("<li>needs 40.0 GB of disk; only 5.0 GB free</li>");
+    expect(html).toContain("<li>6.4 GB swapped out</li>");
+    expect(html).toContain("Load anyway</button>");
+  });
+
+  test("ask() puts a question in front of the host", async () => {
+    const answer = ask({ title: "Delete org/model-4bit?", tone: "danger", confirmLabel: "Delete" });
+    const html = render(<ConfirmHost />);
+    expect(html).toContain("Delete org/model-4bit?");
+    // the promise stays pending until the person answers, which is the point
+    expect(answer instanceof Promise).toBe(true);
+  });
+
+  test("no question means no host at all", () => {
+    expect(render(<ConfirmHost />)).toBe("");
   });
 });
