@@ -24,13 +24,17 @@ const resident = (ollama, name) =>
   (ollama ?? []).find((model) => model.name === name || model.name === `${name}:latest`);
 
 /** The per-role card model: default model, whether it is resident, and its memory. */
-function roleState(role, defaults, health, memory) {
+function roleState(role, defaults, health, memory, setup) {
   const meta = ROLE_META[role];
   const worker = (health?.workers ?? {})[role];
   const memoryWorker = (memory?.workers ?? {})[role];
   const model = defaults?.[role] ?? "—";
   // a pinned role is one the gateway is keeping resident on purpose, so its card stays on
   const pinned = (health?.pins ?? []).includes(role);
+  // whether the default is on disk and its runtime accepts it; anything else means Setup, not a switch
+  const setupEntry = setup?.roles?.[role];
+  const setupState = setupEntry?.state ?? "unknown";
+  const setupReason = setupEntry?.reason ?? "";
 
   if (OLLAMA_ROLES.has(role)) {
     // Ollama's models outlive the role: remember what it pulled, then match it.
@@ -46,6 +50,8 @@ function roleState(role, defaults, health, memory) {
       status: running ? "loaded" : "idle",
       cpuPercent: 0,
       held: false,
+      setupState,
+      setupReason,
     };
   }
 
@@ -64,6 +70,8 @@ function roleState(role, defaults, health, memory) {
     status,
     cpuPercent: memoryWorker?.cpu_percent ?? worker?.cpu_percent ?? 0,
     held: Boolean(memoryWorker?.held ?? worker?.held),
+    setupState,
+    setupReason,
   };
 }
 
@@ -86,10 +94,11 @@ function attributeOllama(memory, defaults) {
 
 export async function pollRuntime() {
   try {
-    const [healthResponse, memory, models] = await Promise.all([
+    const [healthResponse, memory, models, setup] = await Promise.all([
       getJson("/health"),
       getJson("/admin/memory").catch(() => null),
       getJson("/v1/models").catch(() => null),
+      getJson("/admin/models/status").catch(() => null),
     ]);
     // One poll feeds both the sidebar cards and the gateway badge.
     health.value = healthResponse;
@@ -97,7 +106,7 @@ export async function pollRuntime() {
     const defaults = models?.defaults ?? {};
     const attributed = memory ? attributeOllama(memory, defaults) : null;
     const roles = {};
-    for (const role of ROLE_ORDER) roles[role] = roleState(role, defaults, healthResponse, attributed);
+    for (const role of ROLE_ORDER) roles[role] = roleState(role, defaults, healthResponse, attributed, setup);
     runtime.value = {
       ready: true,
       error: "",

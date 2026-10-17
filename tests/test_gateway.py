@@ -70,6 +70,40 @@ class Gateway(unittest.TestCase):
         body = self.client.get("/admin/models").json()
         self.assertEqual(set(body["installed_by_role"]), set(ROLES))
 
+    def test_admin_status_reports_a_state_for_every_role(self):
+        body = self.client.get("/admin/models/status").json()
+        self.assertEqual(set(body["roles"]), set(ROLES))
+        for role, entry in body["roles"].items():
+            self.assertIn(entry["state"], ("ready", "missing", "incompatible"), role)
+            self.assertIsInstance(entry["installed"], list)
+            self.assertIsInstance(entry["total_bytes"], int)
+            if entry["state"] == "ready":
+                self.assertIsNone(entry["reason"])
+            else:
+                self.assertTrue(entry["reason"], role)
+
+    def test_admin_check_refuses_a_repo_the_runtime_cannot_run(self):
+        response = self.client.get("/admin/models/check",
+                                   params={"role": "video", "model": "https://huggingface.co/Qwen/Qwen-Image-2.1"})
+        body = response.json()
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(body["supported"])
+        self.assertEqual(body["model"], "Qwen/Qwen-Image-2.1")
+        self.assertIn("ltx", body["reason"])
+
+    def test_admin_check_rejects_an_unknown_role(self):
+        response = self.client.get("/admin/models/check", params={"role": "bogus", "model": "x/y"})
+        self.assertEqual(response.status_code, 400)
+
+    def test_admin_workers_all_restart_is_accepted(self):
+        response = self.client.post("/admin/workers/all/restart")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["worker"], "all")
+
+    def test_admin_workers_all_rejects_start(self):
+        response = self.client.post("/admin/workers/all/start")
+        self.assertEqual(response.status_code, 400)
+
     def test_unknown_route_is_the_error_shape(self):
         response = self.client.get("/nope")
         self.assertEqual(response.status_code, 404)

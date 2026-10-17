@@ -41,10 +41,12 @@ function StatusDot({ status, loaded }) {
  * serving it right now, how much memory that model holds, and a switch that keeps
  * the model warm — on loads it and holds it, off unloads it.
  *
- * The card opens the role's page; the switch stands alone, so a click on it must
- * not also navigate.
+ * When the default is not on disk (or its runtime refuses it) the switch would
+ * promise what it cannot do, so a Setup button takes its place and opens the
+ * role's setup card. The card opens the role's page; both controls stand alone,
+ * so a click on either must not also navigate.
  */
-export function RoleCard({ role, active, onOpen }) {
+export function RoleCard({ role, active, onOpen, onSetup }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
   const state = runtime.value.roles[role] ?? { ...ROLE_META[role], role, ...UNKNOWN };
@@ -52,6 +54,10 @@ export function RoleCard({ role, active, onOpen }) {
   const running = state.loaded;
   const pinned = state.pinned;
   const checking = state.status === "unknown";
+  // the default can actually start: on disk and accepted by its runtime; while the
+  // status call has not answered yet, the switch stays (it can only refuse a real load)
+  const setupState = state.setupState ?? "unknown";
+  const needsSetup = !checking && (setupState === "missing" || setupState === "incompatible");
   const shownModel = state.runningModel ?? state.model ?? "—";
   // a pinned model that is not in memory yet is on its way there, not idle
   const word = pinned && !running ? "loading…" : STATUS_WORD[state.status] ?? state.status;
@@ -89,14 +95,22 @@ export function RoleCard({ role, active, onOpen }) {
     }
   };
 
+  // The switch is a button inside the clickable card: clicks and keys from it
+  // must never also open the page.
+  const open = (event) => {
+    if (event.target.closest("button")) return;
+    onOpen(role);
+  };
+
   return (
     <div
       class={cx(styles.card, active && styles.on, !running && !active && styles.off)}
       role="button"
       tabIndex={0}
       aria-current={active ? "page" : undefined}
-      onClick={() => onOpen(role)}
+      onClick={open}
       onKeyDown={(event) => {
+        if (event.target.closest("button")) return;
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
           onOpen(role);
@@ -119,19 +133,37 @@ export function RoleCard({ role, active, onOpen }) {
           <StatusDot status={state.status} loaded={running} />
           {word}
         </span>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={pinned}
-          aria-label={`${pinned ? "stop keeping warm" : "keep warm"} ${state.label}`}
-          title={checking ? "waiting for the gateway"
-            : pinned ? `Stop keeping ${shownModel} warm` : `Keep ${state.model} warm (loads it now and holds it)`}
-          disabled={busy || checking}
-          class={cx(styles.switch, pinned && styles.switchOn)}
-          onClick={flip}
-        />
+        {needsSetup
+          ? (
+            <button
+              type="button"
+              class={styles.setup}
+              title={state.setupReason || `Set up ${state.label}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                onSetup?.(role);
+              }}
+            >
+              Setup
+            </button>
+          )
+          : (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={pinned}
+              aria-label={`${pinned ? "stop keeping warm" : "keep warm"} ${state.label}`}
+              title={checking ? "waiting for the gateway"
+                : pinned ? `Stop keeping ${shownModel} warm` : `Keep ${state.model} warm (loads it now and holds it)`}
+              disabled={busy || checking}
+              class={cx(styles.switch, pinned && styles.switchOn)}
+              onClick={flip}
+            />
+          )}
       </span>
-      {problem && <span class={styles.problem} role="alert">{problem}</span>}
+      {(problem || (needsSetup && state.setupReason)) && (
+        <span class={styles.problem} role="alert">{problem || state.setupReason}</span>
+      )}
     </div>
   );
 }

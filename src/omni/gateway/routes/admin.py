@@ -60,6 +60,9 @@ def register(app: FastAPI, ctx: Context) -> None:
     @app.post("/admin/models/pull")
     async def admin_pull(request: Request) -> StreamingResponse:
         role, model = await model_request(request)
+        model = registry.normalize_repo_id(model)
+        if registry.runner(role) != "ollama":
+            model = registry.bare_repo_id(model)
 
         async def events():
             async for event in registry.pull(clients["chat"], role, model):
@@ -70,6 +73,9 @@ def register(app: FastAPI, ctx: Context) -> None:
     @app.post("/admin/models/delete")
     async def admin_delete(request: Request) -> JSONResponse:
         role, model = await model_request(request)
+        model = registry.normalize_repo_id(model)
+        if registry.runner(role) != "ollama":
+            model = registry.bare_repo_id(model)
         users = [name for name in registry.ROLES if settings[name]["model"] == model]
         if users:
             return error_response(409, f"{model} is the default for {', '.join(users)}; switch that first", "conflict")
@@ -111,6 +117,75 @@ def register(app: FastAPI, ctx: Context) -> None:
         except (httpx.HTTPError, *HF_ERRORS) as error:
             return error_response(502, f"huggingface: {error}", "upstream_error")
         return JSONResponse({"role": role, "results": results})
+
+    def setup_state(role: str, available: list[dict]) -> dict:
+        """Whether the role's default can actually run: on disk, missing, or refused by its runtime."""
+        default = settings[role]["model"]
+        match = next((entry for entry in available if entry["name"] in (default, f"{default}:latest")), None)
+        total = sum(entry.get("size_bytes") or 0 for entry in available)
+        if match is not None:
+            return {"state": "ready", "reason": None, "total_bytes": total}
+        if not registry.supports(role, default):
+            marker = registry.family(role)
+            hint = f" (it loads only repos with '{marker}' in the name)" if marker else ""
+            return {"state": "incompatible",
+                    "reason": f"{default}: the {role} runtime cannot run it{hint}; pick another default",
+                    "total_bytes": total}
+        if registry.runner(role) == "ollama":
+            return {"state": "missing",
+                    "reason": f"{default} is not installed; install it first (see Install below)",
+                    "total_bytes": total}
+        return {"state": "missing",
+                "reason": f"{default} is not downloaded yet; loading downloads it first",
+                "total_bytes": total}
+
+    @app.get("/admin/models/status")
+    async def admin_status() -> JSONResponse:
+        """One setup summary per role: its default, what is on disk for it, and whether the default can run."""
+        roles = {}
+        for role in registry.ROLES:
+            try:
+                available = await installed_for(role)
+            except (httpx.HTTPError, *HF_ERRORS):
+                available = []
+            state = setup_state(role, available)
+            roles[role] = {"default": settings[role]["model"], "runner": registry.runner(role),
+                           "installed": available, **state}
+        return JSONResponse({"roles": roles})
+
+    @app.get("/admin/models/check")
+    async def admin_check(role: str, model: str = Query(..., min_length=1)) -> JSONResponse:
+        """Can this role run this model id or page URL, before downloading anything?"""
+        if role not in registry.ROLES:
+            raise _bad_role()
+        name = registry.normalize_repo_id(model.strip())
+        if registry.runner(role) != "ollama":
+            name = registry.bare_repo_id(name)
+        if not registry.supports(role, name):
+            marker = registry.family(role)
+            hint = f" (it loads only repos with '{marker}' in the name)" if marker else ""
+            return JSONResponse({"role": role, "model": name, "supported": False,
+                                 "reason": f"the {role} runtime cannot run {name}{hint}",
+                                 "installed": False, "size_bytes": None, "blockers": []})
+        try:
+            available = await installed_for(role)
+        except (httpx.HTTPError, *HF_ERRORS):
+            available = []
+        match = next((entry for entry in available if entry["name"] in (name, f"{name}:latest")), None)
+        if match is not None:
+            size = match.get("size_bytes") or 0
+            return JSONResponse({"role": role, "model": name, "supported": True, "reason": None,
+                                 "installed": True, "size_bytes": size,
+                                 "blockers": registry.fit_blockers(size)})
+        size = None
+        if registry.runner(role) != "ollama":
+            try:
+                size = await asyncio.to_thread(registry.hf_size, name)
+            except HF_ERRORS:
+                size = None
+        return JSONResponse({"role": role, "model": name, "supported": True, "reason": None,
+                             "installed": False, "size_bytes": size,
+                             "blockers": registry.fit_blockers(size) if size else []})
 
     async def residency_request(request: Request) -> tuple[str, str, bool]:
         """The role, model and force flag a load/unload names; the model defaults to the role's default."""
@@ -205,6 +280,15 @@ def register(app: FastAPI, ctx: Context) -> None:
 
     @app.post("/admin/workers/{name}/{action}")
     async def admin_worker(name: str, action: str) -> JSONResponse:
+        if name == "all":
+            if action not in ("restart", "stop"):
+                return error_response(400, "action: restart or stop", "invalid_request_error")
+            for worker in pool.workers:
+                if action == "stop":
+                    await pool.hold(worker)
+                else:
+                    await pool.restart(worker)
+            return JSONResponse({"worker": "all", "status": {name: pool.workers[name].status for name in pool.workers}})
         if name not in pool.workers:
             if name == "chat":
                 return error_response(409, f"ollama runs outside omni at {ctx.chat_url}; manage it there", "conflict")

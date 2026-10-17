@@ -75,8 +75,24 @@ export function Panel({ title, meta, tools, flush, foot, children }) {
   );
 }
 
-/** The UI / JSON switch, shared by the request panel and every turn header. */
+/** The UI / JSON / cURL switch for the request panel. */
 export function UiJson({ view, onChange, label = "view" }) {
+  return (
+    <ui.Segmented
+      label={label}
+      options={[
+        { value: "ui", label: "UI" },
+        { value: "json", label: "JSON" },
+        { value: "curl", label: "cURL" },
+      ]}
+      value={view}
+      onChange={onChange}
+    />
+  );
+}
+
+/** The UI / JSON switch for a turn header (turns have no curl of their own). */
+export function TurnView({ view, onChange, label = "view" }) {
   return (
     <ui.Segmented
       label={label}
@@ -127,7 +143,7 @@ export function Turn({
         {warn && <span class={styles.turnWarn}>{warn}</span>}
         {status && <span>{status}</span>}
         {meta}
-        {onView && <UiJson view={view} onChange={onView} label={`view for ${label}`} />}
+        {onView && <TurnView view={view} onChange={onView} label={`view for ${label}`} />}
       </span>
     </header>
   );
@@ -136,7 +152,7 @@ export function Turn({
   if (!open) {
     body = summary ? <div class={styles.turnSummary}>{summary}</div> : null;
   } else if (view === "json") {
-    body = <pre class={styles.json}>{JSON.stringify(wire, null, 2)}</pre>;
+    body = <ui.CodeBlock code={JSON.stringify(wire, null, 2)} language="json" label={`copy ${label} JSON`} />;
   } else {
     body = (
       <>
@@ -210,10 +226,14 @@ export function Distribution({ name, type, instruction, answer, rows, foot, form
 }
 
 /**
- * The request panel body: the caller's form fields, or an editable JSON pane when
- * the panel is switched to JSON.
+ * The request panel body: the caller's form fields, an editable JSON pane when
+ * the panel is switched to JSON, or a read-only tinted curl pane with a copy
+ * button when it is switched to cURL.
  */
-export function RequestBody({ view, jsonText, onJsonText, jsonError, children }) {
+export function RequestBody({ view, jsonText, onJsonText, jsonError, curl, children }) {
+  if (view === "curl") {
+    return <ui.CodeBlock code={curl ?? ""} language="shell" label="copy curl command" />;
+  }
   if (view !== "json") return children;
   return (
     <>

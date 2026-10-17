@@ -145,7 +145,7 @@ export default function Video() {
           </>
         )}
       >
-        <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error}>
+        <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error} curl={curl}>
           <ui.Field label="Prompt">
             <textarea rows={4} value={form.prompt} onInput={edit("prompt")} />
           </ui.Field>
@@ -217,7 +217,6 @@ export default function Video() {
             </div>
           )
           : <ui.Empty>Jobs queue here; finished clips play inline.</ui.Empty>}
-        <ui.CurlBlock code={curl} />
       </Panel>
     </Workbench>
   );

@@ -155,9 +155,11 @@ describe("keeping a model warm", () => {
       roles: { ...runtime.value.roles, chat: { ...runtime.value.roles.chat, loaded: false } },
     };
     const html = render(<App />);
-    // pinned but not resident: on its way, not idle
+    // pinned but not resident: on its way, not idle. Card statuses render in
+    // spans; every page stays mounted now, and hidden pages may say "idle" in
+    // their own readouts, so scope the check to the cards.
     expect(html).toContain("loading…");
-    expect(html).not.toContain(">idle<");
+    expect(html).not.toContain(">idle</span>");
   });
 
   test("an unpinned role is not claimed as warm", () => {

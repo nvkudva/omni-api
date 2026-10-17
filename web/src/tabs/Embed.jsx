@@ -127,7 +127,7 @@ export default function Embed() {
         tools={<UiJson view={view} onChange={setView} />}
         foot={<ui.Button variant="primary" disabled={busy || (view === "ui" && (!queryBody.input || !documentBody.input.length))} onClick={rank}>{busy ? "Ranking…" : "Rank"}</ui.Button>}
       >
-        <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error}>
+        <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error} curl={curl}>
           <ui.Field label="Query" trailing={<ui.Meta>input_type=query</ui.Meta>}>
             <input value={query} onInput={(event) => setQuery(event.currentTarget.value)} />
           </ui.Field>
@@ -166,7 +166,6 @@ export default function Embed() {
             </div>
           )
           : !error && <ui.Empty>Documents ranked by similarity to the query.</ui.Empty>}
-        <ui.CurlBlock code={curl} />
       </Panel>
     </Workbench>
   );

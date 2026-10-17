@@ -37,6 +37,24 @@ class Supports(unittest.TestCase):
         self.assertFalse(roles.supports("video", "Qwen/Qwen-Image-2.1"))
 
 
+class Normalize(unittest.TestCase):
+    def test_a_model_page_url_becomes_the_repo_id(self):
+        self.assertEqual(roles.normalize_repo_id("https://huggingface.co/mlx-community/parakeet-tdt-0.6b-v3"),
+                         "mlx-community/parakeet-tdt-0.6b-v3")
+
+    def test_a_tree_suffix_is_dropped(self):
+        self.assertEqual(roles.normalize_repo_id("huggingface.co/Qwen/Qwen-Image-2.1/tree/main"),
+                         "Qwen/Qwen-Image-2.1")
+
+    def test_an_ollama_hf_url_keeps_its_prefix_and_tag(self):
+        self.assertEqual(roles.normalize_repo_id("hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0"),
+                         "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0")
+
+    def test_bare_id_strips_the_hf_prefix_and_tag(self):
+        self.assertEqual(roles.bare_repo_id("hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0"),
+                         "mradermacher/OneJev1.5-0.8B-GGUF")
+
+
 class SearchFilters(unittest.TestCase):
     def test_chat_is_pinned_to_text_generation_so_gguf_noise_is_filtered_out(self):
         self.assertEqual(roles.SEARCH_FILTERS["chat"]["pipeline_tag"], "text-generation")

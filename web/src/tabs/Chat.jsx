@@ -222,7 +222,7 @@ export default function Chat() {
           </>
         )}
       >
-        <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error}>
+        <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error} curl={curl}>
           <ui.Field label="System prompt">
             <textarea rows={2} placeholder="optional" value={system} onInput={(event) => setSystem(event.currentTarget.value)} />
           </ui.Field>
@@ -295,7 +295,6 @@ export default function Chat() {
             </div>
           )
           : <ui.Empty>Build a request on the left and press Send. Replies stream token by token.</ui.Empty>}
-        <ui.CurlBlock code={curl} />
       </Panel>
     </Workbench>
   );

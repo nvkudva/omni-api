@@ -78,6 +78,14 @@ export function adminModels(abortSignal) {
   return getJson("/admin/models", { signal: abortSignal });
 }
 
+export function modelStatus(abortSignal) {
+  return getJson("/admin/models/status", { signal: abortSignal });
+}
+
+export async function checkModel(params) {
+  return getJson(`/admin/models/check?${params}`);
+}
+
 export function memory(abortSignal) {
   return getJson("/admin/memory", { signal: abortSignal });
 }
@@ -99,6 +107,8 @@ export async function pullModel(body, abortSignal) {
 }
 
 export const workerAction = (name, action) => postAdmin(`/admin/workers/${name}/${action}`, {});
+
+export const workersAction = (action) => postAdmin(`/admin/workers/all/${action}`, {});
 
 export const serverInfo = () => getJson("/admin/server");
 export const serverAction = (action) => postAdmin(`/admin/server/${action}`, {});

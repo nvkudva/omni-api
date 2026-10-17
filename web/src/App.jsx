@@ -49,9 +49,15 @@ export default function App() {
     store.set("omni.tab", id);
   };
 
+  // A card whose default cannot start: open Settings at the Models section with this role's card first.
+  const openSetup = (role) => {
+    store.set("omni.setupRole", role);
+    store.set("omni.settings", "models");
+    choose("settings");
+  };
+
   const nextTheme = THEME_ORDER[(THEME_ORDER.indexOf(theme) + 1) % THEME_ORDER.length];
   const settingsOpen = tab === "settings";
-  const Page = COMPONENTS[tab];
 
   return (
     <div class={styles.shell}>
@@ -86,11 +92,21 @@ export default function App() {
       </header>
       <nav class={styles.cards} aria-label="Models">
         {ROLES.map((role) => (
-          <RoleCard key={role} role={role} active={role === tab} onOpen={choose} />
+          <RoleCard key={role} role={role} active={role === tab} onOpen={choose} onSetup={openSetup} />
         ))}
       </nav>
       <main class={styles.main}>
-        {settingsOpen ? <Settings key="settings" theme={theme} onTheme={setTheme} /> : <Page key={tab} active />}
+        {/* Every page stays mounted so an in-flight request survives a tab
+            switch; the inactive ones just hide. */}
+        {ROLES.map((role) => {
+          const RolePage = COMPONENTS[role];
+          return (
+            <div key={role} class={role === tab && !settingsOpen ? styles.page : styles.pageHidden} aria-hidden={role === tab && !settingsOpen ? undefined : true}>
+              <RolePage active={role === tab && !settingsOpen} />
+            </div>
+          );
+        })}
+        {settingsOpen && <Settings key="settings" theme={theme} onTheme={setTheme} />}
       </main>
       <ConfirmHost />
     </div>

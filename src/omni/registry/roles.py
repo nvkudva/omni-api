@@ -1,4 +1,6 @@
 """Roles, which runtime serves each, and what each runtime can actually load."""
+import re
+
 from omni import config
 
 # chat, decide and embed share the machine's Ollama; the rest run in their own uvicorn worker.
@@ -30,6 +32,30 @@ def runner(role: str) -> str:
 def family(role: str) -> str | None:
     """The repo-name marker a role's runtime needs, e.g. `qwen-image-2` for image."""
     return SEARCH_FILTERS.get(role, {}).get("family")
+
+
+def normalize_repo_id(name: str) -> str:
+    """Turn a pasted model page URL into the id the runtimes take.
+
+    Accepts `https://huggingface.co/user/repo`, `huggingface.co/user/repo`,
+    `hf.co/user/repo` and bare `user/repo`, and drops page suffixes such as
+    `/tree/main` or `?private=true`. The `hf.co/` prefix and any `:tag` stay:
+    Ollama pulls `hf.co/user/repo-GGUF:Q8_0` verbatim.
+    """
+    text = name.strip().strip("/")
+    text = re.sub(r"^https?://(www\.)?", "", text)
+    text = text.removeprefix("huggingface.co/")
+    parts = text.split("/")
+    if len(parts) > 3 and parts[2] in ("tree", "blob", "resolve", "commit", "discussions", "pulls"):
+        text = "/".join(parts[:2])
+    return text.split("?")[0].split("#")[0].rstrip("/")
+
+
+def bare_repo_id(name: str) -> str:
+    """The Hugging Face repo id: normalized, without the `hf.co/` prefix or `:tag` a pull used."""
+    text = normalize_repo_id(name)
+    text = text.removeprefix("hf.co/")
+    return text.split(":")[0]
 
 
 def supports(role: str, name: str) -> bool:

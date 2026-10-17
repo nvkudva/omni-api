@@ -3,6 +3,7 @@ import { errorText, record } from "../api/client.js";
 import { synthesize, transcribe, voices as fetchVoices } from "../api/endpoints.js";
 import { models } from "../api/models.js";
 import { runtime } from "../api/roles.js";
+import { curlJson } from "../lib/curl.js";
 import { since, wavSeconds } from "../lib/format.js";
 import { usePolling } from "../hooks/usePolling.js";
 import * as store from "../store.js";
@@ -75,6 +76,7 @@ export default function Tts() {
   const body = { input: text, speed, response_format: "wav" };
   if (voice) body.voice = voice;
   const json = useJsonRequest(view, body);
+  const curl = `${curlJson("/v1/audio/speech", view === "json" && !json.error ? json.body : body)} -o omni.wav`;
   const role = runtime.value.roles.tts;
 
   const choose = (name) => {
@@ -146,7 +148,7 @@ export default function Tts() {
           </>
         )}
       >
-        <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error}>
+        <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error} curl={curl}>
           <ui.Field label="Voice">
             <select value={voice} onChange={(event) => choose(event.currentTarget.value)}>
               {voices

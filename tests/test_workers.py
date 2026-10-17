@@ -47,6 +47,43 @@ class WorkerApps(unittest.TestCase):
                 self.assertFalse(module.model.loaded, module.__name__)
 
 
+class SttModelThread(unittest.TestCase):
+    def test_load_and_transcribe_stay_on_one_thread(self):
+        # MLX streams are thread-local: if load and transcribe land on
+        # different threads, parakeet raises "no Stream in current thread".
+        import threading
+        from types import SimpleNamespace
+
+        seen = []
+
+        class FakeTranscriber:
+            def transcribe(self, path):
+                seen.append(threading.get_ident())
+                sentence = SimpleNamespace(start=0.0, end=1.0, text="hello")
+                return SimpleNamespace(text="hello", sentences=[sentence])
+
+        def fake_load():
+            seen.append(threading.get_ident())
+            return FakeTranscriber()
+
+        original = stt.model
+        stt.model = Lazy(fake_load, idle_seconds=10_000)
+        try:
+            with TestClient(stt.app) as client:
+                for _ in range(2):
+                    response = client.post(
+                        "/v1/audio/transcriptions",
+                        files={"file": ("a.wav", b"data", "audio/wav")},
+                        data={"response_format": "verbose_json"},
+                    )
+                    self.assertEqual(response.status_code, 200)
+                    self.assertEqual(response.json()["text"], "hello")
+        finally:
+            stt.model = original
+        self.assertEqual(len(seen), 3)
+        self.assertEqual(len(set(seen)), 1, seen)
+
+
 class WorkerValidation(unittest.TestCase):
     def setUp(self):
         self.image = TestClient(image.app)

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { transcribe } from "../api/endpoints.js";
 import { models } from "../api/models.js";
 import { runtime } from "../api/roles.js";
+import { ORIGIN } from "../api/client.js";
 import { clock } from "../lib/format.js";
 import * as ui from "../components/ui.jsx";
 import { Panel, Pending, RequestBody, Turn, TurnError, UiJson, Workbench, useTurnState } from "../components/workbench.jsx";
@@ -34,8 +35,15 @@ function drawWave(canvas, analyser) {
   return () => cancelAnimationFrame(frame);
 }
 
+/** The readable text of a finished turn, whatever shape its format returned. */
+export function transcriptText(turn) {
+  if (turn.format === "text") return typeof turn.result === "string" ? turn.result : "";
+  return turn.result?.text ?? "";
+}
+
 /** The transcript of one clip, with its own player so segments can seek it. */
-function Transcript({ turn }) {
+export function Transcript({ turn }) {
+  const text = transcriptText(turn);
   const audio = useRef(null);
   const [copied, setCopied] = useState(false);
 
@@ -47,7 +55,7 @@ function Transcript({ turn }) {
   };
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(turn.format === "text" ? turn.result : turn.result.text ?? "");
+      await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 1200);
     } catch {
@@ -55,11 +63,17 @@ function Transcript({ turn }) {
     }
   };
 
+  // Silence (or a clip with no speech) comes back as empty text: say so
+  // instead of rendering a blank paragraph that reads as broken.
+  const body = text
+    ? <p class={styles.transcript}>{text}</p>
+    : <ui.Empty>No speech detected in this clip.</ui.Empty>;
+
   if (turn.format === "text") {
     return (
       <div class={styles.stack}>
         {turn.url && <audio ref={audio} class={styles.audio} controls src={turn.url} />}
-        <p class={styles.transcript}>{turn.result}</p>
+        {body}
         <ui.Row end><ui.Button small variant="plain" onClick={copy}>{copied ? "Copied" : "Copy text"}</ui.Button></ui.Row>
       </div>
     );
@@ -68,7 +82,7 @@ function Transcript({ turn }) {
   return (
     <div class={styles.stack}>
       {turn.url && <audio ref={audio} class={styles.audio} controls src={turn.url} />}
-      <p class={styles.transcript}>{turn.result.text}</p>
+      {body}
       {turn.result.segments?.length > 0 && (
         <ul class={styles.segments}>
           {turn.result.segments.map((segment, index) => (
@@ -99,6 +113,13 @@ export default function Stt() {
   const recorder = useRef(null);
   const canvas = useRef(null);
   const clipRef = useRef(null);
+  // Every turn owns its audio URL. Sharing the preview clip's URL broke older
+  // turns: applying the next clip revoked it out from under them.
+  const turnUrls = useRef(new Map());
+  const dropTurnUrls = () => {
+    for (const url of turnUrls.current.values()) URL.revokeObjectURL(url);
+    turnUrls.current.clear();
+  };
   const abort = useRef(null);
   const alive = useRef(true);
   const turnState = useTurnState();
@@ -107,6 +128,7 @@ export default function Stt() {
     alive.current = false;
     recorder.current?.stop();
     abort.current?.abort();
+    dropTurnUrls();
     if (clipRef.current?.url) URL.revokeObjectURL(clipRef.current.url);
   }, []);
 
@@ -123,7 +145,8 @@ export default function Stt() {
     abort.current = controller;
     const id = crypto.randomUUID();
     const at = Date.now();
-    const url = clipRef.current?.blob === blob ? clipRef.current.url : URL.createObjectURL(blob);
+    const url = URL.createObjectURL(blob);
+    turnUrls.current.set(id, url);
     setBusy(true);
     setTurns((current) => [{ id, at, url, request: { file: name, response_format: responseFormat }, pending: true }, ...current]);
     setMeta("transcribing…");
@@ -150,6 +173,10 @@ export default function Stt() {
 
   const start = async () => {
     setMicError("");
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setMicError("microphone: not available in this browser or page (needs HTTPS or localhost)");
+      return;
+    }
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -167,7 +194,9 @@ export default function Stt() {
 
     const chunks = [];
     const media = new MediaRecorder(stream);
-    media.ondataavailable = (event) => chunks.push(event.data);
+    media.ondataavailable = (event) => {
+      if (event.data?.size) chunks.push(event.data);
+    };
     media.onstop = () => {
       stopWave();
       clearInterval(timer);
@@ -180,6 +209,10 @@ export default function Stt() {
       const extension = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
       const name = `recording.${extension}`;
       const blob = new Blob(chunks, { type });
+      if (!blob.size) {
+        setMicError("microphone: nothing was recorded — check the mic and try again");
+        return;
+      }
       applyClip(blob, name);
       run(blob, name, format);
     };
@@ -193,6 +226,7 @@ export default function Stt() {
 
   const body = { file: clip?.name ?? "speech.wav", response_format: format };
   const json = useJsonRequest(view, body);
+  const curl = `curl -s ${ORIGIN}/v1/audio/transcriptions \\\n  -F file=@${clip?.name ?? "speech.wav"} \\\n  -F response_format=${view === "json" && !json.error ? (json.body?.response_format ?? format) : format}`;
   const sendFormat = view === "json" ? (json.body?.response_format ?? format) : format;
   const canTranscribe = Boolean(clip) && !busy && !(view === "json" && json.error);
   const openId = turnState.open ?? turns[0]?.id;
@@ -219,7 +253,7 @@ export default function Stt() {
           </>
         )}
       >
-        <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error}>
+        <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error} curl={curl}>
           <ui.Field label="Response format">
             <ui.Segmented label="Response format" options={FORMATS.map((value) => ({ value, label: value }))} value={format} onChange={setFormat} />
           </ui.Field>
@@ -239,7 +273,7 @@ export default function Stt() {
       <Panel
         title="Transcripts"
         meta={meta}
-        tools={<ui.Button small variant="plain" disabled={!turns.length || busy} onClick={() => { setTurns([]); setMeta(""); }}>Clear</ui.Button>}
+        tools={<ui.Button small variant="plain" disabled={!turns.length || busy} onClick={() => { dropTurnUrls(); setTurns([]); setMeta(""); }}>Clear</ui.Button>}
       >
         {turns.length
           ? (
@@ -261,7 +295,12 @@ export default function Stt() {
                   {turn.pending
                     ? <Pending label="transcribing" note={turn.request.file} />
                     : turn.error
-                      ? <TurnError>{turn.error}</TurnError>
+                      ? (
+                        <div class={styles.stack}>
+                          {turn.url && <audio class={styles.audio} controls src={turn.url} />}
+                          <TurnError>{turn.error}</TurnError>
+                        </div>
+                      )
                       : <Transcript turn={turn} />}
                 </Turn>
               ))}

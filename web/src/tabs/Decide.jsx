@@ -240,7 +240,7 @@ export default function Decide() {
           </>
         )}
       >
-        <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error}>
+        <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error} curl={curl}>
           <ui.Field label="State" hint="⌘/Ctrl + Enter to decide">
             <textarea rows={4} value={state} onInput={(event) => editState(event.currentTarget.value)} onKeyDown={sendOnShortcut} />
           </ui.Field>
@@ -275,7 +275,6 @@ export default function Decide() {
             </div>
           )
           : !error && <ui.Empty>Answers show as probability distributions, one per question.</ui.Empty>}
-        <ui.CurlBlock code={curl} />
       </Panel>
     </Workbench>
   );

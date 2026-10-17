@@ -54,3 +54,12 @@
 .switchOn::after { transform: translateX(15px); }
 .switch:disabled { opacity: 0.5; cursor: default; }
 .switch:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+/* The default cannot start yet: a plain button to its setup card, not a switch that would fail. */
+.setup {
+  margin-left: auto; flex: none; padding: 3px 12px;
+  border: 1px solid var(--hairline-strong); border-radius: 999px;
+  background: var(--surface-2); color: var(--text);
+  font-size: 10.5px; font-weight: 600; cursor: pointer;
+}
+.setup:hover { border-color: var(--accent); color: var(--accent); }
+.setup:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }

@@ -72,6 +72,17 @@
 .curlBody { position: relative; padding-bottom: 16px; }
 .copy { position: absolute; top: 6px; right: 6px; background: var(--surface); }
 
+/* Read-only tinted code: request-pane curl view and turn JSON view. */
+.codeWrap { position: relative; }
+.codeCopy { position: absolute; top: 6px; right: 6px; }
+.tokKey { color: var(--accent); }
+.tokString { color: var(--green); }
+.tokNumber { color: var(--orange); }
+.tokBool { color: var(--orange); }
+.tokNull { color: var(--text-3, var(--text-2)); }
+.tokFlag { color: var(--accent); }
+.tokComment { color: var(--text-3, var(--text-2)); font-style: italic; }
+
 .meter { height: 8px; border-radius: 4px; background: var(--surface-2); box-shadow: inset 0 0 0 1px var(--hairline); overflow: hidden; }
 .meterFill { display: block; height: 100%; background: var(--green); border-radius: 4px; transition: width 0.4s; }
 .meterHigh { background: var(--orange); }

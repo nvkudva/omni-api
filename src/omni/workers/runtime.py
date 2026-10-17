@@ -3,14 +3,34 @@
 One lock covers load, use and unload, so calls into the model never overlap (Metal aborts when two
 threads encode at once).
 """
+import asyncio
 import gc
 import threading
 import time
 from collections.abc import Callable, Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from typing import Any
 
 IDLE_CHECK_SECONDS = 30.0
+
+
+class ModelExecutor:
+    """Run model work on one dedicated thread.
+
+    MLX streams are thread-local: a model loaded on one thread raises
+    ``There is no Stream(...) in current thread`` when used from another.
+    ``asyncio.to_thread`` picks any pool thread, so load and inference must
+    both go through this single-thread executor to stay on the thread that
+    loaded the model.
+    """
+
+    def __init__(self, name: str = "model") -> None:
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=name)
+
+    async def run(self, fn: Callable[..., Any], *args: Any) -> Any:
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(self._executor, fn, *args)
 
 
 class Lazy:

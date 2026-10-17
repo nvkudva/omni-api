@@ -1,5 +1,6 @@
 import { cloneElement, isValidElement, toChildArray } from "preact";
 import { useEffect, useId, useRef, useState } from "preact/hooks";
+import { tintJson, tintShell } from "../lib/highlight.js";
 import styles from "./ui.module.css";
 
 const cx = (...names) => names.filter(Boolean).join(" ");
@@ -70,7 +71,21 @@ export function Code({ children }) {
   return <pre class={styles.code}>{children}</pre>;
 }
 
-export function CurlBlock({ code }) {
+const TOK_CLASS = {
+  key: styles.tokKey,
+  string: styles.tokString,
+  number: styles.tokNumber,
+  bool: styles.tokBool,
+  null: styles.tokNull,
+  flag: styles.tokFlag,
+  comment: styles.tokComment,
+};
+
+/**
+ * Read-only tinted code with a copy button: the request-pane curl view and
+ * the turn JSON view. `language` is "json" or "shell".
+ */
+export function CodeBlock({ code, language = "json", label = "copy code" }) {
   const [state, setState] = useState("idle");
   const timer = useRef(null);
   useEffect(() => () => clearTimeout(timer.current), []);
@@ -85,19 +100,20 @@ export function CurlBlock({ code }) {
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setState("idle"), 1200);
   };
+  const runs = language === "shell" ? tintShell(code) : tintJson(code);
   return (
-    <details class={styles.curl}>
-      <summary class={styles.curlSummary}>
-        <span class={styles.chevron} aria-hidden="true" />
-        <span>curl</span>
-      </summary>
-      <div class={styles.curlBody}>
-        <Button small variant="plain" class={styles.copy} onClick={copy}>
-          {state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : "Copy"}
-        </Button>
-        <pre class={styles.code}>{code}</pre>
-      </div>
-    </details>
+    <div class={styles.codeWrap}>
+      <Button small variant="plain" class={styles.codeCopy} onClick={copy} aria-label={label}>
+        {state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : "Copy"}
+      </Button>
+      <pre class={styles.code} tabIndex={0}>
+        {runs.map((run, index) => (
+          run.tone && TOK_CLASS[run.tone]
+            ? <span key={index} class={TOK_CLASS[run.tone]}>{run.text}</span>
+            : run.text
+        ))}
+      </pre>
+    </div>
   );
 }
 

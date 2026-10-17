@@ -131,7 +131,7 @@ export default function Image() {
           </>
         )}
       >
-        <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error}>
+        <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error} curl={curl}>
           <ui.Field label="Prompt">
             <textarea rows={4} value={prompt} onInput={(event) => setPrompt(event.currentTarget.value)} />
           </ui.Field>
@@ -194,7 +194,6 @@ export default function Image() {
             </div>
           )
           : <ui.Empty>Generated images appear here; each can be downloaded.</ui.Empty>}
-        <ui.CurlBlock code={curl} />
       </Panel>
     </Workbench>
   );

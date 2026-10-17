@@ -1,5 +1,4 @@
 """Speech to text: POST /v1/audio/transcriptions on parakeet-mlx."""
-import asyncio
 import tempfile
 from pathlib import Path
 from typing import Annotated
@@ -20,7 +19,11 @@ def _load():
 
 
 model = workers.Lazy(_load, config.idle_seconds(settings))
-app = workers.app(model)
+# MLX streams are thread-local, so every call into the model (load, unload,
+# transcribe) must land on this one thread or parakeet raises
+# "There is no Stream(...) in current thread".
+executor = workers.ModelExecutor("stt-model")
+app = workers.app(model, model_executor=executor)
 
 
 def _transcribe(path: Path):
@@ -63,7 +66,7 @@ async def transcriptions(
     with tempfile.NamedTemporaryFile(suffix=_suffix(file.filename)) as upload:
         upload.write(data)
         upload.flush()
-        result = await asyncio.to_thread(_transcribe, Path(upload.name))
+        result = await executor.run(_transcribe, Path(upload.name))
 
     if response_format == "text":
         return PlainTextResponse(result.text)
