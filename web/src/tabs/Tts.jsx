@@ -9,6 +9,7 @@ import { usePolling } from "../hooks/usePolling.js";
 import * as store from "../store.js";
 import * as ui from "../components/ui.jsx";
 import { Panel, Pending, RequestBody, Turn, TurnError, UiJson, Workbench, useTurnState } from "../components/workbench.jsx";
+import { LogsCard } from "../components/LogsCard.jsx";
 import { useJsonRequest } from "../hooks/useJsonRequest.js";
 import styles from "./Tts.module.css";
 
@@ -208,6 +209,7 @@ export default function Tts() {
           )
           : <ui.Empty>Generated audio plays here; each clip can be downloaded.</ui.Empty>}
       </Panel>
+      <LogsCard role="tts" />
     </Workbench>
   );
 }

@@ -7,6 +7,7 @@ import { curlJson } from "../lib/curl.js";
 import { shorten, since } from "../lib/format.js";
 import * as ui from "../components/ui.jsx";
 import { Panel, Pending, RequestBody, Turn, TurnError, UiJson, Workbench, useTurnState } from "../components/workbench.jsx";
+import { LogsCard } from "../components/LogsCard.jsx";
 import { useJsonRequest } from "../hooks/useJsonRequest.js";
 import { GatedNotice } from "./Models.jsx";
 import styles from "./Video.module.css";
@@ -225,6 +226,7 @@ export default function Video() {
           )
           : <ui.Empty>Jobs queue here; finished clips play inline.</ui.Empty>}
       </Panel>
+      <LogsCard role="video" />
     </Workbench>
   );
 }

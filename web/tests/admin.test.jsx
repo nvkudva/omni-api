@@ -8,7 +8,8 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import { render } from "preact-render-to-string";
 
 const ModelsModule = await import("../src/tabs/Models.jsx");
-const { RoleSetup, GlobalControls, Search, Install, DownloadedList, Memory, GatedNotice, LogsCard } = ModelsModule;
+const { RoleSetup, GlobalControls, Search, Install, DownloadedList, Memory, GatedNotice } = ModelsModule;
+const { LogsCard } = await import("../src/components/LogsCard.jsx");
 const Models = ModelsModule.default;
 const { RoleCard } = await import("../src/components/RoleCard.jsx");
 const { runtime } = await import("../src/api/roles.js");

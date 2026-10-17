@@ -10,6 +10,7 @@ import * as store from "../store.js";
 import * as ui from "../components/ui.jsx";
 import { QuestionBuilder } from "../components/QuestionBuilder.jsx";
 import { Distribution, Panel, RequestBody, Turn, UiJson, Workbench, useTurnState } from "../components/workbench.jsx";
+import { LogsCard } from "../components/LogsCard.jsx";
 import { useJsonRequest } from "../hooks/useJsonRequest.js";
 import styles from "./Decide.module.css";
 
@@ -276,6 +277,7 @@ export default function Decide() {
           )
           : !error && <ui.Empty>Answers show as probability distributions, one per question.</ui.Empty>}
       </Panel>
+      <LogsCard role="decide" />
     </Workbench>
   );
 }

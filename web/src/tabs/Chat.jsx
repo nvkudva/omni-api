@@ -9,6 +9,7 @@ import { shorten, since } from "../lib/format.js";
 import * as store from "../store.js";
 import * as ui from "../components/ui.jsx";
 import { Panel, RequestBody, Turn, UiJson, Workbench, useTurnState } from "../components/workbench.jsx";
+import { LogsCard } from "../components/LogsCard.jsx";
 import { useJsonRequest } from "../hooks/useJsonRequest.js";
 import styles from "./Chat.module.css";
 
@@ -296,6 +297,7 @@ export default function Chat() {
           )
           : <ui.Empty>Build a request on the left and press Send. Replies stream token by token.</ui.Empty>}
       </Panel>
+      <LogsCard role="chat" />
     </Workbench>
   );
 }

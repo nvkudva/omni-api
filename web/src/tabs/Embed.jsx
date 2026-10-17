@@ -8,6 +8,7 @@ import * as corpus from "../lib/corpus.js";
 import * as vectorstore from "../lib/vectorstore.js";
 import * as ui from "../components/ui.jsx";
 import { Panel, Turn, Workbench, useTurnState } from "../components/workbench.jsx";
+import { LogsCard } from "../components/LogsCard.jsx";
 import styles from "./Embed.module.css";
 
 const BATCH = 64;
@@ -351,6 +352,7 @@ export default function Embed() {
           )
           : !error && <ui.Empty>The closest passages from your files appear here.</ui.Empty>}
       </Panel>
+      <LogsCard role="embed" />
     </Workbench>
   );
 }

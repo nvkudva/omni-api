@@ -7,6 +7,7 @@ import { curlJson } from "../lib/curl.js";
 import { since } from "../lib/format.js";
 import * as ui from "../components/ui.jsx";
 import { Panel, Pending, RequestBody, Turn, TurnError, UiJson, Workbench, useTurnState } from "../components/workbench.jsx";
+import { LogsCard } from "../components/LogsCard.jsx";
 import { useJsonRequest } from "../hooks/useJsonRequest.js";
 import styles from "./Image.module.css";
 
@@ -195,6 +196,7 @@ export default function Image() {
           )
           : <ui.Empty>Generated images appear here; each can be downloaded.</ui.Empty>}
       </Panel>
+      <LogsCard role="image" />
     </Workbench>
   );
 }

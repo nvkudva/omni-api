@@ -6,6 +6,7 @@ import { ORIGIN } from "../api/client.js";
 import { clock } from "../lib/format.js";
 import * as ui from "../components/ui.jsx";
 import { Panel, Pending, RequestBody, Turn, TurnError, UiJson, Workbench, useTurnState } from "../components/workbench.jsx";
+import { LogsCard } from "../components/LogsCard.jsx";
 import { useJsonRequest } from "../hooks/useJsonRequest.js";
 import styles from "./Stt.module.css";
 
@@ -319,6 +320,7 @@ export default function Stt() {
           )
           : <ui.Empty>Recording stops → transcribes automatically. Click a segment to play from there.</ui.Empty>}
       </Panel>
+      <LogsCard role="stt" />
     </Workbench>
   );
 }
