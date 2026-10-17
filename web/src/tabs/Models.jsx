@@ -21,8 +21,9 @@ import { usePolling } from "../hooks/usePolling.js";
 import { ask } from "../components/Confirm.jsx";
 import * as store from "../store.js";
 import * as ui from "../components/ui.jsx";
-import { Panel, Workbench } from "../components/workbench.jsx";
+import { Workbench } from "../components/workbench.jsx";
 import styles from "./tabs.module.css";
+import setup from "./Models.module.css";
 
 const MEMORY_POLL_MS = 5000;
 const HINTS = {
@@ -75,6 +76,23 @@ function useAction(onChanged) {
     }
   };
   return [busy, run];
+}
+
+/** A card that sizes to its content; the workbench Panel scrolls its body, which clips these. */
+function Section({ title, meta, children }) {
+  return (
+    <section class={setup.setup}>
+      {(title || meta) && (
+        <header class={setup.setupHead}>
+          <div class={setup.setupTitleGroup}>
+            {title && <h2 class={setup.setupTitle}>{title}</h2>}
+            {meta && <span class={setup.setupMeta}>{meta}</span>}
+          </div>
+        </header>
+      )}
+      <div class={setup.setupBody}>{children}</div>
+    </section>
+  );
 }
 
 /** Keep-warm switch: on loads the default now and holds it, off unloads it. */
@@ -316,7 +334,7 @@ export function RoleSetup({ role, entry, pinned, onChanged }) {
   };
 
   return (
-    <Panel
+    <Section
       title={meta?.label ?? role}
       meta={`${entry.runner} · ${entry.installed.length} downloaded · ${gb(entry.total_bytes)} · ${STATE_LABEL[entry.state] ?? entry.state}`}
     >
@@ -341,7 +359,7 @@ export function RoleSetup({ role, entry, pinned, onChanged }) {
       <Search role={role} onPick={setPick} />
       <h3 class={styles.subhead}>Install</h3>
       <Install role={role} runner={entry.runner} initial={pick} onInstalled={() => onChanged("")} />
-    </Panel>
+    </Section>
   );
 }
 
@@ -380,13 +398,13 @@ export function GlobalControls({ managed, onChanged }) {
   };
 
   return (
-    <Panel title="Workers" meta="every role's runtime at once">
+    <Section title="Workers" meta="every role's runtime at once">
       <ui.Row>
         <ui.Button small disabled={busy} onClick={() => run("restart", "Restart all")}>Restart all</ui.Button>
         <ui.Button small variant="danger" disabled={busy} onClick={() => run("stop", "Stop all", true)}>Stop all</ui.Button>
         <ui.Button small disabled={busy || !managed} onClick={restartOllama} title={managed ? "Restart the Ollama engine" : "Ollama is not managed by omni on this machine"}>Restart Ollama</ui.Button>
       </ui.Row>
-    </Panel>
+    </Section>
   );
 }
 
@@ -438,12 +456,12 @@ export function WorkerRow({ name, worker, onChanged }) {
 }
 
 export function Memory({ memory, roles, onChanged }) {
-  if (!memory) return <Panel title="Memory"><ui.Empty>Reading memory…</ui.Empty></Panel>;
+  if (!memory) return <Section title="Memory"><ui.Empty>Reading memory…</ui.Empty></Section>;
   const used = memory.total_bytes - memory.available_bytes;
   const fraction = used / memory.total_bytes;
   const [load1, load5, load15] = memory.load_average.map((value) => value.toFixed(2));
   return (
-    <Panel title="Memory" meta={`${gb(used)} of ${gb(memory.total_bytes)} used`}>
+    <Section title="Memory" meta={`${gb(used)} of ${gb(memory.total_bytes)} used`}>
       <ui.Meter fraction={fraction} high={fraction > 0.85} />
       <ui.Meta>RAM {gb(memory.available_bytes)} free · swap {gb(memory.swap_used_bytes)} used · disk {gb(memory.disk_free_bytes)} free</ui.Meta>
       <ui.Meter fraction={memory.cpu_percent / 100} high={memory.cpu_percent > 90 || memory.load_average[0] > memory.cpu_count} />
@@ -467,7 +485,7 @@ export function Memory({ memory, roles, onChanged }) {
           {Object.entries(memory.workers).map(([name, worker]) => <WorkerRow key={name} name={name} worker={worker} onChanged={onChanged} />)}
         </tbody>
       </table>
-    </Panel>
+    </Section>
   );
 }
 
@@ -526,7 +544,7 @@ export default function Models({ active }) {
     <Workbench single title="Models" subtitle="Each role's current model, what is downloaded for it, and how to add more." readout={readout}>
       {error && <ui.ErrorText>{error}</ui.ErrorText>}
       {notice && <ui.Notice>{notice}</ui.Notice>}
-      {!status && !error && <Panel title="Roles"><ui.Empty><ui.Spinner /> loading models…</ui.Empty></Panel>}
+      {!status && !error && <Section title="Roles"><ui.Empty><ui.Spinner /> loading models…</ui.Empty></Section>}
       {status && (
         <>
           <GlobalControls managed={managed} onChanged={changed} />
