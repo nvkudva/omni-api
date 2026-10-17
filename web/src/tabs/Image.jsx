@@ -158,7 +158,7 @@ export default function Image() {
       <Panel
         title="Images"
         meta={meta}
-        tools={<ui.Button small variant="plain" disabled={!turns.length || busy} onClick={() => { commit([]); setMeta(""); }}>Clear</ui.Button>}
+        tools={<ui.IconButton icon="trash" label="Clear history" disabled={!turns.length || busy} onClick={() => { commit([]); setMeta(""); }} />}
       >
         {turns.length
           ? (

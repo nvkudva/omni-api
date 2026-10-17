@@ -1,6 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import { pollHealth } from "../api/health.js";
-import { saveSetting, serverAction, serverInfo, serverLogs, workerAction } from "../api/endpoints.js";
+import { serverAction, serverInfo, serverLogs, workerAction } from "../api/endpoints.js";
 import { pollRuntime, runtime } from "../api/roles.js";
 import * as ui from "../components/ui.jsx";
 import { Panel, Workbench } from "../components/workbench.jsx";
@@ -9,14 +9,6 @@ import styles from "./Control.module.css";
 
 const RECONNECT_TIMEOUT_MS = 60000;
 const LOG_LINES = 300;
-
-const TUNABLES = [
-  { key: "gateway.idle_unload_minutes", label: "Idle unload (minutes)", hint: "Unload a worker's model after this long unused. Restarts every worker.", number: true, step: "any" },
-  { key: "tts.voice", label: "Default voice", hint: "Voice used when a speech request names none. Restarts tts.", number: false },
-  { key: "image.steps", label: "Image steps", hint: "Denoising steps per image. More is slower and finer. Restarts image.", number: true, step: 1 },
-  { key: "video.frames", label: "Video frames", hint: "Frames per clip. Restarts video.", number: true, step: 1 },
-  { key: "video.fps", label: "Video fps", hint: "Playback rate of generated clips. Restarts video.", number: true, step: 1 },
-];
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -117,7 +109,59 @@ function Gateway({ info, onReconnected }) {
         ]}
         />
       )}
+      <GatewayLogs />
     </Panel>
+  );
+}
+
+/** The gateway log tail, collapsed until opened; loads on first open. */
+function GatewayLogs() {
+  const [lines, setLines] = useState([]);
+  const [path, setPath] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      const result = await serverLogs(LOG_LINES);
+      setLines(result.lines);
+      setPath(result.path);
+      setError("");
+    } catch (failure) {
+      setError(failure.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <details
+      class={styles.logs}
+      onToggle={(event) => {
+        if (event.currentTarget.open && !lines.length && !error && !loading) refresh();
+      }}
+    >
+      <summary>
+        Gateway log
+        {path && <span class={styles.logsPath}>{path}</span>}
+        <span class={styles.logsTools}>
+          <ui.IconButton
+            icon="refresh"
+            label="Refresh log"
+            disabled={loading}
+            onClick={(event) => {
+              event.preventDefault();
+              refresh();
+            }}
+          />
+        </span>
+      </summary>
+      {error && <ui.ErrorText>log request failed: {error}</ui.ErrorText>}
+      {lines.length
+        ? <ui.Code>{lines.join("\n")}</ui.Code>
+        : !error && <ui.Meta>{loading ? "reading…" : "The log is empty."}</ui.Meta>}
+    </details>
   );
 }
 
@@ -203,89 +247,3 @@ export function Server() {
   );
 }
 
-function Tunable({ spec, stored, onSaved }) {
-  const [draft, setDraft] = useState(String(stored));
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [saved, setSaved] = useState("");
-
-  useEffect(() => { setDraft(String(stored)); }, [stored]);
-
-  const dirty = draft !== String(stored);
-  const save = async () => {
-    const [section, key] = spec.key.split(".");
-    const value = spec.number ? Number(draft) : draft;
-    setBusy(true);
-    setError("");
-    setSaved("");
-    try {
-      const result = await saveSetting({ section, key, value });
-      setSaved(result.restarted.length ? `saved; restarted ${result.restarted.join(", ")}` : "saved");
-      await onSaved();
-    } catch (failure) {
-      setError(failure.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <ui.Field label={spec.label} hint={error || saved || spec.hint}>
-      <div class={styles.tunable}>
-        <input
-          type={spec.number ? "number" : "text"}
-          step={spec.step}
-          value={draft}
-          onInput={(event) => setDraft(event.currentTarget.value)}
-          onKeyDown={(event) => { if (event.key === "Enter" && dirty && !busy) save(); }}
-        />
-        <ui.Button small variant="primary" disabled={!dirty || busy || draft === ""} onClick={save}>Save</ui.Button>
-      </div>
-    </ui.Field>
-  );
-}
-
-export function Runtime() {
-  const { info, error, refresh } = useInfo();
-  return (
-    <Workbench single title="Runtime" subtitle="Defaults the workers read at start. Saving writes ~/.omni-api/config.toml and restarts only the workers that use the value.">
-      {error && <ui.ErrorText>settings request failed: {error}</ui.ErrorText>}
-      <Panel title="Tunables">
-        {info
-          ? TUNABLES.map((spec) => <Tunable key={spec.key} spec={spec} stored={info.tunables[spec.key]} onSaved={refresh} />)
-          : !error && <ui.Empty><ui.Spinner /> reading settings…</ui.Empty>}
-      </Panel>
-    </Workbench>
-  );
-}
-
-export function Logs() {
-  const [lines, setLines] = useState([]);
-  const [path, setPath] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const refresh = async () => {
-    setLoading(true);
-    try {
-      const result = await serverLogs(LOG_LINES);
-      setLines(result.lines);
-      setPath(result.path);
-      setError("");
-    } catch (failure) {
-      setError(failure.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-  useEffect(() => { refresh(); }, []);
-
-  return (
-    <Workbench single title="Logs" subtitle="The tail of the gateway log.">
-      {error && <ui.ErrorText>log request failed: {error}</ui.ErrorText>}
-      <Panel title="omni.log" meta={path} tools={<ui.Button small disabled={loading} onClick={refresh}>Refresh</ui.Button>}>
-        {lines.length ? <ui.Code>{lines.join("\n")}</ui.Code> : !error && <ui.Empty>The log is empty.</ui.Empty>}
-      </Panel>
-    </Workbench>
-  );
-}

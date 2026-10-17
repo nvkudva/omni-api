@@ -209,7 +209,7 @@ export default function Chat() {
         title="Request"
         tools={(
           <>
-            {vision && <ui.Button small variant="secondary" onClick={() => fileInput.current.click()}>+ image</ui.Button>}
+            {vision && <ui.IconButton icon="plus" label="Attach image" onClick={() => fileInput.current.click()} />}
             <UiJson view={view} onChange={setView} />
           </>
         )}
@@ -239,7 +239,7 @@ export default function Chat() {
           {images.length > 0 && (
             <div class={styles.thumbs}>
               {images.map((url, index) => (
-                <button key={index} type="button" class={styles.thumbButton} title="Remove" onClick={() => setImages(images.filter((_, other) => other !== index))}>
+                <button key={index} type="button" class={styles.thumbButton} title="Remove" aria-label={`Remove attachment ${index + 1}`} onClick={() => setImages(images.filter((_, other) => other !== index))}>
                   <img class={styles.thumb} src={url} alt="attachment" />
                 </button>
               ))}
@@ -263,7 +263,7 @@ export default function Chat() {
       <Panel
         title="Conversation"
         meta={meta}
-        tools={<ui.Button small variant="plain" disabled={!messages.length || streaming} onClick={clear}>Clear</ui.Button>}
+        tools={<ui.IconButton icon="trash" label="Clear conversation" disabled={!messages.length || streaming} onClick={clear} />}
       >
         {turns.length
           ? (

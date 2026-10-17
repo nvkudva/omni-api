@@ -13,7 +13,7 @@ const { LogsCard } = await import("../src/components/LogsCard.jsx");
 const Models = ModelsModule.default;
 const { RoleCard } = await import("../src/components/RoleCard.jsx");
 const { runtime } = await import("../src/api/roles.js");
-const { WorkerRows, ModelRows } = await import("../src/tabs/Health.jsx");
+const { WorkerRows, ModelRows } = ModelsModule;
 const { models } = await import("../src/api/models.js");
 const { gb } = await import("../src/lib/format.js");
 
@@ -85,6 +85,19 @@ describe("a role's setup card", () => {
     expect(html).toContain("Nothing downloaded for this role yet.");
     expect(html).toContain("Keep warm");
     expect(html).toContain("disabled");
+  });
+
+  test("every card carries a health button for its runtime details", () => {
+    const html = render(<RoleSetup role="chat" entry={READY_ENTRY} pinned={false} onChanged={noop} />);
+    expect(html).toContain("Chat health details");
+  });
+
+  test("the tts card carries its default voice tunable", () => {
+    const html = render(
+      <RoleSetup role="tts" entry={READY_ENTRY} pinned={false} tunables={{ "tts.voice": "af_heart" }} onChanged={noop} onSaved={noop} />,
+    );
+    expect(html).toContain("Default voice");
+    expect(html).toContain('value="af_heart"');
   });
 
   test("the downloaded list covers every model with a delete each", () => {
@@ -223,7 +236,7 @@ describe("the memory panel", () => {
   });
 });
 
-describe("the Health page's tables", () => {
+describe("the health tables", () => {
   test("worker rows show the model a worker holds", () => {
     const html = render(
       <table><tbody>

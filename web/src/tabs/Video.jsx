@@ -185,7 +185,7 @@ export default function Video() {
       <Panel
         title="Jobs"
         meta={meta}
-        tools={<ui.Button small variant="plain" disabled={!jobs.length || running} onClick={() => { setJobs([]); setMeta(""); }}>Clear</ui.Button>}
+        tools={<ui.IconButton icon="trash" label="Clear jobs" disabled={!jobs.length || running} onClick={() => { setJobs([]); setMeta(""); }} />}
       >
         {jobs.length
           ? (

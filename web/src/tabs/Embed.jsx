@@ -117,7 +117,7 @@ function FileRow({ job, onRemove }) {
       <span class={styles.fileName} title={job.name}><span class={styles.fileKind}>{job.kind}</span>{job.name}</span>
       <span class={cx(styles.fileState, job.status === "error" && styles.fileBad)}>
         {state}
-        {!working && <ui.Button small variant="plain" class={styles.remove} aria-label={`remove ${job.name}`} onClick={onRemove}>×</ui.Button>}
+        {!working && <ui.IconButton icon="x" label={`Remove ${job.name}`} onClick={onRemove} />}
       </span>
       {working && <div class={styles.fileBar}><ui.Meter fraction={job.total ? job.done / job.total : 0} /></div>}
       {job.error && <span class={styles.fileError}>{job.error}</span>}
@@ -262,7 +262,7 @@ export default function Embed() {
       <Panel
         title="Corpus"
         meta={indexing ? "indexing…" : undefined}
-        tools={<ui.Button small variant="plain" disabled={indexing || !jobs.length} onClick={clearIndex}>Clear index</ui.Button>}
+        tools={<ui.IconButton icon="trash" label="Clear index" disabled={indexing || !jobs.length} onClick={clearIndex} />}
       >
         <div
           class={cx(styles.drop, over && styles.dropOver)}
@@ -314,7 +314,7 @@ export default function Embed() {
       <Panel
         title="Ask"
         meta={turns.at(-1)?.meta}
-        tools={<ui.Button small variant="plain" disabled={!turns.length} onClick={() => setTurns([])}>Clear</ui.Button>}
+        tools={<ui.IconButton icon="trash" label="Clear history" disabled={!turns.length} onClick={() => setTurns([])} />}
         foot={(
           <form class={styles.ask} onSubmit={ask}>
             <input

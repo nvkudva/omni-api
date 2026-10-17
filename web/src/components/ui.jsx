@@ -1,6 +1,7 @@
 import { cloneElement, isValidElement, toChildArray } from "preact";
 import { useEffect, useId, useRef, useState } from "preact/hooks";
 import { tintJson, tintShell } from "../lib/highlight.js";
+import { Icon } from "./Icon.jsx";
 import styles from "./ui.module.css";
 
 const cx = (...names) => names.filter(Boolean).join(" ");
@@ -37,6 +38,20 @@ export function Row({ end, children }) {
 
 export function Button({ variant = "secondary", small, class: extra, ...props }) {
   return <button type="button" class={cx(styles.button, styles[variant], small && styles.small, extra)} {...props} />;
+}
+
+export function IconButton({ icon, label, danger, size = 15, ...props }) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={props["aria-label"] ?? label}
+      class={cx(styles.icon, danger && styles.iconDanger)}
+      {...props}
+    >
+      <Icon name={icon} size={size} />
+    </button>
+  );
 }
 
 export function Segmented({ options, value, onChange, label }) {
@@ -103,9 +118,9 @@ export function CodeBlock({ code, language = "json", label = "copy code" }) {
   const runs = language === "shell" ? tintShell(code) : tintJson(code);
   return (
     <div class={styles.codeWrap}>
-      <Button small variant="plain" class={styles.codeCopy} onClick={copy} aria-label={label}>
-        {state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : "Copy"}
-      </Button>
+      <span class={styles.codeCopy}>
+        <IconButton icon="copy" label={state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : label} onClick={copy} />
+      </span>
       <pre class={styles.code} tabIndex={0}>
         {runs.map((run, index) => (
           run.tone && TOK_CLASS[run.tone]

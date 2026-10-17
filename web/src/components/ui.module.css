@@ -25,8 +25,18 @@
 .secondary:hover:not(:disabled) { background: var(--hairline); }
 .plain { background: transparent; color: var(--accent); padding: 0 8px; }
 .plain:hover:not(:disabled) { background: var(--accent-soft); }
-.danger { background: transparent; color: var(--red); padding: 0 10px; }
-.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--red) 12%, transparent); }
+.danger { background: var(--red); color: #fff; }
+.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--red) 82%, #000); }
+.icon {
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 28px; height: 28px; padding: 0;
+  border: none; border-radius: 8px; background: transparent; color: var(--text-2); cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+.icon:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+.icon:disabled { opacity: 0.4; cursor: default; }
+.icon:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft), 0 0 0 1px var(--accent); }
+.iconDanger:hover:not(:disabled) { background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); }
 .stop { background: var(--red); color: #fff; }
 
 .segmented {

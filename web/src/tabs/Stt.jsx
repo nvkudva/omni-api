@@ -81,7 +81,7 @@ export function Transcript({ turn }) {
       <div class={styles.stack}>
         {turn.url && <audio ref={audio} class={styles.audio} controls src={turn.url} />}
         {body}
-        <ui.Row end><ui.Button small variant="plain" onClick={copy}>{copied ? "Copied" : "Copy text"}</ui.Button></ui.Row>
+        <ui.Row end><ui.IconButton icon="copy" label={copied ? "Copied" : "Copy text"} onClick={copy} /></ui.Row>
       </div>
     );
   }
@@ -102,7 +102,7 @@ export function Transcript({ turn }) {
           ))}
         </ul>
       )}
-      <ui.Row end><ui.Button small variant="plain" onClick={copy}>{copied ? "Copied" : "Copy text"}</ui.Button></ui.Row>
+      <ui.Row end><ui.IconButton icon="copy" label={copied ? "Copied" : "Copy text"} onClick={copy} /></ui.Row>
     </div>
   );
 }
@@ -285,7 +285,7 @@ export default function Stt() {
       <Panel
         title="Transcripts"
         meta={meta}
-        tools={<ui.Button small variant="plain" disabled={!turns.length || busy} onClick={() => { dropTurnUrls(); setTurns([]); setMeta(""); }}>Clear</ui.Button>}
+        tools={<ui.IconButton icon="trash" label="Clear history" disabled={!turns.length || busy} onClick={() => { dropTurnUrls(); setTurns([]); setMeta(""); }} />}
       >
         {turns.length
           ? (

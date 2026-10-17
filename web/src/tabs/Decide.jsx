@@ -252,7 +252,7 @@ export default function Decide() {
         </RequestBody>
       </Panel>
 
-      <Panel title="Answers" meta={turns.at(-1)?.meta} tools={<ui.Button small variant="plain" disabled={!turns.length} onClick={() => setTurns([])}>Clear</ui.Button>}>
+      <Panel title="Answers" meta={turns.at(-1)?.meta} tools={<ui.IconButton icon="trash" label="Clear history" disabled={!turns.length} onClick={() => setTurns([])} />}>
         {error && <ui.ErrorText>{error}</ui.ErrorText>}
         {turns.length
           ? (

@@ -3,7 +3,7 @@ import * as ui from "./ui.jsx";
 import styles from "./QuestionBuilder.module.css";
 
 function Remove({ label, onClick }) {
-  return <button type="button" class={styles.remove} aria-label={label} onClick={onClick}>✕</button>;
+  return <ui.IconButton icon="x" label={label} onClick={onClick} />;
 }
 
 function ChoiceCriteria({ row, number, update }) {
@@ -20,7 +20,7 @@ function ChoiceCriteria({ row, number, update }) {
           <Remove label="Remove this option" onClick={() => update({ criteria: row.criteria.filter((_, at) => at !== index) })} />
         </div>
       ))}
-      <ui.Button small variant="plain" class={styles.add} onClick={() => update({ criteria: [...row.criteria, ["", ""]] })}>+ option</ui.Button>
+      <ui.IconButton icon="plus" label="Add option" class={styles.add} onClick={() => update({ criteria: [...row.criteria, ["", ""]] })} />
     </>
   );
 }
@@ -36,7 +36,7 @@ function ScoreCriteria({ row, number, update }) {
           <Remove label="Remove this rung" onClick={() => update({ criteria: row.criteria.filter((_, at) => at !== index) })} />
         </div>
       ))}
-      <ui.Button small variant="plain" class={styles.add} onClick={() => update({ criteria: [...row.criteria, ""] })}>+ rung</ui.Button>
+      <ui.IconButton icon="plus" label="Add rung" class={styles.add} onClick={() => update({ criteria: [...row.criteria, ""] })} />
     </>
   );
 }

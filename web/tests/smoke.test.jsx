@@ -24,7 +24,6 @@ const pages = {
   Stt: (await import("../src/tabs/Stt.jsx")).default,
   Tts: (await import("../src/tabs/Tts.jsx")).default,
   Models: (await import("../src/tabs/Models.jsx")).default,
-  Health: (await import("../src/tabs/Health.jsx")).default,
   Settings: (await import("../src/tabs/Settings.jsx")).default,
 };
 
@@ -103,7 +102,8 @@ describe("pages render before the first poll", () => {
 
   test("Settings lists its sections beside the server controls", () => {
     const html = render(<pages.Settings />);
-    for (const word of ["Server", "Runtime", "Logs", "Models", "Health", "Appearance", "Workers"]) expect(html).toContain(word);
+    for (const word of ["Server", "Models", "Workers"]) expect(html).toContain(word);
+    for (const word of ["Runtime", "Appearance", ">Logs<", ">Health<"]) expect(html).not.toContain(word);
   });
 
   test("each page shows its own endpoint", () => {

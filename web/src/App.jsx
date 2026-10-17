@@ -106,7 +106,7 @@ export default function App() {
             </div>
           );
         })}
-        {settingsOpen && <Settings key="settings" theme={theme} onTheme={setTheme} />}
+        {settingsOpen && <Settings key="settings" />}
       </main>
       <ConfirmHost />
     </div>

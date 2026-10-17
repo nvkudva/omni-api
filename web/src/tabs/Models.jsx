@@ -1,11 +1,13 @@
 import { useEffect, useState } from "preact/hooks";
 import { getJson } from "../api/client.js";
+import { models } from "../api/models.js";
 import {
   checkModel,
   deleteModel,
   loadRole,
   memory as fetchMemory,
   modelStatus,
+  saveSetting,
   searchModels,
   serverInfo,
   setRoleDefault,
@@ -13,7 +15,8 @@ import {
   workerAction,
   workersAction,
 } from "../api/endpoints.js";
-import { ROLE_META, ROLE_ORDER, install, installs, matchesModel, setPinned } from "../api/roles.js";
+import { OLLAMA_ROLES, ROLE_META, ROLE_ORDER, install, installs, matchesModel, setPinned } from "../api/roles.js";
+import { health, pollHealth } from "../api/health.js";
 import { gb } from "../lib/format.js";
 import { usePolling } from "../hooks/usePolling.js";
 import { ask, withForce } from "../components/Confirm.jsx";
@@ -62,7 +65,7 @@ function useAction(onChanged) {
 }
 
 /** A card that sizes to its content; the workbench Panel scrolls its body, which clips these. */
-function Section({ title, meta, role, children }) {
+function Section({ title, meta, role, tools, children }) {
   return (
     <section class={setup.setup}>
       {(title || meta) && (
@@ -71,15 +74,82 @@ function Section({ title, meta, role, children }) {
             {title && <h2 class={setup.setupTitle}>{title}</h2>}
             {meta && <span class={setup.setupMeta}>{meta}</span>}
           </div>
-          {role && (
-            <a class={setup.logLink} href={`/admin/logs/${role}`} target="_blank" rel="noreferrer" title="Open this role's log file">Log</a>
-          )}
+          <div class={setup.setupTools}>
+            {tools}
+            {role && (
+              <a class={setup.logLink} href={`/admin/logs/${role}`} target="_blank" rel="noreferrer" title="Open this role's log file">Log</a>
+            )}
+          </div>
         </header>
       )}
       <div class={setup.setupBody}>{children}</div>
     </section>
   );
 }
+
+/** One saved default a role's workers read at start; saving restarts only the workers that use it. */
+function Tunable({ spec, stored, onSaved }) {
+  const [draft, setDraft] = useState(String(stored));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [saved, setSaved] = useState("");
+
+  useEffect(() => { setDraft(String(stored)); }, [stored]);
+
+  const dirty = draft !== String(stored);
+  const save = async () => {
+    const [section, key] = spec.key.split(".");
+    const value = spec.number ? Number(draft) : draft;
+    setBusy(true);
+    setError("");
+    setSaved("");
+    try {
+      const result = await saveSetting({ section, key, value });
+      setSaved(result.restarted.length ? `saved; restarted ${result.restarted.join(", ")}` : "saved");
+      await onSaved();
+    } catch (failure) {
+      setError(failure.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ui.Field label={spec.label} hint={error || saved || spec.hint}>
+      <div class={setup.tunable}>
+        <input
+          type={spec.number ? "number" : "text"}
+          step={spec.step}
+          value={draft}
+          onInput={(event) => setDraft(event.currentTarget.value)}
+          onKeyDown={(event) => { if (event.key === "Enter" && dirty && !busy) save(); }}
+        />
+        <ui.Button small variant="primary" disabled={!dirty || busy || draft === ""} onClick={save}>Save</ui.Button>
+      </div>
+    </ui.Field>
+  );
+}
+
+const ROLE_TUNABLES = {
+  tts: [
+    { key: "tts.voice", label: "Default voice", hint: "Voice used when a speech request names none. Restarts tts.", number: false },
+  ],
+  image: [
+    { key: "image.steps", label: "Image steps", hint: "Denoising steps per image. More is slower and finer. Restarts image.", number: true, step: 1 },
+  ],
+  video: [
+    { key: "video.frames", label: "Video frames", hint: "Frames per clip. Restarts video.", number: true, step: 1 },
+    { key: "video.fps", label: "Video fps", hint: "Playback rate of generated clips. Restarts video.", number: true, step: 1 },
+  ],
+};
+
+const GATEWAY_TUNABLE = {
+  key: "gateway.idle_unload_minutes",
+  label: "Idle unload (minutes)",
+  hint: "Unload a worker's model after this long unused. Restarts every worker.",
+  number: true,
+  step: "any",
+};
 
 /** Keep-warm switch: on loads the default now and holds it, off unloads it. */
 export function WarmSwitch({ role, model, pinned, disabled, onChanged }) {
@@ -128,7 +198,7 @@ export function DownloadedList({ role, installed, onChanged }) {
             <td class={styles.mono}>{model.name}</td>
             <td class={styles.numeric}>{modelDetail(model)}</td>
             <td class={styles.actionCell}>
-              <ui.Button small variant="danger" onClick={() => remove(model.name)}>Delete</ui.Button>
+              <ui.IconButton icon="trash" danger label={`Delete ${model.name}`} title="Delete (frees disk space)" onClick={() => remove(model.name)} />
             </td>
           </tr>
         ))}
@@ -304,14 +374,38 @@ export function Install({ role, runner, initial, onInstalled }) {
   );
 }
 
+/** What /health knows about one role's runtime, behind its card's health button. */
+function RoleHealth({ role }) {
+  const worker = health.value?.workers?.[role];
+  if (!worker) {
+    return (
+      <ui.Meta>
+        {OLLAMA_ROLES.has(role)
+          ? "Served by Ollama — see the Ollama card under Server."
+          : "No health data yet."}
+      </ui.Meta>
+    );
+  }
+  return (
+    <dl class={setup.health}>
+      <div><dt>Status</dt><dd><ui.Dot status={worker.status} />{worker.status}{worker.held ? " (held)" : ""}</dd></div>
+      <div><dt>Loaded</dt><dd>{worker.loaded ? (worker.model || "loaded") : "—"}</dd></div>
+      <div><dt>Process</dt><dd>{worker.pid ?? worker.url ?? "—"}</dd></div>
+      <div><dt>Restarts</dt><dd>{worker.restarts ?? "—"}</dd></div>
+    </dl>
+  );
+}
+
 /** Everything one role needs: its current model, what is downloaded, and how to add more. */
-export function RoleSetup({ role, entry, pinned, onChanged }) {
+export function RoleSetup({ role, entry, pinned, tunables, onChanged, onSaved }) {
   const meta = ROLE_META[role];
   const names = entry.installed.map((model) => model.name);
   if (!names.includes(entry.default)) names.unshift(entry.default);
   const current = entry.installed.find((model) => model.name === entry.default);
   const [busy, run] = useAction(onChanged);
   const [pick, setPick] = useState(null);
+  const [showHealth, setShowHealth] = useState(false);
+  const specs = (tunables && ROLE_TUNABLES[role]) || [];
 
   const load = () => run((options) => setResidency(role, true, entry.default, options), `loaded ${entry.default}`);
   const unload = () => run(() => setResidency(role, false, entry.default), `unloaded ${entry.default}`);
@@ -329,12 +423,22 @@ export function RoleSetup({ role, entry, pinned, onChanged }) {
     }
   };
 
+  const healthLabel = `${meta?.label ?? role} health details`;
   return (
     <Section
       title={meta?.label ?? role}
       role={role}
       meta={`${entry.runner} · ${entry.installed.length} downloaded · ${gb(entry.total_bytes)} · ${STATE_LABEL[entry.state] ?? entry.state}`}
+      tools={(
+        <ui.IconButton
+          icon="health"
+          label={healthLabel}
+          aria-expanded={showHealth}
+          onClick={() => setShowHealth(!showHealth)}
+        />
+      )}
     >
+      {showHealth && <RoleHealth role={role} />}
       {entry.reason && <ui.Notice tone={entry.state === "missing" ? "warn" : "error"}>{entry.reason}</ui.Notice>}
       {entry.state === "missing" && (
         <ui.Row>
@@ -353,6 +457,7 @@ export function RoleSetup({ role, entry, pinned, onChanged }) {
         <WarmSwitch role={role} model={entry.default} pinned={pinned} disabled={entry.state !== "ready"} onChanged={onChanged} />
       </div>
       <DownloadedList role={role} installed={entry.installed} onChanged={onChanged} />
+      {specs.map((spec) => <Tunable key={spec.key} spec={spec} stored={tunables[spec.key]} onSaved={onSaved} />)}
       <details class={setup.more} open={Boolean(pick)}>
         <summary>Find &amp; install a model</summary>
         <Search role={role} onPick={setPick} />
@@ -363,7 +468,7 @@ export function RoleSetup({ role, entry, pinned, onChanged }) {
 }
 
 /** Start, stop and restart the workers and Ollama. Kept beside the models they serve. */
-export function GlobalControls({ managed, onChanged }) {
+export function GlobalControls({ managed, tunables, onChanged, onSaved }) {
   const [busy, setBusy] = useState(false);
 
   const run = async (action, label, danger) => {
@@ -403,8 +508,32 @@ export function GlobalControls({ managed, onChanged }) {
         <ui.Button small variant="danger" disabled={busy} onClick={() => run("stop", "Stop all", true)}>Stop all</ui.Button>
         <ui.Button small disabled={busy || !managed} onClick={restartOllama} title={managed ? "Restart the Ollama engine" : "Ollama is not managed by omni on this machine"}>Restart Ollama</ui.Button>
       </ui.Row>
+      {tunables && <Tunable spec={GATEWAY_TUNABLE} stored={tunables[GATEWAY_TUNABLE.key]} onSaved={onSaved} />}
     </Section>
   );
+}
+
+/** The Health page's old tables, kept for tests: one row per worker and per model. */
+export function WorkerRows({ workers }) {
+  return Object.entries(workers).map(([name, worker]) => (
+    <tr key={name}>
+      <td><span class={styles.nameCell}><ui.Dot status={worker.status} />{name}</span></td>
+      <td>{worker.status}{worker.held ? " (held)" : ""}</td>
+      <td class={styles.mono}>{worker.loaded ? (worker.model || "loaded") : "—"}</td>
+      <td class={styles.mono}>{worker.pid ?? worker.url ?? "—"}</td>
+      <td class={styles.numeric}>{worker.restarts ?? "—"}</td>
+    </tr>
+  ));
+}
+
+export function ModelRows() {
+  const { data, defaults } = models.value;
+  return data.map((model) => (
+    <tr key={`${model.role}:${model.id}`}>
+      <td>{model.role}</td>
+      <td class={styles.mono}>{model.id}{defaults[model.role] === model.id ? "  (default)" : ""}</td>
+    </tr>
+  ));
 }
 
 function useMemory(active) {
@@ -461,10 +590,16 @@ export function Memory({ memory, roles, onChanged }) {
   const [load1, load5, load15] = memory.load_average.map((value) => value.toFixed(2));
   return (
     <Section title="Memory" meta={`${gb(used)} of ${gb(memory.total_bytes)} used`}>
-      <ui.Meter fraction={fraction} high={fraction > 0.85} />
-      <ui.Meta>RAM {gb(memory.available_bytes)} free · swap {gb(memory.swap_used_bytes)} used · disk {gb(memory.disk_free_bytes)} free</ui.Meta>
-      <ui.Meter fraction={memory.cpu_percent / 100} high={memory.cpu_percent > 90 || memory.load_average[0] > memory.cpu_count} />
-      <ui.Meta>CPU {memory.cpu_percent.toFixed(0)}% · load {load1} / {load5} / {load15} on {memory.cpu_count} cores</ui.Meta>
+      <div class={setup.meters}>
+        <div>
+          <ui.Meter fraction={fraction} high={fraction > 0.85} />
+          <ui.Meta>RAM {gb(memory.available_bytes)} free · swap {gb(memory.swap_used_bytes)} used · disk {gb(memory.disk_free_bytes)} free</ui.Meta>
+        </div>
+        <div>
+          <ui.Meter fraction={memory.cpu_percent / 100} high={memory.cpu_percent > 90 || memory.load_average[0] > memory.cpu_count} />
+          <ui.Meta>CPU {memory.cpu_percent.toFixed(0)}% · load {load1} / {load5} / {load15} on {memory.cpu_count} cores</ui.Meta>
+        </div>
+      </div>
       {memory.warnings.map((warning, index) => <ui.Notice key={index}>{warning}</ui.Notice>)}
       <h3 class={styles.subhead}>Loaded in Ollama</h3>
       {memory.ollama.length
@@ -491,6 +626,7 @@ export function Memory({ memory, roles, onChanged }) {
 export default function Models({ active }) {
   const [status, setStatus] = useState(null);
   const [managed, setManaged] = useState(false);
+  const [tunables, setTunables] = useState(null);
   const [pins, setPins] = useState([]);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -502,10 +638,12 @@ export default function Models({ active }) {
       const [setup, info] = await Promise.all([modelStatus(), serverInfo().catch(() => null)]);
       setStatus(setup);
       setManaged(Boolean(info?.ollama?.managed));
+      setTunables(info?.tunables ?? null);
       setError("");
     } catch (failure) {
       setError(failure.message);
     }
+    pollHealth();
     try {
       setPins((await getJson("/admin/pins")).pinned ?? []);
     } catch {
@@ -552,10 +690,10 @@ export default function Models({ active }) {
       {!status && !error && <Section title="Roles"><ui.Empty><ui.Spinner /> loading models…</ui.Empty></Section>}
       {status && (
         <>
-          <GlobalControls managed={managed} onChanged={changed} />
+          <GlobalControls managed={managed} tunables={tunables} onChanged={changed} onSaved={refresh} />
           <div class={setup.cards}>
             {ordered.map(([role, entry]) => (
-              <RoleSetup key={role} role={role} entry={entry} pinned={pins.includes(role)} onChanged={changed} />
+              <RoleSetup key={role} role={role} entry={entry} pinned={pins.includes(role)} tunables={tunables} onChanged={changed} onSaved={refresh} />
             ))}
           </div>
           <Memory memory={memory} roles={Object.fromEntries(entries.map(([role, entry]) => [role, { default: entry.default }]))} onChanged={changed} />

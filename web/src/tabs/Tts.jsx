@@ -170,7 +170,7 @@ export default function Tts() {
       <Panel
         title="Clips"
         meta={meta}
-        tools={<ui.Button small variant="plain" disabled={!clips.length || busy} onClick={() => { commit([]); setMeta(""); }}>Clear</ui.Button>}
+        tools={<ui.IconButton icon="trash" label="Clear history" disabled={!clips.length || busy} onClick={() => { commit([]); setMeta(""); }} />}
       >
         {clips.length
           ? (
