@@ -11,7 +11,8 @@ const cx = (...names) => names.filter(Boolean).join(" ");
 export function Field({ label, hint, trailing, children }) {
   const id = useId();
   const list = toChildArray(children);
-  const control = list.length === 1 && isValidElement(list[0]) && !list[0].props?.id
+  // only native elements can take the label id; composites (Segmented etc.) label themselves
+  const control = list.length === 1 && isValidElement(list[0]) && typeof list[0].type === "string" && !list[0].props?.id
     ? cloneElement(list[0], { id })
     : children;
   return (
@@ -55,6 +56,14 @@ export function IconButton({ icon, label, danger, size = 15, ...props }) {
 }
 
 export function Segmented({ options, value, onChange, label }) {
+  const move = (current, key) => {
+    const index = options.findIndex((option) => option.value === current);
+    const next = key === "ArrowRight" || key === "ArrowDown" ? index + 1
+      : key === "ArrowLeft" || key === "ArrowUp" ? index - 1 : null;
+    if (next === null) return;
+    const target = options[(next + options.length) % options.length];
+    onChange(target.value);
+  };
   return (
     <div class={styles.segmented} role="radiogroup" aria-label={label}>
       {options.map((option) => (
@@ -62,9 +71,11 @@ export function Segmented({ options, value, onChange, label }) {
           type="button"
           role="radio"
           key={option.value}
+          tabIndex={option.value === value ? 0 : -1}
           aria-checked={option.value === value}
           class={cx(styles.segment, option.value === value && styles.segmentOn)}
           onClick={() => onChange(option.value)}
+          onKeyDown={(event) => move(option.value, event.key)}
         >
           {option.label}
         </button>
@@ -133,15 +144,16 @@ export function CodeBlock({ code, language = "json", label = "copy code" }) {
 }
 
 export function Meter({ fraction, high }) {
+  const percent = Math.min(1, Math.max(0, fraction || 0)) * 100;
   return (
-    <div class={styles.meter}>
-      <span class={cx(styles.meterFill, high && styles.meterHigh)} style={{ width: `${Math.min(1, fraction) * 100}%` }} />
+    <div class={styles.meter} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(percent)}>
+      <span class={cx(styles.meterFill, high && styles.meterHigh)} style={{ width: `${percent}%` }} />
     </div>
   );
 }
 
 export function Notice({ tone = "warn", children }) {
-  return <p class={cx(styles.notice, styles[`notice_${tone}`])}>{children}</p>;
+  return <p role={tone === "error" ? "alert" : "status"} class={cx(styles.notice, styles[`notice_${tone}`])}>{children}</p>;
 }
 
 export function ErrorText({ children }) {
@@ -180,7 +192,7 @@ export function DropZone({ accept, onFile, children }) {
       onDragLeave={() => setOver(false)}
       onDrop={(event) => { event.preventDefault(); setOver(false); pick(event.dataTransfer.files[0]); }}
     >
-      <input ref={input} type="file" accept={accept} hidden onChange={(event) => pick(event.currentTarget.files[0])} />
+      <input ref={input} type="file" accept={accept} hidden onChange={(event) => { pick(event.currentTarget.files[0]); event.currentTarget.value = ""; }} />
       {children}
     </div>
   );

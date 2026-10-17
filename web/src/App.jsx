@@ -1,4 +1,4 @@
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { loadModels } from "./api/models.js";
 import { pollRuntime, ROLE_META } from "./api/roles.js";
 import { usePolling } from "./hooks/usePolling.js";
@@ -43,6 +43,11 @@ export default function App() {
 
   // Pauses itself while the document is hidden.
   usePolling(pollRuntime, 4000);
+
+  const cardsRef = useRef(null);
+  useEffect(() => {
+    cardsRef.current?.querySelector('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [tab]);
 
   const choose = (id) => {
     setTab(id);
@@ -90,7 +95,7 @@ export default function App() {
           </button>
         </div>
       </header>
-      <nav class={styles.cards} aria-label="Models">
+      <nav ref={cardsRef} class={styles.cards} aria-label="Models">
         {ROLES.map((role) => (
           <RoleModelCard key={role} density="mini" role={role} active={role === tab} onOpen={choose} onSetup={openSetup} />
         ))}

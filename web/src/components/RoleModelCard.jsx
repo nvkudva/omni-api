@@ -142,14 +142,14 @@ export function Section({ title, meta, role, tools, warm, children }) {
 }
 
 export function Tunable({ spec, stored, onSaved }) {
-  const [draft, setDraft] = useState(String(stored));
+  const [draft, setDraft] = useState(stored == null ? "" : String(stored));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState("");
 
-  useEffect(() => { setDraft(String(stored)); }, [stored]);
+  useEffect(() => { setDraft(stored == null ? "" : String(stored)); }, [stored]);
 
-  const dirty = draft !== String(stored);
+  const dirty = draft !== (stored == null ? "" : String(stored));
   const save = async () => {
     const [section, key] = spec.key.split(".");
     const value = spec.number ? Number(draft) : draft;
@@ -312,21 +312,12 @@ function MiniCard({ role, active, onOpen, onSetup }) {
   return (
     <div
       class={cx(styles.card, active && styles.on, !running && !active && styles.off)}
-      role="button"
-      tabIndex={0}
       aria-current={active ? "page" : undefined}
       onClick={open}
-      onKeyDown={(event) => {
-        if (event.target.closest("button")) return;
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onOpen(role);
-        }
-      }}
     >
       <span class={styles.top}>
         <span class={styles.badge} style={{ background: state.color }}><Icon name={role} /></span>
-        <span class={styles.name}>{state.label}</span>
+        <button type="button" class={styles.name} aria-label={`Open ${state.label}`} onClick={() => onOpen(role)}>{state.label}</button>
         {pinned && <span class={styles.warm} title="kept warm: this model stays loaded">warm</span>}
         {(needsSetup || trouble) && (
           <button

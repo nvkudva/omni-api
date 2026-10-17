@@ -131,8 +131,17 @@ export function Turn({
   const head = (
     <header
       class={cx(styles.turnHead, !collapsible && styles.turnStatic)}
+      role={collapsible ? "button" : undefined}
+      tabIndex={collapsible ? 0 : undefined}
+      aria-expanded={collapsible ? open : undefined}
       onClick={(event) => {
         if (!collapsible || event.target.closest("button")) return;
+        onToggle();
+      }}
+      onKeyDown={(event) => {
+        if (!collapsible || (event.key !== "Enter" && event.key !== " ")) return;
+        if (event.target.closest("button")) return;
+        event.preventDefault();
         onToggle();
       }}
     >

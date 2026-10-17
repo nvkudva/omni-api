@@ -7,6 +7,6 @@ export async function loadModels() {
   try {
     models.value = await getJson("/v1/models");
   } catch {
-    models.value = { data: [], defaults: {} };
+    // keep the last good catalog: one transient failure must not blank every tab
   }
 }

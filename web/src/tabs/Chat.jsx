@@ -101,7 +101,8 @@ export default function Chat() {
   const draft = input ? [{ id: "draft", role: "user", content: input, images }] : [];
   const preview = requestBody(selected, system, [...messages, ...draft], true);
   const json = useJsonRequest(view, preview);
-  const curl = curlJson("/v1/chat/completions", preview, " \\\n  --no-buffer");
+  const effectiveBody = view === "json" && json.body ? json.body : preview;
+  const curl = curlJson("/v1/chat/completions", effectiveBody, " \\\n  --no-buffer");
 
   const choose = (name) => {
     setModel(name);
@@ -186,7 +187,8 @@ export default function Chat() {
     send();
   };
 
-  const canSend = !streaming && (view === "json" ? Boolean(json.body) && !json.error : Boolean(input.trim()));
+  const jsonHasUser = Boolean(json.body?.messages?.some?.((message) => message.role === "user"));
+  const canSend = !streaming && (view === "json" ? Boolean(json.body) && !json.error && jsonHasUser : Boolean(input.trim()));
   const openId = turnState.open ?? turns[turns.length - 1]?.id;
 
   const readout = [
@@ -252,9 +254,14 @@ export default function Chat() {
             multiple
             hidden
             onChange={async (event) => {
-              const urls = await Promise.all([...event.currentTarget.files].map(readDataUrl));
-              setImages((current) => [...current, ...urls]);
-              event.currentTarget.value = "";
+              const inputEl = event.currentTarget;
+              try {
+                const urls = await Promise.all([...inputEl.files].map(readDataUrl));
+                setImages((current) => [...current, ...urls]);
+              } catch {
+                setMeta("could not read that image");
+              }
+              inputEl.value = "";
             }}
           />
         </RequestBody>

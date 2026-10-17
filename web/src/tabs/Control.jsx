@@ -12,7 +12,7 @@ const LOG_LINES = 300;
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-const reachable = () => fetch("/health").then(() => true, () => false);
+const reachable = () => fetch("/health").then((response) => response.ok, () => false);
 
 async function waitForGateway(wantUp) {
   const deadline = Date.now() + RECONNECT_TIMEOUT_MS;
@@ -225,7 +225,7 @@ function Workers() {
             </tbody>
           </table>
         )
-        : <ui.Empty>Reading workers…</ui.Empty>}
+        : <ui.Empty>No workers reported. If the gateway is down, restart it above.</ui.Empty>}
     </Panel>
   );
 }

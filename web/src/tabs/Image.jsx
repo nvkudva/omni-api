@@ -53,8 +53,9 @@ export default function Image() {
   // Cap retained images and revoke the blob URLs we drop.
   const commit = (next) => {
     const kept = next.slice(0, MAX_TURNS);
-    for (const dropped of next.slice(MAX_TURNS)) {
-      if (dropped.url) URL.revokeObjectURL(dropped.url);
+    const keptIds = new Set(kept.map((turn) => turn.id));
+    for (const dropped of turnsRef.current) {
+      if (!keptIds.has(dropped.id) && dropped.url) URL.revokeObjectURL(dropped.url);
     }
     turnsRef.current = kept;
     setTurns(kept);
@@ -83,11 +84,13 @@ export default function Image() {
       record("image", status, elapsed);
       const seedText = payload.seed != null ? ` · seed ${payload.seed}` : "";
       const caption = `${payload.size} · ${payload.steps} steps${seedText} · ${(elapsed / 1000).toFixed(1)} s`;
+      const first = result.data?.[0];
+      if (!first?.b64_json) throw new Error("image response had no b64_json data");
       update(id, {
         pending: false,
-        url: base64ToObjectUrl(result.data[0].b64_json),
+        url: base64ToObjectUrl(first.b64_json),
         caption,
-        response: { size: result.data[0].size, seed: result.data[0].seed ?? payload.seed, steps: payload.steps, ms: elapsed },
+        response: { size: first.size, seed: first.seed ?? payload.seed, steps: payload.steps, ms: elapsed },
       });
       setMeta(`${elapsed} ms`);
     } catch (error) {

@@ -117,8 +117,8 @@ export function Search({ role, onPick, inputRef }) {
               {results.map((result) => (
                 <tr key={result.id}>
                   <td><a class={tabStyles.link} href={`https://huggingface.co/${result.id}`} target="_blank" rel="noreferrer">{result.id}</a></td>
-                  <td class={tabStyles.numeric}>{result.downloads.toLocaleString()}</td>
-                  <td class={tabStyles.numeric}>{result.likes.toLocaleString()}</td>
+                  <td class={tabStyles.numeric}>{(result.downloads ?? 0).toLocaleString()}</td>
+                  <td class={tabStyles.numeric}>{(result.likes ?? 0).toLocaleString()}</td>
                   <td class={tabStyles.actionCell}><ui.Button small onClick={() => onPick(result.name)}>Select</ui.Button></td>
                 </tr>
               ))}
@@ -218,6 +218,7 @@ export function FindAndInstall({ role, onClose, onInstalled }) {
 
   useEffect(() => {
     if (!role) return undefined;
+    const opener = document.activeElement;
     setPick(null);
     searchRef.current?.focus();
     const onKey = (event) => {
@@ -227,7 +228,7 @@ export function FindAndInstall({ role, onClose, onInstalled }) {
       }
     };
     document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    return () => { document.removeEventListener("keydown", onKey); opener?.focus?.(); };
   }, [role]);
 
   if (!role || !meta || !criteria) return null;

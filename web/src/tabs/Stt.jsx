@@ -147,7 +147,7 @@ export default function Stt() {
   };
 
   const run = async (blob, name, responseFormat) => {
-    if (!blob) return;
+    if (!blob || busy) return;
     const controller = new AbortController();
     abort.current = controller;
     const id = crypto.randomUUID();
@@ -192,7 +192,15 @@ export default function Stt() {
       return;
     }
     const deviceLabel = stream.getAudioTracks()[0]?.label || "default input";
-    const audioContext = new AudioContext();
+    let audioContext;
+    try {
+      audioContext = new AudioContext();
+      if (typeof MediaRecorder === "undefined") throw new Error("MediaRecorder is not supported in this browser");
+    } catch (error) {
+      stream.getTracks().forEach((track) => track.stop());
+      setMicError(`microphone: ${error.message}`);
+      return;
+    }
     const analyser = audioContext.createAnalyser();
     analyser.fftSize = 1024;
     audioContext.createMediaStreamSource(stream).connect(analyser);

@@ -83,7 +83,7 @@ export function QuestionBuilder({ rows, onRows }) {
   return (
     <div class={styles.builder}>
       {rows.map((row, index) => (
-        <Question key={index} row={row} index={index} onChange={(next) => change(index, next)} onRemove={() => remove(index)} />
+        <Question key={row.id ?? index} row={row} index={index} onChange={(next) => change(index, next)} onRemove={() => remove(index)} />
       ))}
       <div class={styles.adder}>
         <span class={styles.label}>Add a new question</span>

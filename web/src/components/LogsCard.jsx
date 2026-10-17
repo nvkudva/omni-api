@@ -29,7 +29,9 @@ export function LogsCard({ role }) {
 
   useEffect(() => {
     const view = viewRef.current;
-    if (view && open) view.scrollTop = view.scrollHeight;
+    if (!view || !open) return;
+    const nearBottom = view.scrollHeight - view.scrollTop - view.clientHeight < 80;
+    if (nearBottom) view.scrollTop = view.scrollHeight;
   }, [text, open]);
 
   return (

@@ -4,17 +4,17 @@
 
 export function blankRow(type) {
   const criteria = type === "choice" ? [["", ""]] : type === "score" ? ["", "", ""] : [];
-  return { name: "", type, instructions: "", criteria };
+  return { id: crypto.randomUUID(), name: "", type, instructions: "", criteria };
 }
 
 export function rowsFromQuestions(questions) {
   return Object.entries(questions).map(([name, question]) => {
     const { type, instructions = "", criteria } = question;
     if (type === "choice") {
-      return { name, type, instructions, criteria: Object.entries(criteria ?? {}).map(([label, description]) => [label, description ?? ""]) };
+      return { id: crypto.randomUUID(), name, type, instructions, criteria: Object.entries(criteria ?? {}).map(([label, description]) => [label, description ?? ""]) };
     }
-    if (type === "score") return { name, type, instructions, criteria: [...(criteria ?? [])] };
-    if (type === "noul") return { name, type, instructions, criteria: [criteria?.true ?? "", criteria?.false ?? ""] };
+    if (type === "score") return { id: crypto.randomUUID(), name, type, instructions, criteria: [...(criteria ?? [])] };
+    if (type === "noul") return { id: crypto.randomUUID(), name, type, instructions, criteria: [criteria?.true ?? "", criteria?.false ?? ""] };
     throw new Error(`question '${name}' has an unknown type '${type}'`);
   });
 }

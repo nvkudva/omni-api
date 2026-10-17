@@ -271,7 +271,7 @@ export default function Embed() {
           onDrop={async (event) => {
             event.preventDefault();
             setOver(false);
-            addItems(await droppedFiles(event.dataTransfer));
+            try { addItems(await droppedFiles(event.dataTransfer)); } catch (failure) { setError(failure.message); }
           }}
         >
           <span>Drop files or a folder here</span>

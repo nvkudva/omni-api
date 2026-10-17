@@ -67,7 +67,8 @@ export default function Video() {
 
   const chooseFrame = async (file) => {
     if (!file.type.startsWith("image/")) return;
-    setForm({ ...form, frame: { name: file.name, url: await readDataUrl(file) } });
+    const url = await readDataUrl(file);
+    setForm((current) => ({ ...current, frame: { name: file.name, url } }));
   };
 
   const updateJob = (id, changes) => setJobs((current) => current.map((job) => (job.id === id ? { ...job, ...changes } : job)));
@@ -82,12 +83,17 @@ export default function Video() {
       }
       await wait(POLL_MS, abortSignal);
       if (document.hidden) continue; // don't poll a hidden tab
-      job = await videoJob(job.id, abortSignal);
+      try {
+        job = await videoJob(job.id, abortSignal);
+      } catch (error) {
+        if (error.name === "AbortError") throw error;
+        continue; // one transient poll failure does not fail a running job
+      }
     }
     updateJob(id, { status: job.status, caption: caption(job, seed, start) });
-    if (job.status === "failed") {
+    if (job.status !== "completed") {
       updateJob(id, {
-        error: job.error?.message ?? "generation failed",
+        error: job.error?.message ?? `generation ended as ${job.status}`,
         gatedModel: job.error?.code === "gated" || job.error?.type === "gated" ? (job.model ?? "") : "",
         acceptUrl: job.error?.accept_url ?? "",
       });

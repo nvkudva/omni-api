@@ -65,8 +65,9 @@ export default function Tts() {
   // Cap retained clips and revoke the blob URLs we drop.
   const commit = (next) => {
     const kept = next.slice(0, MAX_CLIPS);
-    for (const dropped of next.slice(MAX_CLIPS)) {
-      if (dropped.url) URL.revokeObjectURL(dropped.url);
+    const keptIds = new Set(kept.map((clip) => clip.id));
+    for (const dropped of clipsRef.current) {
+      if (!keptIds.has(dropped.id) && dropped.url) URL.revokeObjectURL(dropped.url);
     }
     clipsRef.current = kept;
     setClips(kept);
@@ -195,7 +196,7 @@ export default function Tts() {
                       ? <TurnError>{clip.error}</TurnError>
                       : (
                         <div class={styles.stack}>
-                          <audio class={styles.audio} controls autoplay src={clip.url} />
+                          <audio class={styles.audio} controls src={clip.url} />
                           <div class={styles.clipFoot}>
                             <ui.Meta>{clip.caption}</ui.Meta>
                             <a class={styles.link} href={clip.url} download={clip.filename}>download .wav</a>

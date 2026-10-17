@@ -191,7 +191,9 @@ export default function Decide() {
     }
   };
 
-  const disableSend = busy || (view === "ui" && Boolean(rowsError)) || !state.trim();
+  const disableSend = busy || (view === "json"
+    ? !json.body || Boolean(json.error) || !String(json.body.state ?? "").trim()
+    : Boolean(rowsError) || !state.trim());
 
   const sendOnShortcut = (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !disableSend) {

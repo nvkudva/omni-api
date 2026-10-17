@@ -178,7 +178,7 @@ export function Memory({ memory, roles, onChanged }) {
   if (!memory) return <Section title="Memory"><ui.Empty>Reading memory…</ui.Empty></Section>;
   const used = memory.total_bytes - memory.available_bytes;
   const fraction = used / memory.total_bytes;
-  const [load1, load5, load15] = memory.load_average.map((value) => value.toFixed(2));
+  const [load1, load5, load15] = (memory.load_average ?? [0, 0, 0]).map((value) => (value ?? 0).toFixed(2));
   return (
     <Section title="Memory" meta={`${gb(used)} of ${gb(memory.total_bytes)} used`}>
       <div class={setup.meters}>
@@ -188,10 +188,10 @@ export function Memory({ memory, roles, onChanged }) {
         </div>
         <div>
           <ui.Meter fraction={memory.cpu_percent / 100} high={memory.cpu_percent > 90 || memory.load_average[0] > memory.cpu_count} />
-          <ui.Meta>CPU {memory.cpu_percent.toFixed(0)}% · load {load1} / {load5} / {load15} on {memory.cpu_count} cores</ui.Meta>
+          <ui.Meta>CPU {(memory.cpu_percent ?? 0).toFixed(0)}% · load {load1} / {load5} / {load15} on {memory.cpu_count ?? "?"} cores</ui.Meta>
         </div>
       </div>
-      {memory.warnings.map((warning, index) => <ui.Notice key={index}>{warning}</ui.Notice>)}
+      {(memory.warnings ?? []).map((warning, index) => <ui.Notice key={index}>{warning}</ui.Notice>)}
       <h3 class={styles.subhead}>Loaded in Ollama</h3>
       {memory.ollama.length
         ? (
