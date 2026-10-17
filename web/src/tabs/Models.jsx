@@ -1,5 +1,5 @@
-import { useEffect, useState } from "preact/hooks";
-import { getJson } from "../api/client.js";
+import { useEffect, useRef, useState } from "preact/hooks";
+import { getJson, getText } from "../api/client.js";
 import {
   checkModel,
   deleteModel,
@@ -13,7 +13,7 @@ import {
   workerAction,
   workersAction,
 } from "../api/endpoints.js";
-import { ROLE_META, ROLE_ORDER, install, installs, setPinned } from "../api/roles.js";
+import { OLLAMA_ROLES, ROLE_META, ROLE_ORDER, install, installs, setPinned } from "../api/roles.js";
 import { gb } from "../lib/format.js";
 import { usePolling } from "../hooks/usePolling.js";
 import { ask, withForce } from "../components/Confirm.jsx";
@@ -77,6 +77,57 @@ function Section({ title, meta, role, children }) {
         </header>
       )}
       <div class={setup.setupBody}>{children}</div>
+    </section>
+  );
+}
+
+const LOG_POLL_MS = 2000;
+const LOG_LINES = 300;
+
+/**
+ * Full-width live log for one role, minimized until clicked. While open it tails
+ * `/admin/logs/<role>` every two seconds and sticks to the newest line.
+ */
+export function LogsCard({ role }) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState("");
+  const [error, setError] = useState("");
+  const viewRef = useRef(null);
+  const fileName = OLLAMA_ROLES.has(role) ? "Ollama server.log" : `${role}.log`;
+
+  usePolling(async () => {
+    try {
+      setText(await getText(`/admin/logs/${role}?lines=${LOG_LINES}`));
+      setError("");
+    } catch (failure) {
+      setError(failure.message);
+    }
+  }, LOG_POLL_MS, { active: open });
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (view && open) view.scrollTop = view.scrollHeight;
+  }, [text, open]);
+
+  return (
+    <section class={setup.logsCard}>
+      <button type="button" class={setup.logsHead} aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span class={setup.logsCaret} aria-hidden="true">{open ? "▾" : "▸"}</span>
+        <span class={setup.logsTitle}>Logs</span>
+        <span class={setup.logsMeta}>{fileName} · live tail</span>
+        <span class={setup.logsState}>{open ? (error ? "unavailable" : "tailing…") : "show"}</span>
+      </button>
+      {open && (
+        <div class={setup.terminal}>
+          <div class={setup.terminalBar} aria-hidden="true">
+            <span class={`${setup.dot} ${setup.dotRed}`} />
+            <span class={`${setup.dot} ${setup.dotYellow}`} />
+            <span class={`${setup.dot} ${setup.dotGreen}`} />
+            <span class={setup.terminalName}>{fileName}</span>
+          </div>
+          <pre ref={viewRef} class={setup.terminalBody}>{error || text || "loading…"}</pre>
+        </div>
+      )}
     </section>
   );
 }
@@ -191,7 +242,7 @@ export function Search({ role, onPick }) {
 }
 
 /** A gated repo: accept its terms on Hugging Face, then retry the same download. */
-export function GatedNotice({ model, acceptUrl, busy, onRetry }) {
+export function GatedNotice({ model, acceptUrl, busy, onRetry, actionLabel = "Retry install", busyLabel = "Installing…" }) {
   const url = acceptUrl || `https://huggingface.co/${model}`;
   return (
     <>
@@ -201,7 +252,7 @@ export function GatedNotice({ model, acceptUrl, busy, onRetry }) {
         {" "}— sign in there, accept, then retry here. A Hugging Face token with access may also be required.
       </ui.Notice>
       <ui.Row>
-        <ui.Button small variant="primary" disabled={busy} onClick={onRetry}>{busy ? "Installing…" : "Retry install"}</ui.Button>
+        <ui.Button small variant="primary" disabled={busy} onClick={onRetry}>{busy ? busyLabel : actionLabel}</ui.Button>
       </ui.Row>
     </>
   );
@@ -554,9 +605,10 @@ export default function Models({ active }) {
         <>
           <GlobalControls managed={managed} onChanged={changed} />
           <div class={setup.cards}>
-            {ordered.map(([role, entry]) => (
-              <RoleSetup key={role} role={role} entry={entry} pinned={pins.includes(role)} onChanged={changed} />
-            ))}
+            {ordered.flatMap(([role, entry]) => [
+              <RoleSetup key={role} role={role} entry={entry} pinned={pins.includes(role)} onChanged={changed} />,
+              <LogsCard key={`${role}-logs`} role={role} />,
+            ])}
           </div>
           <Memory memory={memory} roles={Object.fromEntries(entries.map(([role, entry]) => [role, { default: entry.default }]))} onChanged={changed} />
         </>

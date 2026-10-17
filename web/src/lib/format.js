@@ -8,6 +8,13 @@ export function shorten(url) {
   return `${url.slice(0, 40)}…`;
 }
 
+/** A model id without its org prefix: "org/name:tag" reads as "name:tag". */
+export function shortModel(id) {
+  if (!id) return id;
+  const slash = id.lastIndexOf("/");
+  return slash >= 0 ? id.slice(slash + 1) : id;
+}
+
 export function clock(seconds) {
   const whole = Math.floor(seconds);
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;

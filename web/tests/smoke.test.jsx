@@ -29,13 +29,13 @@ const pages = {
 };
 
 const ENDPOINTS = {
-  Chat: "POST /v1/chat/completions",
-  Decide: "POST /v1/systemone",
-  Embed: "POST /v1/embeddings",
-  Image: "POST /v1/images/generations",
-  Video: "POST /v1/videos",
-  Stt: "POST /v1/audio/transcriptions",
-  Tts: "POST /v1/audio/speech",
+  Chat: "/v1/chat/completions",
+  Decide: "/v1/systemone",
+  Embed: "/v1/embeddings",
+  Image: "/v1/images/generations",
+  Video: "/v1/videos",
+  Stt: "/v1/audio/transcriptions",
+  Tts: "/v1/audio/speech",
 };
 
 // nothing has answered yet: what the app looks like on a cold load, or with the
@@ -95,8 +95,8 @@ describe("pages render before the first poll", () => {
     const html = render(<App />);
     for (const word of ["Chat", "Speech to text", "Settings"]) expect(html).toContain(word);
     // every role card carries its own endpoint, and a switch that is not yet usable
-    expect(html).toContain("POST /v1/chat/completions");
-    expect(html).toContain("POST /v1/audio/transcriptions");
+    expect(html).toContain("/v1/chat/completions");
+    expect(html).toContain("/v1/audio/transcriptions");
     expect(html).toContain("checking…");
     expect(html).toContain("waiting for the gateway");
   });
@@ -109,7 +109,9 @@ describe("pages render before the first poll", () => {
   test("each page shows its own endpoint", () => {
     for (const [name, endpoint] of Object.entries(ENDPOINTS)) {
       const Page = pages[name];
-      expect(render(<Page active />)).toContain(endpoint);
+      const html = render(<Page active />);
+      expect(html).toContain(endpoint);
+      expect(html).not.toContain("POST /v1/");
     }
   });
 });
@@ -120,6 +122,9 @@ describe("pages render against a live-looking runtime", () => {
   test("the role cards show each role's model, memory and loaded state", () => {
     const html = render(<App />);
     expect(html).toContain(MODEL);
+    // cards show the short name, with the full id behind the tooltip
+    expect(html).toContain('title="org/model-4bit"');
+    expect(html).toContain(">model-4bit<");
     expect(html).toContain(gb(BYTES));
     expect(html).toContain("running");
     expect(html).not.toContain("waiting for the gateway");

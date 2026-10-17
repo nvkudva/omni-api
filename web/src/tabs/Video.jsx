@@ -8,6 +8,7 @@ import { shorten, since } from "../lib/format.js";
 import * as ui from "../components/ui.jsx";
 import { Panel, Pending, RequestBody, Turn, TurnError, UiJson, Workbench, useTurnState } from "../components/workbench.jsx";
 import { useJsonRequest } from "../hooks/useJsonRequest.js";
+import { GatedNotice } from "./Models.jsx";
 import styles from "./Video.module.css";
 
 const DEFAULT_PROMPT = "A paper boat drifts down a rain-filled gutter at dusk, streetlights reflecting in the ripples, slow tracking shot, shallow depth of field.";
@@ -84,7 +85,11 @@ export default function Video() {
     }
     updateJob(id, { status: job.status, caption: caption(job, seed, start) });
     if (job.status === "failed") {
-      updateJob(id, { error: job.error?.message ?? "generation failed" });
+      updateJob(id, {
+        error: job.error?.message ?? "generation failed",
+        gatedModel: job.error?.code === "gated" || job.error?.type === "gated" ? (job.model ?? "") : "",
+        acceptUrl: job.error?.accept_url ?? "",
+      });
       return;
     }
     updateJob(id, { remoteId: job.id, url: `/v1/videos/${job.id}/content` });
@@ -129,7 +134,7 @@ export default function Video() {
   const readout = [
     { label: "Model", value: models.value.defaults.video ?? "—" },
     { label: "Runtime", value: "ltx-mlx · 4-bit" },
-    { label: "API", value: "POST /v1/videos" },
+    { label: "API", value: "/v1/videos" },
     { label: "Last run", value: role?.loaded ? (meta || "idle") : "not loaded" },
   ];
 
@@ -201,17 +206,19 @@ export default function Video() {
                 >
                   {RUNNING.has(job.status)
                     ? <Pending label={job.status} note={job.caption}>{<ui.Button small variant="stop" onClick={() => stop(job.id)}>Stop</ui.Button>}</Pending>
-                    : job.error
-                      ? <TurnError>{job.error}</TurnError>
-                      : (
-                        <div class={styles.stack}>
-                          {job.url && <video class={styles.video} src={job.url} controls loop playsinline />}
-                          <div class={styles.clipFoot}>
-                            <ui.Meta>{job.caption}</ui.Meta>
-                            {job.url && <a class={styles.link} href={job.url} download={`${job.remoteId ?? job.id}.mp4`}>download .mp4</a>}
+                    : job.acceptUrl
+                      ? <GatedNotice model={job.gatedModel || models.value.defaults.video || "This model"} acceptUrl={job.acceptUrl} busy={busy} onRetry={submit} actionLabel="Retry generate" busyLabel="Submitting…" />
+                      : job.error
+                        ? <TurnError>{job.error}</TurnError>
+                        : (
+                          <div class={styles.stack}>
+                            {job.url && <video class={styles.video} src={job.url} controls loop playsinline />}
+                            <div class={styles.clipFoot}>
+                              <ui.Meta>{job.caption}</ui.Meta>
+                              {job.url && <a class={styles.link} href={job.url} download={`${job.remoteId ?? job.id}.mp4`}>download .mp4</a>}
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
                 </Turn>
               ))}
             </div>

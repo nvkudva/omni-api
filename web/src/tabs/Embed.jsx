@@ -248,7 +248,7 @@ export default function Embed() {
   const readout = [
     { label: "Model", value: models.value.defaults.embed ?? "—" },
     { label: "Runtime", value: "ollama" },
-    { label: "API", value: "POST /v1/embeddings" },
+    { label: "API", value: "/v1/embeddings" },
     { label: "Index", value: done.length ? `${done.length} files · ${chunks.length} chunks` : "empty" },
   ];
 

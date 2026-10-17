@@ -43,7 +43,7 @@ export default function Health() {
     { label: "Gateway", value: value ? (value.ok ? "healthy" : "degraded") : error ? "unreachable" : "checking…" },
     { label: "Workers", value: workers.length ? `${ready} / ${workers.length} ready` : "—" },
     { label: "Models", value: models.value.data.length || "—" },
-    { label: "Endpoint", value: "GET /health" },
+    { label: "API", value: "/health" },
   ];
 
   return (

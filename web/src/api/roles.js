@@ -7,13 +7,13 @@ import { gb } from "../lib/format.js";
 // One line per role: what it is, where its endpoint lives, which runtime serves
 // it, and the accent its icon wears. This is presentation metadata, not config.
 export const ROLE_META = {
-  chat: { label: "Chat", endpoint: "POST /v1/chat/completions", runner: "ollama", color: "#0a84ff" },
-  decide: { label: "Decide", endpoint: "POST /v1/systemone", runner: "ollama", color: "#bf5af2" },
-  embed: { label: "Embed", endpoint: "POST /v1/embeddings", runner: "ollama", color: "#30b0c7" },
-  stt: { label: "Speech to text", endpoint: "POST /v1/audio/transcriptions", runner: "parakeet-mlx", color: "#ff453a" },
-  tts: { label: "Text to speech", endpoint: "POST /v1/audio/speech", runner: "mlx-audio", color: "#30d158" },
-  image: { label: "Image", endpoint: "POST /v1/images/generations", runner: "diffusers", color: "#ff9f0a" },
-  video: { label: "Video", endpoint: "POST /v1/videos", runner: "ltx-mlx", color: "#ff375f" },
+  chat: { label: "Chat", endpoint: "/v1/chat/completions", runner: "ollama", color: "#0a84ff" },
+  decide: { label: "Decide", endpoint: "/v1/systemone", runner: "ollama", color: "#bf5af2" },
+  embed: { label: "Embed", endpoint: "/v1/embeddings", runner: "ollama", color: "#30b0c7" },
+  stt: { label: "Speech to text", endpoint: "/v1/audio/transcriptions", runner: "parakeet-mlx", color: "#ff453a" },
+  tts: { label: "Text to speech", endpoint: "/v1/audio/speech", runner: "mlx-audio", color: "#30d158" },
+  image: { label: "Image", endpoint: "/v1/images/generations", runner: "diffusers", color: "#ff9f0a" },
+  video: { label: "Video", endpoint: "/v1/videos", runner: "ltx-mlx", color: "#ff375f" },
 };
 
 export const ROLE_ORDER = ["chat", "decide", "embed", "stt", "tts", "image", "video"];

@@ -1,0 +1,117 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bg-grad-3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#07090e"/>
+      <stop offset="50%" stop-color="#0d111a"/>
+      <stop offset="100%" stop-color="#141a29"/>
+    </linearGradient>
+
+    <linearGradient id="border-glow-3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0ea5e9" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#6366f1" stop-opacity="0.2"/>
+    </linearGradient>
+
+    <!-- Aperture Blade Gradient -->
+    <linearGradient id="blade-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="40%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+
+    <!-- Neon Rim Gradient -->
+    <linearGradient id="neon-rim" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="50%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#c084fc"/>
+    </linearGradient>
+
+    <!-- Core Sensor Aperture Glow -->
+    <radialGradient id="sensor-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="25%" stop-color="#38bdf8"/>
+      <stop offset="60%" stop-color="#0369a1"/>
+      <stop offset="100%" stop-color="#082f49" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="shadow-3" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.8"/>
+    </filter>
+
+    <filter id="bloom-3" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Reusable Blade definition: centered around (256, 256) -->
+    <!-- Blade starts near outer circle (R~150), sweeps in tangent to inner circle (r~46) -->
+    <path id="aperture-blade" d="M 256,106 C 320,106 370,140 380,185 L 298,230 C 275,215 260,210 256,210 L 256,106 Z" />
+  </defs>
+
+  <!-- App Squircle -->
+  <rect width="512" height="512" rx="116" fill="url(#bg-grad-3)"/>
+  <rect x="2" y="2" width="508" height="508" rx="114" fill="none" stroke="url(#border-glow-3)" stroke-width="2"/>
+
+  <!-- Radial Technical Ticks / Dial -->
+  <g opacity="0.25" stroke="#38bdf8" stroke-width="1.5">
+    <circle cx="256" cy="256" r="175" fill="none" stroke-dasharray="2 12"/>
+    <circle cx="256" cy="256" r="160" fill="none" stroke-width="0.75" stroke-opacity="0.5"/>
+  </g>
+
+  <!-- Deep Aperture Housing Ring -->
+  <circle cx="256" cy="256" r="148" fill="#0b1120" stroke="#1e293b" stroke-width="4"/>
+
+  <!-- Glowing Internal Sensor Cavity -->
+  <circle cx="256" cy="256" r="50" fill="url(#sensor-glow)" filter="url(#bloom-3)"/>
+
+  <!-- 6 Interlocking Aperture Blades with Rotational Symmetry -->
+  <g filter="url(#shadow-3)">
+    <!-- Blade 1 (0 deg) -->
+    <g transform="rotate(0 256 256)">
+      <path d="M 256,108 C 325,108 375,145 385,190 L 296,234 C 275,215 258,212 256,212 Z" 
+            fill="url(#blade-grad)" stroke="url(#neon-rim)" stroke-width="1.5" opacity="0.95"/>
+    </g>
+    <!-- Blade 2 (60 deg) -->
+    <g transform="rotate(60 256 256)">
+      <path d="M 256,108 C 325,108 375,145 385,190 L 296,234 C 275,215 258,212 256,212 Z" 
+            fill="url(#blade-grad)" stroke="url(#neon-rim)" stroke-width="1.5" opacity="0.95"/>
+    </g>
+    <!-- Blade 3 (120 deg) -->
+    <g transform="rotate(120 256 256)">
+      <path d="M 256,108 C 325,108 375,145 385,190 L 296,234 C 275,215 258,212 256,212 Z" 
+            fill="url(#blade-grad)" stroke="url(#neon-rim)" stroke-width="1.5" opacity="0.95"/>
+    </g>
+    <!-- Blade 4 (180 deg) -->
+    <g transform="rotate(180 256 256)">
+      <path d="M 256,108 C 325,108 375,145 385,190 L 296,234 C 275,215 258,212 256,212 Z" 
+            fill="url(#blade-grad)" stroke="url(#neon-rim)" stroke-width="1.5" opacity="0.95"/>
+    </g>
+    <!-- Blade 5 (240 deg) -->
+    <g transform="rotate(240 256 256)">
+      <path d="M 256,108 C 325,108 375,145 385,190 L 296,234 C 275,215 258,212 256,212 Z" 
+            fill="url(#blade-grad)" stroke="url(#neon-rim)" stroke-width="1.5" opacity="0.95"/>
+    </g>
+    <!-- Blade 6 (300 deg) -->
+    <g transform="rotate(300 256 256)">
+      <path d="M 256,108 C 325,108 375,145 385,190 L 296,234 C 275,215 258,212 256,212 Z" 
+            fill="url(#blade-grad)" stroke="url(#neon-rim)" stroke-width="1.5" opacity="0.95"/>
+    </g>
+  </g>
+
+  <!-- Central Reticle & Singularity Portal (127.0.0.1:10000) -->
+  <circle cx="256" cy="256" r="30" fill="none" stroke="#67e8f9" stroke-width="1.5" stroke-dasharray="3 3"/>
+  <circle cx="256" cy="256" r="14" fill="#090d16" stroke="#38bdf8" stroke-width="2.5"/>
+  <circle cx="256" cy="256" r="6" fill="#ffffff" filter="url(#bloom-3)"/>
+
+  <!-- 4 Reticle Crosshair Ticks -->
+  <line x1="256" y1="216" x2="256" y2="222" stroke="#67e8f9" stroke-width="2"/>
+  <line x1="256" y1="290" x2="256" y2="296" stroke="#67e8f9" stroke-width="2"/>
+  <line x1="216" y1="256" x2="222" y2="256" stroke="#67e8f9" stroke-width="2"/>
+  <line x1="290" y1="256" x2="296" y2="256" stroke="#67e8f9" stroke-width="2"/>
+
+  <!-- Badge Label -->
+  <text x="256" y="460" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-size="16" font-weight="700" letter-spacing="4" fill="#64748b">OMNI APERTURE</text>
+</svg>

@@ -109,7 +109,7 @@ export default function Image() {
   const readout = [
     { label: "Model", value: models.value.defaults.image ?? "—" },
     { label: "Runtime", value: "diffusers · MPS bf16" },
-    { label: "API", value: "POST /v1/images/generations" },
+    { label: "API", value: "/v1/images/generations" },
     { label: "Last run", value: role?.loaded ? (meta || "idle") : "not loaded" },
   ];
 

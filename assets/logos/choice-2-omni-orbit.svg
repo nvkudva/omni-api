@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bg-grad-2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0b0f19"/>
+      <stop offset="50%" stop-color="#0e1726"/>
+      <stop offset="100%" stop-color="#17223b"/>
+    </linearGradient>
+
+    <linearGradient id="border-glow-2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#818cf8" stop-opacity="0.2"/>
+    </linearGradient>
+
+    <!-- Ring 1 Gradient (Electric Azure -> Cyan) -->
+    <linearGradient id="ring-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f2fe"/>
+      <stop offset="50%" stop-color="#0071e3"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+
+    <!-- Ring 2 Gradient (Violet -> Neon Magenta) -->
+    <linearGradient id="ring-purple" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#4338ca"/>
+      <stop offset="50%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+
+    <!-- Core Sun -->
+    <radialGradient id="portal-core" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="30%" stop-color="#67e8f9"/>
+      <stop offset="70%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#0369a1" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="glow-2" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="shadow-2" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000000" flood-opacity="0.7"/>
+    </filter>
+  </defs>
+
+  <!-- App Squircle -->
+  <rect width="512" height="512" rx="116" fill="url(#bg-grad-2)"/>
+  <rect x="2" y="2" width="508" height="508" rx="114" fill="none" stroke="url(#border-glow-2)" stroke-width="2"/>
+
+  <!-- Background Orbit Grids -->
+  <g opacity="0.15" stroke="#38bdf8" stroke-width="1.5">
+    <ellipse cx="256" cy="256" rx="200" ry="70" fill="none" stroke-dasharray="6 8" transform="rotate(-25 256 256)"/>
+    <ellipse cx="256" cy="256" rx="200" ry="70" fill="none" stroke-dasharray="6 8" transform="rotate(35 256 256)"/>
+  </g>
+
+  <!-- Rear Arc of Blue Ring -->
+  <g filter="url(#shadow-2)">
+    <path d="M 120,320 C 80,240 130,150 230,130 C 330,110 410,160 410,240" 
+          fill="none" stroke="url(#ring-blue)" stroke-width="26" stroke-linecap="round" opacity="0.4"/>
+  </g>
+
+  <!-- Rear Arc of Purple Ring -->
+  <g filter="url(#shadow-2)">
+    <path d="M 110,210 C 120,130 210,95 305,125 C 400,155 425,245 385,325" 
+          fill="none" stroke="url(#ring-purple)" stroke-width="26" stroke-linecap="round" opacity="0.4"/>
+  </g>
+
+  <!-- Central Port Gateway Hub -->
+  <circle cx="256" cy="256" r="64" fill="url(#portal-core)" opacity="0.3" filter="url(#glow-2)"/>
+  <circle cx="256" cy="256" r="42" fill="#0f172a" stroke="#00f2fe" stroke-width="3"/>
+  <circle cx="256" cy="256" r="22" fill="url(#portal-core)" filter="url(#glow-2)"/>
+  <circle cx="256" cy="256" r="9" fill="#ffffff"/>
+
+  <!-- Foreground Arc of Purple Ring (Looping over) -->
+  <g filter="url(#shadow-2)">
+    <path d="M 385,325 C 345,405 245,430 160,395 C 105,370 85,315 110,210" 
+          fill="none" stroke="url(#ring-purple)" stroke-width="26" stroke-linecap="round"/>
+  </g>
+
+  <!-- Foreground Arc of Blue Ring (Interlocking over and under) -->
+  <g filter="url(#shadow-2)">
+    <path d="M 410,240 C 410,325 320,390 220,380 C 145,370 100,340 120,320" 
+          fill="none" stroke="url(#ring-blue)" stroke-width="26" stroke-linecap="round"/>
+  </g>
+
+  <!-- Orbiting Model Nodes (Satellites on orbits) -->
+  <!-- Node 1: Chat (Top Right) -->
+  <circle cx="395" cy="180" r="9" fill="#38bdf8" filter="url(#glow-2)"/>
+  <circle cx="395" cy="180" r="4" fill="#ffffff"/>
+
+  <!-- Node 2: TTS/STT (Bottom Left) -->
+  <circle cx="125" cy="340" r="9" fill="#34d399" filter="url(#glow-2)"/>
+  <circle cx="125" cy="340" r="4" fill="#ffffff"/>
+
+  <!-- Node 3: Image/Video (Top Left) -->
+  <circle cx="150" cy="150" r="8" fill="#f43f5e" filter="url(#glow-2)"/>
+  <circle cx="150" cy="150" r="3.5" fill="#ffffff"/>
+
+  <!-- Node 4: Embed/Decide (Bottom Right) -->
+  <circle cx="360" cy="365" r="8" fill="#c084fc" filter="url(#glow-2)"/>
+  <circle cx="360" cy="365" r="3.5" fill="#ffffff"/>
+
+  <!-- Typography at bottom -->
+  <text x="256" y="460" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-size="16" font-weight="700" letter-spacing="4" fill="#94a3b8">OMNI ROUTER</text>
+</svg>

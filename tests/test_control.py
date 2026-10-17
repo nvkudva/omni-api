@@ -86,6 +86,27 @@ class Control(unittest.TestCase):
     def test_logs_reject_a_bad_line_count(self):
         self.assertEqual(self.client.get("/admin/logs", params={"lines": 0}).status_code, 422)
 
+    def test_role_log_tails_the_worker_log(self):
+        with tempfile.TemporaryDirectory() as directory:
+            (Path(directory) / "video.log").write_text("one\ntwo\nthree\n")
+            with patch.object(config, "LOG_DIR", Path(directory)):
+                response = self.client.get("/admin/logs/video", params={"lines": 2})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.text, "two\nthree\n")
+
+    def test_role_log_for_an_ollama_role_tails_ollamas_server_log(self):
+        with tempfile.TemporaryDirectory() as directory:
+            server_log = Path(directory) / ".ollama" / "logs" / "server.log"
+            server_log.parent.mkdir(parents=True)
+            server_log.write_text("one\ntwo\nthree\n")
+            with patch.object(Path, "home", classmethod(lambda cls: Path(directory))):
+                response = self.client.get("/admin/logs/chat", params={"lines": 2})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.text, "two\nthree\n")
+
+    def test_role_log_rejects_an_unknown_role(self):
+        self.assertEqual(self.client.get("/admin/logs/nope").status_code, 404)
+
 
 if __name__ == "__main__":
     unittest.main()

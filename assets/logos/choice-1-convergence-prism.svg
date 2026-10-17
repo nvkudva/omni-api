@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bg-grad-1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0c14"/>
+      <stop offset="50%" stop-color="#101424"/>
+      <stop offset="100%" stop-color="#181c30"/>
+    </linearGradient>
+
+    <!-- Outer Squircle Border Glow -->
+    <linearGradient id="border-glow-1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3a82f6" stop-opacity="0.4"/>
+      <stop offset="50%" stop-color="#8b5cf6" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.4"/>
+    </linearGradient>
+
+    <!-- Facet Gradients for the 6 modalities -->
+    <!-- Facet 1: Top (Chat / Language) -->
+    <linearGradient id="facet-chat" x1="0%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+
+    <!-- Facet 2: Top-Right (Decide / Reasoning) -->
+    <linearGradient id="facet-decide" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#818cf8"/>
+      <stop offset="100%" stop-color="#4f46e5"/>
+    </linearGradient>
+
+    <!-- Facet 3: Bottom-Right (Embed / Memory) -->
+    <linearGradient id="facet-embed" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#c084fc"/>
+      <stop offset="100%" stop-color="#7e22ce"/>
+    </linearGradient>
+
+    <!-- Facet 4: Bottom (Image / Vision) -->
+    <linearGradient id="facet-image" x1="50%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#f43f5e"/>
+      <stop offset="100%" stop-color="#be123c"/>
+    </linearGradient>
+
+    <!-- Facet 5: Bottom-Left (Video / Motion) -->
+    <linearGradient id="facet-video" x1="100%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#fb923c"/>
+      <stop offset="100%" stop-color="#c2410c"/>
+    </linearGradient>
+
+    <!-- Facet 6: Top-Left (Audio / STT & TTS) -->
+    <linearGradient id="facet-audio" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+
+    <!-- Core Port Glow -->
+    <radialGradient id="core-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="25%" stop-color="#67e8f9"/>
+      <stop offset="60%" stop-color="#0284c7" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#0f172a" stop-opacity="0"/>
+    </radialGradient>
+
+    <filter id="drop-shadow-1" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+    <filter id="core-bloom" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- App Icon Squircle Canvas -->
+  <rect width="512" height="512" rx="116" fill="url(#bg-grad-1)"/>
+  <rect x="2" y="2" width="508" height="508" rx="114" fill="none" stroke="url(#border-glow-1)" stroke-width="2.5"/>
+
+  <!-- Subtle Gateway Grid Lines -->
+  <g opacity="0.12" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="4 6">
+    <circle cx="256" cy="256" r="190"/>
+    <circle cx="256" cy="256" r="130"/>
+    <line x1="66" y1="256" x2="446" y2="256"/>
+    <line x1="256" y1="66" x2="256" y2="446"/>
+  </g>
+
+  <!-- Hexagonal Convergence Prism Group -->
+  <g filter="url(#drop-shadow-1)">
+    <!-- Facet 1: Top (Chat) -->
+    <!-- Outer top: (256, 106), Outer top-right: (386, 181), Inner top-right: (296, 233), Inner top: (256, 210) -->
+    <!-- Hex vertices R=150:
+         P0 (top): 256, 106
+         P1 (top-right): 386, 181
+         P2 (bottom-right): 386, 331
+         P3 (bottom): 256, 406
+         P4 (bottom-left): 126, 331
+         P5 (top-left): 126, 181
+         Inner Core vertices r=48:
+         C0: 256, 208
+         C1: 298, 232
+         C2: 298, 280
+         C3: 256, 304
+         C4: 214, 280
+         C5: 214, 232
+    -->
+    <!-- Facet 1: Top-Right (Language / Chat) -->
+    <path d="M 256,106 L 386,181 L 298,232 L 256,208 Z" fill="url(#facet-chat)" opacity="0.95"/>
+    <path d="M 256,106 L 386,181 L 298,232 L 256,208 Z" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.3"/>
+
+    <!-- Facet 2: Right (Decide / Reasoning) -->
+    <path d="M 386,181 L 386,331 L 298,280 L 298,232 Z" fill="url(#facet-decide)" opacity="0.92"/>
+    <path d="M 386,181 L 386,331 L 298,280 L 298,232 Z" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.25"/>
+
+    <!-- Facet 3: Bottom-Right (Embed / Vectors) -->
+    <path d="M 386,331 L 256,406 L 256,304 L 298,280 Z" fill="url(#facet-embed)" opacity="0.95"/>
+    <path d="M 386,331 L 256,406 L 256,304 L 298,280 Z" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.3"/>
+
+    <!-- Facet 4: Bottom-Left (Image / Vision) -->
+    <path d="M 256,406 L 126,331 L 214,280 L 256,304 Z" fill="url(#facet-image)" opacity="0.92"/>
+    <path d="M 256,406 L 126,331 L 214,280 L 256,304 Z" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.25"/>
+
+    <!-- Facet 5: Left (Video / Motion) -->
+    <path d="M 126,331 L 126,181 L 214,232 L 214,280 Z" fill="url(#facet-video)" opacity="0.95"/>
+    <path d="M 126,331 L 126,181 L 214,232 L 214,280 Z" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.3"/>
+
+    <!-- Facet 6: Top-Left (Audio / Speech) -->
+    <path d="M 126,181 L 256,106 L 256,208 L 214,232 Z" fill="url(#facet-audio)" opacity="0.95"/>
+    <path d="M 126,181 L 256,106 L 256,208 L 214,232 Z" fill="none" stroke="#ffffff" stroke-width="1" stroke-opacity="0.35"/>
+  </g>
+
+  <!-- Ambient Light Reflection on Top Facets -->
+  <path d="M 126,181 L 256,106 L 386,181" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+
+  <!-- Central Port :10000 Gateway Singularity -->
+  <circle cx="256" cy="256" r="54" fill="url(#core-glow)" filter="url(#core-bloom)"/>
+  <circle cx="256" cy="256" r="32" fill="#090d16" stroke="#38bdf8" stroke-width="2"/>
+  <circle cx="256" cy="256" r="16" fill="#ffffff" filter="url(#core-bloom)"/>
+
+  <!-- Subtly etched port coordinate -->
+  <text x="256" y="460" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif" font-size="16" font-weight="700" letter-spacing="4" fill="#64748b">OMNI : 10000</text>
+</svg>

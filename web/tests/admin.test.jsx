@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import { render } from "preact-render-to-string";
 
 const ModelsModule = await import("../src/tabs/Models.jsx");
-const { RoleSetup, GlobalControls, Search, Install, DownloadedList, Memory, GatedNotice } = ModelsModule;
+const { RoleSetup, GlobalControls, Search, Install, DownloadedList, Memory, GatedNotice, LogsCard } = ModelsModule;
 const Models = ModelsModule.default;
 const { RoleCard } = await import("../src/components/RoleCard.jsx");
 const { runtime } = await import("../src/api/roles.js");
@@ -115,6 +115,20 @@ describe("a gated model", () => {
   });
 });
 
+describe("the Logs card", () => {
+  test("starts minimized, naming the role's log file, with no terminal shown", () => {
+    const html = render(<LogsCard role="video" />);
+    expect(html).toContain("Logs");
+    expect(html).toContain("video.log");
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).not.toContain("<pre");
+  });
+
+  test("an Ollama role names Ollama's server log", () => {
+    expect(render(<LogsCard role="chat" />)).toContain("Ollama server.log");
+  });
+});
+
 describe("the Models section", () => {
   test("it starts loading without needing an active prop", () => {
     // Settings mounts the page with no props; effects never run in SSR, so only the loading state renders
@@ -148,7 +162,7 @@ describe("the sidebar card", () => {
       roles: {
         chat: {
           label: "Chat",
-          endpoint: "POST /v1/chat/completions",
+          endpoint: "/v1/chat/completions",
           runner: "ollama",
           color: "#0a84ff",
           role: "chat",

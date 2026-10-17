@@ -199,7 +199,7 @@ export default function Chat() {
       ),
     },
     { label: "Runtime", value: vision ? "ollama · vision" : "ollama" },
-    { label: "API", value: "POST /v1/chat/completions" },
+    { label: "API", value: "/v1/chat/completions" },
     { label: "Last run", value: chat?.loaded ? (meta || "idle") : "not loaded" },
   ];
 

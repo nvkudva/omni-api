@@ -130,7 +130,7 @@ export default function Tts() {
   const readout = [
     { label: "Model", value: models.value.defaults.tts ?? "—" },
     { label: "Runtime", value: "mlx-audio · 4-bit" },
-    { label: "API", value: "POST /v1/audio/speech" },
+    { label: "API", value: "/v1/audio/speech" },
     { label: "Last run", value: role?.loaded ? (meta || "idle") : "not loaded" },
   ];
 

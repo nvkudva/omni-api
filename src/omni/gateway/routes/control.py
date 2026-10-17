@@ -1,6 +1,7 @@
 """The /admin controls for the process itself: server status, restart and stop, runtime settings, logs."""
 import copy
 import importlib.metadata
+from pathlib import Path
 
 import httpx
 import psutil
@@ -32,7 +33,10 @@ def _version() -> str:
 
 
 def _tail(lines: int, name: str = "omni") -> list[str]:
-    path = config.LOG_DIR / f"{name}.log"
+    return _tail_file(config.LOG_DIR / f"{name}.log", lines)
+
+
+def _tail_file(path, lines: int) -> list[str]:
     try:
         with path.open("rb") as file:
             file.seek(0, 2)
@@ -104,8 +108,13 @@ def register(app: FastAPI, ctx: Context) -> None:
     async def admin_role_log(role: str, lines: int = Query(500, ge=1, le=5000)) -> PlainTextResponse:
         if role not in config.ROLES:
             return error_response(404, f"no role named {role}", "not_found")
-        worker = "chat" if role in registry.OLLAMA_ROLES else role
-        path = config.LOG_DIR / f"{worker}.log"
+        if role in registry.OLLAMA_ROLES:
+            # Ollama serves these roles itself, so its own server log is the role's log.
+            path = Path.home() / ".ollama" / "logs" / "server.log"
+            if not path.exists():
+                return PlainTextResponse(f"no log at {path} (Ollama has not written one)\n", status_code=404)
+            return PlainTextResponse("\n".join(_tail_file(path, lines)) + "\n")
+        path = config.LOG_DIR / f"{role}.log"
         if not path.exists():
             return PlainTextResponse(f"no log at {path} (this runtime is not managed by omni)\n", status_code=404)
-        return PlainTextResponse("\n".join(_tail(lines, worker)) + "\n")
+        return PlainTextResponse("\n".join(_tail(lines, role)) + "\n")

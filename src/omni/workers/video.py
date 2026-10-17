@@ -18,6 +18,7 @@ from fastapi.responses import FileResponse
 from PIL import Image, UnidentifiedImageError
 
 from omni import config, schemas, workers
+from omni.registry import pulling
 
 log = logging.getLogger("omni.worker.video")
 
@@ -96,6 +97,14 @@ def _generate(job_id: str, req: schemas.VideoRequest, width: int, height: int) -
             image_path.unlink(missing_ok=True)
 
 
+def job_error(error: Exception) -> dict:
+    """The job's public error: a gated repo reads as an instruction, not a raw upstream trace."""
+    if pulling.is_gated(error):
+        event = pulling.gated_event(model_name)
+        return {"message": event["error"], "type": "gated", "code": "gated", "accept_url": event["accept_url"]}
+    return {"message": f"{type(error).__name__}: {error}", "type": "server_error"}
+
+
 async def _run_jobs() -> None:
     while True:
         job_id, req, width, height = await queue.get()
@@ -105,8 +114,7 @@ async def _run_jobs() -> None:
             log.exception("video %s failed", job_id)
             job = jobs.get(job_id)
             if job is not None:
-                job.update(status="failed", failed_at=int(time.time()),
-                           error={"message": f"{type(error).__name__}: {error}", "type": "server_error"})
+                job.update(status="failed", failed_at=int(time.time()), error=job_error(error))
         finally:
             queue.task_done()
 

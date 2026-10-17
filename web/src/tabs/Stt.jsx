@@ -245,7 +245,7 @@ export default function Stt() {
   const readout = [
     { label: "Model", value: models.value.defaults.stt ?? "—" },
     { label: "Runtime", value: "parakeet-mlx" },
-    { label: "API", value: "POST /v1/audio/transcriptions" },
+    { label: "API", value: "/v1/audio/transcriptions" },
     { label: "Last run", value: runtime.value.roles.stt?.loaded ? (meta || "idle") : "not loaded" },
   ];
 

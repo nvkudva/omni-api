@@ -2,7 +2,7 @@ import { useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { ask, withForce } from "./Confirm.jsx";
 import { ROLE_META, install, installs, runtime, setPinned } from "../api/roles.js";
-import { gb } from "../lib/format.js";
+import { gb, shortModel } from "../lib/format.js";
 import { cx } from "../lib/cx.js";
 import { Dot } from "./ui.jsx";
 import styles from "./RoleCard.module.css";
@@ -151,8 +151,8 @@ export function RoleCard({ role, active, onOpen, onSetup }) {
       </span>
       <span class={styles.endpoint} title={state.endpoint}>{state.endpoint}</span>
       <span class={styles.modelRow}>
-        <span class={styles.model} title={shownModel}>{shownModel}</span>
-        <span class={styles.memory}>{running ? gb(state.memoryBytes) : "—"}</span>
+        <span class={styles.model} title={shownModel}>{shortModel(shownModel)}</span>
+        {running && <span class={styles.memory}>{gb(state.memoryBytes)}</span>}
       </span>
       <span class={styles.foot}>
         <span class={styles.status}>

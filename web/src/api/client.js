@@ -53,6 +53,11 @@ export async function getJson(path, { signal: abortSignal } = {}) {
   return response.json();
 }
 
+export async function getText(path, { signal: abortSignal } = {}) {
+  const response = await assertOk(await fetch(path, { signal: abortSignal }));
+  return response.text();
+}
+
 // Parse one JSON frame, skipping malformed ones instead of killing the stream.
 function tryParse(text) {
   try {

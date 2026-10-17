@@ -211,7 +211,7 @@ export default function Decide() {
       ),
     },
     { label: "Runtime", value: "ollama" },
-    { label: "API", value: "POST /v1/systemone" },
+    { label: "API", value: "/v1/systemone" },
     { label: "Last run", value: role?.loaded ? (turns.at(-1)?.meta ?? "idle") : "not loaded" },
   ];
 
