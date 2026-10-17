@@ -15,10 +15,9 @@ import styles from "./Chat.module.css";
 
 function chatModels() {
   const { data, defaults } = models.value;
-  const names = data.filter((model) => model.role === "chat").map((model) => model.id);
-  const saved = store.get("omni.chat.model", defaults.chat);
-  if (saved && !names.includes(saved)) names.unshift(saved);
-  return names;
+  return data
+    .filter((model) => model.role === "chat" && (model.capabilities?.includes("completion") || model.id === defaults.chat))
+    .map((model) => model.id);
 }
 
 function hasVision(name) {
@@ -92,7 +91,7 @@ export default function Chat() {
   const turnState = useTurnState();
 
   const names = chatModels();
-  const selected = model || names[0] || "";
+  const selected = names.includes(model) ? model : (names.includes(models.value.defaults.chat) ? models.value.defaults.chat : names[0] || "");
   const vision = hasVision(selected);
   const chat = runtime.value.roles.chat;
 

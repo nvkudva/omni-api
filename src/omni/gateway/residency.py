@@ -42,7 +42,7 @@ async def plan(ctx, role: str, model: str) -> Plan:
     """Whether `model` can load for `role`, and what to warn about either way."""
     advisories = registry.overload_advisories()
     available = await installed(ctx, role)
-    match = next((entry for entry in available if entry["name"] in (model, f"{model}:latest")), None)
+    match = next((entry for entry in available if registry.matches(entry["name"], model)), None)
     if match is not None:
         return Plan(advisories, registry.fit_blockers(match["size_bytes"]), None)
     if registry.runner(role) == "ollama":

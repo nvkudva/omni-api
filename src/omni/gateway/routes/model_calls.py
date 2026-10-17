@@ -3,6 +3,7 @@ import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
+from omni import registry
 from omni.errors import UpstreamError, error_response
 from omni.gateway.context import Context
 from omni.gateway.http import json_object
@@ -16,6 +17,12 @@ def register(app: FastAPI, ctx: Context) -> None:
         model = payload.get("model")
         if not model or model == role:
             model = ctx.settings[role]["model"]
+        embed_model = ctx.settings["embed"]["model"]
+        if role == "embed" and not registry.matches(model, embed_model) and any(
+                registry.matches(model, ctx.settings[other]["model"]) for other in ("chat", "decide")):
+            return error_response(400, f"{model} does not support embeddings; it is not the embed model", "invalid_request_error")
+        if role != "embed" and registry.matches(model, embed_model) and not registry.matches(model, ctx.settings[role]["model"]):
+            return error_response(400, f"{model} is the embed model; it does not support {role}", "invalid_request_error")
         try:
             return JSONResponse(await run(ctx.clients["chat"], model, payload))
         except ValueError as error:

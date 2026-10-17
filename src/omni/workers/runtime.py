@@ -62,7 +62,10 @@ class Lazy:
         self._model = None
         gc.collect()
         if self._after_unload:
-            self._after_unload()
+            try:
+                self._after_unload()
+            except Exception:  # noqa: BLE001, S110 - a failed cache clear must not kill the idle thread
+                pass
 
     @contextmanager
     def use(self) -> Iterator[Any]:

@@ -21,8 +21,10 @@ export const OLLAMA_ROLES = new Set(["chat", "decide", "embed"]);
 
 export const runtime = signal({ ready: false, error: "", roles: {}, warnings: [], memory: null, pins: [] });
 
+export const matchesModel = (name, model) => Boolean(name && model) && name.replace(/:latest$/, "") === model.replace(/:latest$/, "");
+
 const resident = (ollama, name) =>
-  (ollama ?? []).find((model) => model.name === name || model.name === `${name}:latest`);
+  (ollama ?? []).find((model) => matchesModel(model.name, name));
 
 /** The per-role card model: default model, whether it is resident, and its memory. */
 function roleState(role, defaults, health, memory, setup) {

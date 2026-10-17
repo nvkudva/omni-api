@@ -44,7 +44,9 @@ from omni.registry.roles import (
     PYTHON_WORKERS,
     ROLES,
     bare_repo_id,
+    canonical,
     family,
+    matches,
     normalize_repo_id,
     runner,
     supports,
@@ -57,6 +59,7 @@ __all__ = [
     "ROLES",
     "bare_repo_id",
     "cache_dir",
+    "canonical",
     "capabilities",
     "family",
     "fit_blockers",
@@ -66,6 +69,7 @@ __all__ = [
     "hf_size",
     "installed_for",
     "invalidate",
+    "matches",
     "memory",
     "normalize_repo_id",
     "ollama_delete",
@@ -82,7 +86,18 @@ __all__ = [
 
 async def installed_for(role: str, client: httpx.AsyncClient) -> list[dict]:
     """Models this role could actually load: Ollama's list, or cached repos its runtime supports."""
-    if runner(role) == "ollama":
-        return await ollama_installed(client)
-    cached = await asyncio.to_thread(hf_installed)
-    return [model for model in cached if supports(role, model["name"])]
+    if runner(role) != "ollama":
+        cached = await asyncio.to_thread(hf_installed)
+        return [model for model in cached if supports(role, model["name"])]
+    models = await ollama_installed(client)
+    found = await asyncio.gather(*(capabilities(client, model["name"]) for model in models))
+    usable = []
+    for model, caps in zip(models, found):
+        if not caps:
+            continue
+        if role == "embed":
+            if "embedding" in caps:
+                usable.append(model)
+        elif "completion" in caps:
+            usable.append(model)
+    return usable

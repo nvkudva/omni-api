@@ -25,6 +25,14 @@ SEARCH_FILTERS = {
 }
 
 
+def canonical(name: str) -> str:
+    return name.removesuffix(":latest")
+
+
+def matches(name: str, model: str) -> bool:
+    return canonical(name) == canonical(model)
+
+
 def runner(role: str) -> str:
     return "ollama" if role in OLLAMA_ROLES else "huggingface"
 

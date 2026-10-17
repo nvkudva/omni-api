@@ -82,7 +82,7 @@ class KeepWarm:
         model = self.ctx.settings[role]["model"]
         if registry.runner(role) == "ollama":
             held = resident if resident is not None else await residency.ollama_resident(self.ctx)
-            if model in held:
+            if any(registry.matches(name, model) for name in held):
                 return HELD  # keep_alive = -1 is already holding it
         await residency.set_residency(self.ctx, role, model, True, keep_warm=True)
         return WARMED

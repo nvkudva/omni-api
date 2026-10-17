@@ -117,13 +117,14 @@ export default function Decide() {
   const turnState = useTurnState();
 
   const decideModels = models.value.data.filter((entry) => entry.role === "decide").map((entry) => entry.id);
+  const effectiveModel = decideModels.includes(model) ? model : "";
   const rowsError = validationError(rows);
   const role = runtime.value.roles.decide;
 
   const body = {
     state,
     questions: questionSet.questionsFromRows(rows, { strict: false }),
-    ...(model ? { model } : {}),
+    ...(effectiveModel ? { model: effectiveModel } : {}),
   };
   const json = useJsonRequest(view, body);
   const curl = curlJson("/v1/systemone", view === "json" && !json.error ? json.body : body);
@@ -205,7 +206,7 @@ export default function Decide() {
     {
       label: "Model",
       node: (
-        <select aria-label="decide model" value={model} onChange={(event) => choose(event.currentTarget.value)}>
+        <select aria-label="decide model" value={effectiveModel} onChange={(event) => choose(event.currentTarget.value)}>
           <option value="">default</option>
           {decideModels.map((name) => <option key={name} value={name}>{name}</option>)}
         </select>

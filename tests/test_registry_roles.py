@@ -55,6 +55,14 @@ class Normalize(unittest.TestCase):
                          "mradermacher/OneJev1.5-0.8B-GGUF")
 
 
+class Matches(unittest.TestCase):
+    def test_latest_is_the_same_model(self):
+        self.assertTrue(roles.matches("embeddinggemma-2:latest", "embeddinggemma-2"))
+        self.assertTrue(roles.matches("qwen2.5:3b", "qwen2.5:3b"))
+        self.assertFalse(roles.matches("embeddinggemma-2:latest", "qwen2.5:3b"))
+        self.assertEqual(roles.canonical("qwen2.5:latest"), "qwen2.5")
+
+
 class SearchFilters(unittest.TestCase):
     def test_chat_is_pinned_to_text_generation_so_gguf_noise_is_filtered_out(self):
         self.assertEqual(roles.SEARCH_FILTERS["chat"]["pipeline_tag"], "text-generation")

@@ -13,7 +13,7 @@ import {
   workerAction,
   workersAction,
 } from "../api/endpoints.js";
-import { ROLE_META, ROLE_ORDER, install, installs, setPinned } from "../api/roles.js";
+import { ROLE_META, ROLE_ORDER, install, installs, matchesModel, setPinned } from "../api/roles.js";
 import { gb } from "../lib/format.js";
 import { usePolling } from "../hooks/usePolling.js";
 import { ask, withForce } from "../components/Confirm.jsx";
@@ -421,7 +421,7 @@ function useMemory(active) {
 
 export function OllamaRow({ model, roles, onChanged }) {
   const [busy, run] = useAction(onChanged);
-  const role = roles.embed?.default === model.name ? "embed" : "chat";
+  const role = Object.entries(roles).find(([, entry]) => matchesModel(model.name, entry.default))?.[0] ?? "chat";
   return (
     <tr>
       <td class={styles.mono}>{model.name}</td>

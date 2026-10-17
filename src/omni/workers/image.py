@@ -1,5 +1,4 @@
 """Text to image: POST /v1/images/generations on Qwen-Image-2.1 through diffusers (MPS, bf16)."""
-import asyncio
 import base64
 import io
 import time
@@ -27,7 +26,8 @@ def _empty_cache() -> None:
 
 
 model = workers.Lazy(_load, config.idle_seconds(settings), _empty_cache)
-app = workers.app(model)
+executor = workers.ModelExecutor("image-model")
+app = workers.app(model, model_executor=executor)
 
 
 def _generate(req: schemas.ImageRequest, width: int, height: int, steps: int) -> list[str]:
@@ -59,6 +59,6 @@ async def generations(req: schemas.ImageRequest) -> dict:
     except ValueError as error:
         raise HTTPException(400, str(error)) from error
     steps = req.steps if req.steps is not None else default_steps
-    images = await asyncio.to_thread(_generate, req, width, height, steps)
+    images = await executor.run(_generate, req, width, height, steps)
     return {"created": int(time.time()), "model": model_name, "size": f"{width}x{height}",
             "data": [{"b64_json": image, "revised_prompt": None} for image in images]}

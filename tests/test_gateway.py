@@ -59,6 +59,44 @@ class Gateway(unittest.TestCase):
         self.assertIsInstance(body["data"], list)
         self.assertEqual(set(body["defaults"]), set(ROLES))
 
+    def test_models_never_labels_the_embed_model_as_chat(self):
+        body = self.client.get("/v1/models").json()
+        ids = [entry["id"] for entry in body["data"]]
+        self.assertEqual(len(ids), len(set(ids)), ids)
+        for entry in body["data"]:
+            if entry["id"].startswith("embeddinggemma"):
+                self.assertEqual(entry["role"], "embed", entry)
+            if entry["capabilities"] and "completion" not in entry["capabilities"]:
+                self.assertNotEqual(entry["role"], "chat", entry)
+
+    def test_chat_rejects_the_embed_model(self):
+        embed = self.client.get("/v1/models").json()["defaults"]["embed"]
+        response = self.client.post("/v1/chat/completions",
+                                    json={"model": embed, "messages": [{"role": "user", "content": "hi"}]})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("does not support chat", _error(response)["message"])
+
+    def test_decide_rejects_the_embed_model(self):
+        embed = self.client.get("/v1/models").json()["defaults"]["embed"]
+        response = self.client.post("/v1/systemone", json={
+            "model": embed, "state": "hi",
+            "questions": {"q": {"type": "noul", "instructions": "is it true?", "criteria": {"true": "yes", "false": "no"}}},
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("embed model", _error(response)["message"])
+
+    def test_embeddings_rejects_the_chat_model(self):
+        defaults = self.client.get("/v1/models").json()["defaults"]
+        response = self.client.post("/v1/embeddings", json={"model": defaults["chat"], "input": "hi"})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("does not support embeddings", _error(response)["message"])
+
+    def test_chat_rejects_the_embed_model_with_latest_tag(self):
+        embed = self.client.get("/v1/models").json()["defaults"]["embed"]
+        response = self.client.post("/v1/chat/completions",
+                                    json={"model": f"{embed}:latest", "messages": [{"role": "user", "content": "hi"}]})
+        self.assertEqual(response.status_code, 400)
+
     def test_admin_models_lists_the_roles(self):
         body = self.client.get("/admin/models").json()
         self.assertEqual(set(body["roles"]), set(ROLES))

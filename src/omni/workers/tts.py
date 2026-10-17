@@ -1,5 +1,4 @@
 """Text to speech: POST /v1/audio/speech and GET /v1/audio/voices on Kokoro through mlx-audio."""
-import asyncio
 import io
 import wave
 
@@ -26,7 +25,8 @@ def _load():
 
 
 model = workers.Lazy(_load, config.idle_seconds(settings))
-app = workers.app(model)
+executor = workers.ModelExecutor("tts-model")
+app = workers.app(model, model_executor=executor)
 
 
 def _synthesize(text: str, voice: str, speed: float) -> tuple[np.ndarray, int]:
@@ -70,7 +70,7 @@ async def speech(req: schemas.SpeechRequest) -> Response:
     voice = req.voice or default_voice
     if voice not in VOICES:
         raise HTTPException(422, f"unknown voice {voice!r}; GET /v1/audio/voices lists them")
-    samples, sample_rate = await asyncio.to_thread(_synthesize, req.input, voice, req.speed)
+    samples, sample_rate = await executor.run(_synthesize, req.input, voice, req.speed)
     if samples.size == 0:
         raise HTTPException(500, "synthesis produced no audio for this input")
     pcm = _pcm16(samples)

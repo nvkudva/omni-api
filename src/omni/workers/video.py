@@ -46,6 +46,7 @@ def _clear_cache() -> None:
 
 
 model = workers.Lazy(_load, config.idle_seconds(settings), _clear_cache)
+executor = workers.ModelExecutor("video-model")
 jobs: dict[str, dict] = {}
 queue: asyncio.Queue[tuple[str, schemas.VideoRequest, int, int]] = asyncio.Queue(maxsize=MAX_QUEUE)
 
@@ -92,6 +93,9 @@ def _generate(job_id: str, req: schemas.VideoRequest, width: int, height: int) -
                                    image=str(image_path) if image_path else None,
                                    negative_prompt=req.negative_prompt)
         job.update(status="completed", completed_at=int(time.time()), path=str(path))
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
     finally:
         if image_path is not None:
             image_path.unlink(missing_ok=True)
@@ -109,7 +113,7 @@ async def _run_jobs() -> None:
     while True:
         job_id, req, width, height = await queue.get()
         try:
-            await asyncio.to_thread(_generate, job_id, req, width, height)
+            await executor.run(_generate, job_id, req, width, height)
         except Exception as error:  # one bad generation must not stop the queue
             log.exception("video %s failed", job_id)
             job = jobs.get(job_id)
@@ -146,7 +150,7 @@ async def lifespan(_: FastAPI):
         await asyncio.gather(runner, sweeper, return_exceptions=True)
 
 
-app = workers.app(model, lifespan=lifespan)
+app = workers.app(model, lifespan=lifespan, model_executor=executor)
 
 
 @app.get("/health")
@@ -164,14 +168,16 @@ async def create(req: schemas.VideoRequest) -> dict:
         raise HTTPException(400, str(error)) from error
     if req.image:
         _decode_frame(req.image)
-    if queue.full():
-        raise HTTPException(429, f"the video queue is full ({MAX_QUEUE} waiting); try again later")
     job_id = f"video_{uuid.uuid4().hex[:16]}"
     frames = _frames(req.seconds)
     jobs[job_id] = {"id": job_id, "object": "video", "model": model_name, "status": "queued",
                     "created_at": int(time.time()), "size": f"{width}x{height}",
                     "seconds": round(frames / fps, 2), "prompt": req.prompt}
-    await queue.put((job_id, req, width, height))
+    try:
+        queue.put_nowait((job_id, req, width, height))
+    except asyncio.QueueFull:
+        jobs.pop(job_id, None)
+        raise HTTPException(429, f"the video queue is full ({MAX_QUEUE} waiting); try again later") from None
     return _public(job_id)
 
 

@@ -18,15 +18,30 @@ async def _chat_models(client: httpx.AsyncClient) -> list[str]:
         return []
 
 
+def _role_for(name: str, capabilities: list[str], settings: dict) -> str:
+    for role in ("embed", "decide"):
+        if registry.matches(name, settings[role]["model"]):
+            return role
+    if capabilities and "completion" not in capabilities:
+        return "embed" if "embedding" in capabilities else "chat"
+    return "chat"
+
+
 def register(app: FastAPI, ctx: Context) -> None:
     @app.get("/v1/models")
     async def list_models() -> dict:
         names = await _chat_models(ctx.clients["chat"])
         found = await asyncio.gather(*(registry.capabilities(ctx.clients["chat"], name) for name in names))
-        data = [{"id": name, "object": "model", "owned_by": "omni", "role": "chat", "capabilities": capabilities}
+        data = [{"id": name, "object": "model", "owned_by": "omni",
+                 "role": _role_for(name, capabilities, ctx.settings), "capabilities": capabilities}
                 for name, capabilities in zip(names, found)]
+        seen = {registry.canonical(entry["id"]) for entry in data}
         for role in ("decide", "embed") + registry.PYTHON_WORKERS:
-            data.append({"id": ctx.settings[role]["model"], "object": "model", "owned_by": "omni", "role": role,
+            model = ctx.settings[role]["model"]
+            if registry.canonical(model) in seen:
+                continue
+            seen.add(registry.canonical(model))
+            data.append({"id": model, "object": "model", "owned_by": "omni", "role": role,
                          "capabilities": []})
         defaults = {role: ctx.settings[role]["model"] for role in registry.ROLES}
         return {"object": "list", "data": data, "defaults": defaults}

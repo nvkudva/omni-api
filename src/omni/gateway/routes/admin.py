@@ -76,7 +76,7 @@ def register(app: FastAPI, ctx: Context) -> None:
         model = registry.normalize_repo_id(model)
         if registry.runner(role) != "ollama":
             model = registry.bare_repo_id(model)
-        users = [name for name in registry.ROLES if settings[name]["model"] == model]
+        users = [name for name in registry.ROLES if registry.matches(settings[name]["model"], model)]
         if users:
             return error_response(409, f"{model} is the default for {', '.join(users)}; switch that first", "conflict")
         try:
@@ -99,7 +99,7 @@ def register(app: FastAPI, ctx: Context) -> None:
             return error_response(503, f"ollama: {error}", "unavailable")
         except HF_ERRORS as error:
             return error_response(503, f"huggingface: {error}", "unavailable")
-        match = next((entry for entry in available if entry["name"] in (model, f"{model}:latest")), None)
+        match = next((entry for entry in available if registry.matches(entry["name"], model)), None)
         if match is None:
             return error_response(400, f"{model} is not installed for {role}, or the {role} runtime cannot run it")
         config.save_override(role, "model", model)
@@ -121,7 +121,7 @@ def register(app: FastAPI, ctx: Context) -> None:
     def setup_state(role: str, available: list[dict]) -> dict:
         """Whether the role's default can actually run: on disk, missing, or refused by its runtime."""
         default = settings[role]["model"]
-        match = next((entry for entry in available if entry["name"] in (default, f"{default}:latest")), None)
+        match = next((entry for entry in available if registry.matches(entry["name"], default)), None)
         total = sum(entry.get("size_bytes") or 0 for entry in available)
         if match is not None:
             return {"state": "ready", "reason": None, "total_bytes": total}
@@ -171,7 +171,7 @@ def register(app: FastAPI, ctx: Context) -> None:
             available = await installed_for(role)
         except (httpx.HTTPError, *HF_ERRORS):
             available = []
-        match = next((entry for entry in available if entry["name"] in (name, f"{name}:latest")), None)
+        match = next((entry for entry in available if registry.matches(entry["name"], name)), None)
         if match is not None:
             size = match.get("size_bytes") or 0
             return JSONResponse({"role": role, "model": name, "supported": True, "reason": None,
