@@ -9,6 +9,7 @@ import { Panel, Pending, RequestBody, Turn, TurnError, UiJson, Workbench, useTur
 import { useJsonRequest } from "../hooks/useJsonRequest.js";
 import styles from "./Stt.module.css";
 
+const SILENT_PEAK = 0.01;
 const FORMATS = ["verbose_json", "json", "text"];
 
 function drawWave(canvas, analyser) {
@@ -16,8 +17,10 @@ function drawWave(canvas, analyser) {
   const samples = new Uint8Array(analyser.fftSize);
   const color = getComputedStyle(document.documentElement).getPropertyValue("--signal");
   let frame = 0;
+  let peak = 0;
   const draw = () => {
     analyser.getByteTimeDomainData(samples);
+    for (const sample of samples) peak = Math.max(peak, Math.abs(sample - 128) / 128);
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.strokeStyle = color;
     context.lineWidth = 1.5;
@@ -32,7 +35,10 @@ function drawWave(canvas, analyser) {
     frame = requestAnimationFrame(draw);
   };
   draw();
-  return () => cancelAnimationFrame(frame);
+  return () => {
+    cancelAnimationFrame(frame);
+    return peak;
+  };
 }
 
 /** The readable text of a finished turn, whatever shape its format returned. */
@@ -184,6 +190,7 @@ export default function Stt() {
       setMicError(`microphone: ${error.message}`);
       return;
     }
+    const deviceLabel = stream.getAudioTracks()[0]?.label || "default input";
     const audioContext = new AudioContext();
     const analyser = audioContext.createAnalyser();
     analyser.fftSize = 1024;
@@ -198,7 +205,7 @@ export default function Stt() {
       if (event.data?.size) chunks.push(event.data);
     };
     media.onstop = () => {
-      stopWave();
+      const peakLevel = stopWave();
       clearInterval(timer);
       stream.getTracks().forEach((track) => track.stop());
       audioContext.close();
@@ -211,6 +218,10 @@ export default function Stt() {
       const blob = new Blob(chunks, { type });
       if (!blob.size) {
         setMicError("microphone: nothing was recorded — check the mic and try again");
+        return;
+      }
+      if (peakLevel < SILENT_PEAK) {
+        setMicError(`microphone: "${deviceLabel}" captured only silence — pick another input device in the browser's site settings or the OS sound settings`);
         return;
       }
       applyClip(blob, name);
