@@ -6,6 +6,24 @@ omni is a local CLI. It runs, supervises and serves the models an app needs (cha
 
 The first client is Hyperlight.
 
+## Screenshots
+
+![Playground — Chat tab, dark theme](docs/screenshots/playground-chat.png)
+
+The playground at `/playground`: every role is a card on top (runner, endpoint, warm switch), and each tab is a workbench with a UI / JSON / cURL view of the same request. Below, the same page on a phone-width screen — cards scroll horizontally and the active card scrolls into view.
+
+![Playground on a narrow screen](docs/screenshots/playground-mobile.png)
+
+## Cool features
+
+- **Decide without generation:** `/v1/systemone` scores yes/no, choice and score questions from one token's logprobs — no generated text to parse, with calibrated probabilities per option.
+- **Keep-warm pins:** pin a role and its model stays loaded (Ollama `keep_alive = -1`, workers re-loaded before idle unload). Pins persist across restarts.
+- **Three views, one request:** every playground tab shows UI, raw JSON and a copyable cURL command for the exact body it sends.
+- **Find & Install:** per-role Hugging Face / Ollama search filtered to what that role's runtime can actually run, with gated-repo "accept terms" handling and live download progress.
+- **Self-healing workers:** per-worker locks, exponential-backoff restarts, pid + argv verification so a recycled pid is never signalled, and no orphan processes on `omni down`.
+- **One error shape everywhere:** gateway, workers, routing 404/405 and validation 422 all return `{"error": {"message", "type"}}`.
+- **Hardened local surface:** 8 MB JSON body caps (413), finite upstream timeouts, loopback-only by default — a non-loopback `--host` is refused unless `OMNI_ALLOW_NON_LOOPBACK=1` (admin routes have no auth, by design for a local-only tool).
+
 ---
 
 ## Why
