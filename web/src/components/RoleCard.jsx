@@ -1,9 +1,7 @@
 import { useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
-import { ask } from "./Confirm.jsx";
-import { ndjson } from "../api/client.js";
-import { pullModel } from "../api/endpoints.js";
-import { ROLE_META, pollRuntime, runtime, setPinned } from "../api/roles.js";
+import { ask, withForce } from "./Confirm.jsx";
+import { ROLE_META, install, installs, runtime, setPinned } from "../api/roles.js";
 import { gb } from "../lib/format.js";
 import { cx } from "../lib/cx.js";
 import { Dot } from "./ui.jsx";
@@ -53,7 +51,6 @@ function StatusDot({ status, loaded }) {
 export function RoleCard({ role, active, onOpen, onSetup }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
-  const [installing, setInstalling] = useState("");
   const state = runtime.value.roles[role] ?? { ...ROLE_META[role], role, ...UNKNOWN };
 
   const running = state.loaded;
@@ -66,56 +63,23 @@ export function RoleCard({ role, active, onOpen, onSetup }) {
   const shownModel = state.runningModel ?? state.model ?? "—";
   // a pinned model that is not in memory yet is on its way there, not idle
   const word = pinned && !running ? "loading…" : STATUS_WORD[state.status] ?? state.status;
+  const download = installs.value[role];
+  const installing = Boolean(download?.busy);
+  const trouble = problem || download?.error || "";
 
   const flip = async (event) => {
     event.stopPropagation();
-    const next = !pinned;
     setBusy(true);
     setProblem("");
     try {
-      await setPinned(role, next);
-    } catch (error) {
-      if (error.code !== "overload") {
-        setProblem(error.message);
-      } else {
-        // Something about this model stands in the way. Show it, and let the person decide.
-        const go = await ask({
-          title: `Keep ${state.label} warm anyway?`,
-          message: `${state.model} on this machine:`,
-          reasons: error.blockers,
-          advisories: runtime.value.warnings,
-          confirmLabel: "Load anyway",
-          cancelLabel: "Not now",
-        });
-        if (go) {
-          try {
-            await setPinned(role, next, { force: true });
-          } catch (forced) {
-            setProblem(forced.message);
-          }
-        }
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // Download the default from the card, reporting progress where the status word was.
-  const installDefault = async () => {
-    setInstalling("installing…");
-    setProblem("");
-    try {
-      const response = await pullModel({ role, model: state.model });
-      for await (const event of ndjson(response)) {
-        if (event.error) throw new Error(event.error);
-        const percent = event.total ? ` ${Math.round(((event.completed ?? 0) / event.total) * 100)}%` : "";
-        setInstalling(`${event.status ?? "installing…"}${percent}`);
-      }
-      await pollRuntime();
+      await withForce((options) => setPinned(role, !pinned, options), {
+        title: `Keep ${state.label} warm anyway?`,
+        message: `${state.model} on this machine:`,
+      });
     } catch (error) {
       setProblem(error.message);
     } finally {
-      setInstalling("");
+      setBusy(false);
     }
   };
 
@@ -123,7 +87,7 @@ export function RoleCard({ role, active, onOpen, onSetup }) {
   // or (when its runtime refuses it) go and pick another on the setup page.
   const explain = async (event) => {
     event.stopPropagation();
-    const reason = problem || state.setupReason;
+    const reason = trouble || state.setupReason;
     if (state.setupState === "incompatible") {
       const go = await ask({
         title: `${state.label} can't run this model`,
@@ -140,7 +104,10 @@ export function RoleCard({ role, active, onOpen, onSetup }) {
       confirmLabel: "Install now",
       cancelLabel: "Not now",
     });
-    if (go) installDefault();
+    if (go) {
+      setProblem("");
+      install(role, state.model);
+    }
   };
 
   // The switch is a button inside the clickable card: clicks and keys from it
@@ -169,12 +136,12 @@ export function RoleCard({ role, active, onOpen, onSetup }) {
         <span class={styles.badge} style={{ background: state.color }}><Icon name={role} /></span>
         <span class={styles.name}>{state.label}</span>
         {pinned && <span class={styles.warm} title="kept warm: this model stays loaded">warm</span>}
-        {(needsSetup || problem) && (
+        {(needsSetup || trouble) && (
           <button
             type="button"
             class={styles.warnBadge}
             aria-label={`${state.label} needs attention`}
-            title={problem || state.setupReason}
+            title={trouble || state.setupReason}
             onClick={explain}
           >
             <Icon name="warn" size={11} />
@@ -190,14 +157,14 @@ export function RoleCard({ role, active, onOpen, onSetup }) {
       <span class={styles.foot}>
         <span class={styles.status}>
           <StatusDot status={state.status} loaded={running} />
-          {installing || word}
+          {installing ? download.status : word}
         </span>
         {needsSetup
           ? (
             <button
               type="button"
               class={styles.setup}
-              disabled={Boolean(installing)}
+              disabled={installing}
               onClick={explain}
             >
               Setup

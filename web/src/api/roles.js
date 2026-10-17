@@ -1,7 +1,8 @@
 import { signal } from "@preact/signals";
-import { getJson } from "./client.js";
-import { pinRole } from "./endpoints.js";
+import { getJson, ndjson } from "./client.js";
+import { pinRole, pullModel } from "./endpoints.js";
 import { health, healthError } from "./health.js";
+import { gb } from "../lib/format.js";
 
 // One line per role: what it is, where its endpoint lives, which runtime serves
 // it, and the accent its icon wears. This is presentation metadata, not config.
@@ -132,4 +133,45 @@ export async function setPinned(role, pinned, { force = false } = {}) {
   const result = await pinRole({ role, model, pinned, force });
   await pollRuntime();
   return result;
+}
+
+// One download per role, shared by every view of that role (sidebar card, Models page), so each
+// shows the same progress: { model, busy, status, fraction, warnings, error }.
+export const installs = signal({});
+
+function updateInstall(role, patch) {
+  installs.value = { ...installs.value, [role]: { ...installs.value[role], ...patch } };
+}
+
+function progressOf(event) {
+  if (!event.total) return { status: event.status ?? "working…" };
+  const completed = event.completed ?? 0;
+  return { status: `${event.status ?? "downloading"} · ${gb(completed)} / ${gb(event.total)}`, fraction: completed / event.total };
+}
+
+/** Download `model` for `role`, publishing progress in `installs`. Resolves true once it is on disk. */
+export async function install(role, model) {
+  if (installs.value[role]?.busy) return false;
+  installs.value = { ...installs.value, [role]: { model, busy: true, status: "starting…", fraction: 0, warnings: [], error: "", code: "", acceptUrl: "" } };
+  try {
+    const response = await pullModel({ role, model });
+    for await (const event of ndjson(response)) {
+      if (event.error) {
+        const failure = new Error(event.error);
+        failure.code = event.code ?? "";
+        failure.acceptUrl = event.accept_url ?? "";
+        failure.model = event.model ?? model;
+        throw failure;
+      }
+      if (event.warning) updateInstall(role, { warnings: [...installs.value[role].warnings, event.warning] });
+      else updateInstall(role, progressOf(event));
+    }
+    updateInstall(role, { busy: false, status: `installed ${model}`, fraction: 1, code: "", acceptUrl: "" });
+    return true;
+  } catch (error) {
+    updateInstall(role, { busy: false, status: "install failed", fraction: 0, error: error.message, code: error.code ?? "", acceptUrl: error.acceptUrl ?? "" });
+    return false;
+  } finally {
+    await pollRuntime();
+  }
 }

@@ -18,3 +18,5 @@
 - [x] Playground rebuilt as Preact + CSS modules + Vite (web/ → src/omni/static/app), Apple-style light/dark design
 - [x] Model management: HF search filtered per role, load/unload, worker start/stop/restart, CPU/load overload checks with force override; Models tab UI
 - [ ] Defaults dropdown for HF roles lists every cached repo; filter to the role's runtime like search does
+- [ ] Embed tab: optional "write an answer" step (RAG): pass top chunks to the chat model for a grounded answer with citations; opt-in, disabled when no chat model is loaded
+- [ ] Embed tab: PDF support (needs a text-extraction dependency; PDFs are shown as unsupported for now)

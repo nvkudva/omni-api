@@ -1,7 +1,7 @@
-/* Setup cards on the Models page: plain sections that size to their content.
-   The workbench Panel gives its body an internal scroll, which clips these
-   taller cards inside the settings grid, so they do not use it. */
+/* Setup cards on the Models page: every card is the same size, whatever it holds;
+   the body scrolls when its content is taller. */
 .setup {
+  display: flex; flex-direction: column;
   background: var(--surface);
   border: 1px solid var(--hairline);
   border-radius: var(--radius);
@@ -9,10 +9,26 @@
   min-width: 0;
 }
 .setupHead {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 12px 16px; border-bottom: 1px solid var(--hairline);
+  flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 7px 10px; border-bottom: 1px solid var(--hairline);
 }
 .setupTitleGroup { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; }
-.setupTitle { font-size: 13.5px; font-weight: 600; }
-.setupMeta { font-family: var(--mono); font-size: 11.5px; color: var(--text-2); font-variant-numeric: tabular-nums; }
-.setupBody { padding: 16px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.setupTitle { font-size: 13px; font-weight: 600; }
+.setupMeta { font-family: var(--mono); font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.setupBody { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 12px; }
+.setupBody button { height: 24px; padding: 0 9px; font-size: 12px; }
+.setupBody select, .setupBody input:not([type]), .setupBody input[type="text"] { height: 26px; padding: 0 8px; font-size: 12px; }
+.setupBody select { padding-right: 24px; background-position: right 8px center; }
+.setupBody th { padding: 3px 6px; font-size: 11px; }
+.setupBody td { padding: 3px 6px; font-size: 12px; }
+
+/* Role cards sit two or more to a row; the workbench column stays one wide. */
+.cards { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); grid-auto-rows: 300px; }
+
+.logLink { flex: none; font: 500 11px var(--mono); }
+.line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.line > input, .line > select { flex: 1; min-width: 0; }
+.line > button { flex: none; }
+.more > summary { cursor: pointer; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-2); }
+.more[open] > summary { margin-bottom: 6px; }
+.more[open] { display: flex; flex-direction: column; gap: 6px; }

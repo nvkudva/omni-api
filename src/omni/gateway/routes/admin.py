@@ -5,7 +5,7 @@ import json
 import httpx
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from huggingface_hub.errors import HfHubHTTPError
+from huggingface_hub.errors import GatedRepoError, HfHubHTTPError
 
 from omni import config, registry
 from omni.errors import error_response
@@ -133,7 +133,7 @@ def register(app: FastAPI, ctx: Context) -> None:
                     "total_bytes": total}
         if registry.runner(role) == "ollama":
             return {"state": "missing",
-                    "reason": f"{default} is not installed; install it first (see Install below)",
+                    "reason": f"{default} is not installed; install it first",
                     "total_bytes": total}
         return {"state": "missing",
                 "reason": f"{default} is not downloaded yet; loading downloads it first",
@@ -178,13 +178,17 @@ def register(app: FastAPI, ctx: Context) -> None:
                                  "installed": True, "size_bytes": size,
                                  "blockers": registry.fit_blockers(size)})
         size = None
+        gated = False
         if registry.runner(role) != "ollama":
             try:
                 size = await asyncio.to_thread(registry.hf_size, name)
+            except GatedRepoError:
+                gated = True
             except HF_ERRORS:
                 size = None
         return JSONResponse({"role": role, "model": name, "supported": True, "reason": None,
-                             "installed": False, "size_bytes": size,
+                             "installed": False, "size_bytes": size, "gated": gated,
+                             "accept_url": f"https://huggingface.co/{name}" if gated else None,
                              "blockers": registry.fit_blockers(size) if size else []})
 
     async def residency_request(request: Request) -> tuple[str, str, bool]:
@@ -199,6 +203,12 @@ def register(app: FastAPI, ctx: Context) -> None:
                                      f"make {model} the default first")
         return role, model, bool(payload.get("force"))
 
+    async def wake(role: str) -> None:
+        """Asking for a model means asking for its worker: a stopped (held) one would never load it."""
+        worker = pool.workers.get(role)
+        if worker is not None and worker.held:
+            await pool.restart(role)
+
     async def residence(role: str, model: str, load: bool, force: bool) -> JSONResponse:
         """Load or unload, refusing without force only for something about this model.
 
@@ -211,6 +221,8 @@ def register(app: FastAPI, ctx: Context) -> None:
         if plan.blockers and not force:
             return error_response(409, "; ".join(plan.blockers) + ". Send force: true to load anyway.",
                                   "overload", blockers=plan.blockers)
+        if load:
+            await wake(role)
         try:
             loaded = await residency.set_residency(ctx, role, model, load)
         except httpx.TransportError:
@@ -264,6 +276,7 @@ def register(app: FastAPI, ctx: Context) -> None:
             if blockers and not force:
                 return error_response(409, "; ".join(blockers) + ". Send force: true to load anyway.",
                                       "overload", blockers=blockers)
+            await wake(role)
         try:
             loaded = await residency.set_residency(ctx, role, model, pinned, keep_warm=pinned)
         except httpx.TransportError:

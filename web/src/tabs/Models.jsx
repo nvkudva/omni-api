@@ -1,24 +1,22 @@
 import { useEffect, useState } from "preact/hooks";
-import { getJson, ndjson } from "../api/client.js";
+import { getJson } from "../api/client.js";
 import {
   checkModel,
   deleteModel,
   loadRole,
   memory as fetchMemory,
   modelStatus,
-  pullModel,
   searchModels,
   serverInfo,
   setRoleDefault,
   unloadRole,
-  pinRole,
   workerAction,
   workersAction,
 } from "../api/endpoints.js";
-import { ROLE_META, ROLE_ORDER, runtime } from "../api/roles.js";
+import { ROLE_META, ROLE_ORDER, install, installs, setPinned } from "../api/roles.js";
 import { gb } from "../lib/format.js";
 import { usePolling } from "../hooks/usePolling.js";
-import { ask } from "../components/Confirm.jsx";
+import { ask, withForce } from "../components/Confirm.jsx";
 import * as store from "../store.js";
 import * as ui from "../components/ui.jsx";
 import { Workbench } from "../components/workbench.jsx";
@@ -49,28 +47,13 @@ function setResidency(role, load, model, { force = false } = {}) {
  */
 function useAction(onChanged) {
   const [busy, setBusy] = useState(false);
-  const run = async (action, done) => {
+  const run = async (action, done, prompt = { title: "Load anyway?", message: "This model has a problem on this machine:" }) => {
     setBusy(true);
     try {
-      const result = await action();
+      const result = await withForce(action, prompt);
       if (result) onChanged(done);
     } catch (error) {
-      if (error.code !== "overload") {
-        onChanged(error.message);
-      } else if (await ask({
-        title: "Load anyway?",
-        message: "This model has a problem on this machine:",
-        reasons: error.blockers,
-        confirmLabel: "Load anyway",
-        cancelLabel: "Not now",
-      })) {
-        try {
-          const forced = await action({ force: true });
-          if (forced) onChanged(done);
-        } catch (forced) {
-          onChanged(forced.message);
-        }
-      }
+      onChanged(error.message);
     } finally {
       setBusy(false);
     }
@@ -79,7 +62,7 @@ function useAction(onChanged) {
 }
 
 /** A card that sizes to its content; the workbench Panel scrolls its body, which clips these. */
-function Section({ title, meta, children }) {
+function Section({ title, meta, role, children }) {
   return (
     <section class={setup.setup}>
       {(title || meta) && (
@@ -88,6 +71,9 @@ function Section({ title, meta, children }) {
             {title && <h2 class={setup.setupTitle}>{title}</h2>}
             {meta && <span class={setup.setupMeta}>{meta}</span>}
           </div>
+          {role && (
+            <a class={setup.logLink} href={`/admin/logs/${role}`} target="_blank" rel="noreferrer" title="Open this role's log file">Log</a>
+          )}
         </header>
       )}
       <div class={setup.setupBody}>{children}</div>
@@ -97,39 +83,21 @@ function Section({ title, meta, children }) {
 
 /** Keep-warm switch: on loads the default now and holds it, off unloads it. */
 export function WarmSwitch({ role, model, pinned, disabled, onChanged }) {
-  const [busy, setBusy] = useState(false);
-  const flip = async () => {
-    const next = !pinned;
-    setBusy(true);
-    try {
-      await pinRole({ role, model, pinned: next });
-      onChanged(next ? `keeping ${model} warm` : `stopped keeping ${model} warm`);
-    } catch (error) {
-      if (error.code !== "overload") {
-        onChanged(error.message);
-      } else if (await ask({
-        title: `Keep ${ROLE_META[role]?.label ?? role} warm anyway?`,
-        message: `${model} on this machine:`,
-        reasons: error.blockers,
-        advisories: runtime.value.warnings,
-        confirmLabel: "Load anyway",
-        cancelLabel: "Not now",
-      })) {
-        try {
-          await pinRole({ role, model, pinned: next, force: true });
-          onChanged(`keeping ${model} warm`);
-        } catch (forced) {
-          onChanged(forced.message);
-        }
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
+  const [busy, run] = useAction(onChanged);
+  const flip = () => run(
+    (options) => setPinned(role, !pinned, options),
+    pinned ? `stopped keeping ${model} warm` : `keeping ${model} warm`,
+    { title: `Keep ${ROLE_META[role]?.label ?? role} warm anyway?`, message: `${model} on this machine:` },
+  );
   return (
-    <ui.Field label={pinned ? "Warm: on (stays loaded)" : "Warm: off (unloads when idle)"}>
-      <ui.Button small disabled={busy || disabled} onClick={flip}>{pinned ? "Turn off" : "Keep warm"}</ui.Button>
-    </ui.Field>
+    <ui.Button
+      small
+      disabled={busy || disabled}
+      onClick={flip}
+      title={pinned ? "Warm: on (stays loaded)" : "Warm: off (unloads when idle)"}
+    >
+      {pinned ? "Warm: off" : "Keep warm"}
+    </ui.Button>
   );
 }
 
@@ -191,14 +159,15 @@ export function Search({ role, onPick }) {
 
   return (
     <>
-      <ui.Grid>
-        <ui.Field label="Query" hint="blank for most downloaded">
-          <input placeholder="e.g. kokoro" value={query} onInput={(event) => setQuery(event.currentTarget.value)} onKeyDown={(event) => event.key === "Enter" && search()} />
-        </ui.Field>
-      </ui.Grid>
-      <ui.Row end>
-        <ui.Button variant="primary" disabled={busy} onClick={search}>{busy ? "Searching…" : "Search"}</ui.Button>
-      </ui.Row>
+      <div class={setup.line}>
+        <input
+          placeholder="Search Hugging Face (blank: most downloaded)"
+          value={query}
+          onInput={(event) => setQuery(event.currentTarget.value)}
+          onKeyDown={(event) => event.key === "Enter" && search()}
+        />
+        <ui.Button small variant="primary" disabled={busy} onClick={search}>{busy ? "Searching…" : "Search"}</ui.Button>
+      </div>
       {error && <ui.ErrorText>{error}</ui.ErrorText>}
       {results && (results.length
         ? (
@@ -221,93 +190,116 @@ export function Search({ role, onPick }) {
   );
 }
 
+/** A gated repo: accept its terms on Hugging Face, then retry the same download. */
+export function GatedNotice({ model, acceptUrl, busy, onRetry }) {
+  const url = acceptUrl || `https://huggingface.co/${model}`;
+  return (
+    <>
+      <ui.Notice tone="error">
+        {model} needs its terms accepted before it can download.{" "}
+        <a href={url} target="_blank" rel="noreferrer">Accept terms on Hugging Face</a>
+        {" "}— sign in there, accept, then retry here. A Hugging Face token with access may also be required.
+      </ui.Notice>
+      <ui.Row>
+        <ui.Button small variant="primary" disabled={busy} onClick={onRetry}>{busy ? "Installing…" : "Retry install"}</ui.Button>
+      </ui.Row>
+    </>
+  );
+}
+
+/** Where a role's download stands: the same progress the sidebar card shows. */
+function InstallProgress({ role }) {
+  const progress = installs.value[role];
+  if (!progress) return null;
+  if (progress.code === "gated") {
+    return (
+      <>
+        <ui.Meter fraction={progress.fraction} />
+        <ui.Meta>{progress.status}</ui.Meta>
+        <GatedNotice model={progress.model} acceptUrl={progress.acceptUrl} busy={progress.busy} onRetry={() => install(role, progress.model)} />
+      </>
+    );
+  }
+  return (
+    <>
+      <ui.Meter fraction={progress.fraction} />
+      <ui.Meta>{progress.status}</ui.Meta>
+      {progress.warnings?.length > 0 && <ui.Notice>{progress.warnings.join(" ")}</ui.Notice>}
+      {progress.error && <ui.ErrorText>{progress.error}</ui.ErrorText>}
+    </>
+  );
+}
+
 /** Download a model by id or page URL, after checking the role's runtime can run it. */
 export function Install({ role, runner, initial, onInstalled }) {
   const [model, setModel] = useState(initial ?? "");
   const [check, setCheck] = useState(null);
   const [checking, setChecking] = useState(false);
-  const [progress, setProgress] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const busy = Boolean(installs.value[role]?.busy);
 
   useEffect(() => {
     if (initial) {
       setModel(initial);
       setCheck(null);
-      setProgress(null);
     }
   }, [initial]);
 
   const verify = async () => {
     const name = model.trim();
-    if (!name) return;
+    if (!name) return null;
     setChecking(true);
+    let result;
     try {
-      const params = new URLSearchParams({ role, model: name });
-      setCheck(await checkModel(params));
+      result = await checkModel(new URLSearchParams({ role, model: name }));
     } catch (failure) {
-      setCheck({ supported: false, reason: failure.message, installed: false, size_bytes: null, blockers: [] });
+      result = { supported: false, reason: failure.message, installed: false, size_bytes: null, blockers: [] };
     } finally {
       setChecking(false);
     }
+    setCheck(result);
+    return result;
   };
 
-  const install = async () => {
-    const name = model.trim();
-    if (!name) return;
-    setBusy(true);
-    setProgress({ status: "starting…", fraction: 0 });
-    try {
-      const response = await pullModel({ role, model: name });
-      const warnings = [];
-      for await (const event of ndjson(response)) {
-        if (event.error) throw new Error(event.error);
-        if (event.warning) warnings.push(event.warning);
-        const sizeText = event.total ? ` · ${gb(event.completed ?? 0)} / ${gb(event.total)}` : "";
-        setProgress({ status: `${event.status ?? "working"}${sizeText}`, fraction: event.total ? (event.completed ?? 0) / event.total : 0, warnings });
-      }
-      setProgress({ status: `installed ${name} — pick it as the current model above`, fraction: 1, warnings });
+  // Install checks first when nobody has, so one click is enough.
+  const download = async () => {
+    const verdict = check ?? (await verify());
+    if (!verdict?.supported || verdict.installed) return;
+    if (await install(role, model.trim())) {
+      setCheck({ ...verdict, installed: true });
       onInstalled();
-    } catch (error) {
-      setProgress({ status: "failed", fraction: 0, error: error.message });
-    } finally {
-      setBusy(false);
     }
   };
 
-  const runnable = check && check.supported;
   return (
     <>
-      <ui.Grid>
-        <ui.Field label="Model" hint={HINTS[runner] ?? HINTS.other}>
-          <input
-            placeholder="repo id or https://huggingface.co/… page URL"
-            value={model}
-            onInput={(event) => { setModel(event.currentTarget.value); setCheck(null); }}
-          />
-        </ui.Field>
-      </ui.Grid>
+      <div class={setup.line}>
+        <input
+          placeholder="repo id or huggingface.co page URL"
+          title={HINTS[runner] ?? HINTS.other}
+          value={model}
+          onInput={(event) => { setModel(event.currentTarget.value); setCheck(null); }}
+        />
+        <ui.Button small disabled={checking || busy || !model.trim()} onClick={verify}>{checking ? "Checking…" : "Check"}</ui.Button>
+        <ui.Button
+          small
+          variant="primary"
+          disabled={checking || busy || !model.trim() || check?.supported === false || check?.installed}
+          onClick={download}
+        >
+          {busy ? "Installing…" : "Install"}
+        </ui.Button>
+      </div>
       {check && !check.supported && <ui.ErrorText>{check.reason}</ui.ErrorText>}
-      {check && check.supported && (
+      {check?.gated && installs.value[role]?.code !== "gated" && (
+        <GatedNotice model={check.model} acceptUrl={check.accept_url} busy={busy} onRetry={download} />
+      )}
+      {check && check.supported && !check.gated && (
         <ui.Meta>
           {check.installed ? "already downloaded" : "compatible"}
           {check.size_bytes ? ` · ${gb(check.size_bytes)}` : ""}
           {check.blockers?.length ? ` · ${check.blockers.join(" ")}` : ""}
         </ui.Meta>
       )}
-      {progress && (
-        <>
-          <ui.Meter fraction={progress.fraction} />
-          <ui.Meta>{progress.status}</ui.Meta>
-          {progress.warnings?.length > 0 && <ui.Notice>{progress.warnings.join(" ")}</ui.Notice>}
-          {progress.error && <ui.ErrorText>{progress.error}</ui.ErrorText>}
-        </>
-      )}
-      <ui.Row end>
-        <ui.Button disabled={checking || busy || !model.trim()} onClick={verify}>{checking ? "Checking…" : "Check"}</ui.Button>
-        <ui.Button variant="primary" disabled={busy || !runnable || check?.installed} onClick={install}>
-          {busy ? "Installing…" : "Install"}
-        </ui.Button>
-      </ui.Row>
     </>
   );
 }
@@ -323,6 +315,10 @@ export function RoleSetup({ role, entry, pinned, onChanged }) {
 
   const load = () => run((options) => setResidency(role, true, entry.default, options), `loaded ${entry.default}`);
   const unload = () => run(() => setResidency(role, false, entry.default), `unloaded ${entry.default}`);
+  const installing = Boolean(installs.value[role]?.busy);
+  const installDefault = async () => {
+    if (await install(role, entry.default)) onChanged(`installed ${entry.default}`);
+  };
 
   const choose = async (model) => {
     try {
@@ -336,29 +332,32 @@ export function RoleSetup({ role, entry, pinned, onChanged }) {
   return (
     <Section
       title={meta?.label ?? role}
+      role={role}
       meta={`${entry.runner} · ${entry.installed.length} downloaded · ${gb(entry.total_bytes)} · ${STATE_LABEL[entry.state] ?? entry.state}`}
     >
-      {entry.reason && <ui.ErrorText>{entry.reason}</ui.ErrorText>}
-      <ui.Grid>
-        <ui.Field label="Current model">
-          <select class={styles.tableSelect} value={entry.default} onChange={(event) => choose(event.currentTarget.value)}>
-            {names.map((name) => <option key={name} value={name}>{name}</option>)}
-          </select>
-        </ui.Field>
-        <ui.Field label={current ? `On disk · ${modelDetail(current)}` : "On disk"}>
-          <span class={styles.buttons}>
-            <ui.Button small disabled={busy} onClick={load}>Load</ui.Button>
-            <ui.Button small disabled={busy} onClick={unload}>Unload</ui.Button>
-          </span>
-        </ui.Field>
+      {entry.reason && <ui.Notice tone={entry.state === "missing" ? "warn" : "error"}>{entry.reason}</ui.Notice>}
+      {entry.state === "missing" && (
+        <ui.Row>
+          <ui.Button small variant="primary" disabled={installing} onClick={installDefault}>
+            {installing ? "Installing…" : `Install ${entry.default}`}
+          </ui.Button>
+        </ui.Row>
+      )}
+      <InstallProgress role={role} />
+      <div class={setup.line} title={current ? `On disk · ${modelDetail(current)}` : "Not on disk"}>
+        <select aria-label="Current model" value={entry.default} onChange={(event) => choose(event.currentTarget.value)}>
+          {names.map((name) => <option key={name} value={name}>{name}</option>)}
+        </select>
+        <ui.Button small disabled={busy || entry.state !== "ready"} onClick={load}>Load</ui.Button>
+        <ui.Button small disabled={busy} onClick={unload}>Unload</ui.Button>
         <WarmSwitch role={role} model={entry.default} pinned={pinned} disabled={entry.state !== "ready"} onChanged={onChanged} />
-      </ui.Grid>
-      <h3 class={styles.subhead}>Downloaded</h3>
+      </div>
       <DownloadedList role={role} installed={entry.installed} onChanged={onChanged} />
-      <h3 class={styles.subhead}>Find more</h3>
-      <Search role={role} onPick={setPick} />
-      <h3 class={styles.subhead}>Install</h3>
-      <Install role={role} runner={entry.runner} initial={pick} onInstalled={() => onChanged("")} />
+      <details class={setup.more} open={Boolean(pick)}>
+        <summary>Find &amp; install a model</summary>
+        <Search role={role} onPick={setPick} />
+        <Install role={role} runner={entry.runner} initial={pick} onInstalled={() => onChanged("")} />
+      </details>
     </Section>
   );
 }
@@ -518,8 +517,14 @@ export default function Models({ active }) {
   // load on mount, whether or not the caller passes `active`.
   useEffect(() => {
     setFocus(store.get("omni.setupRole", null));
-    refresh();
   }, []);
+
+  // A download started anywhere (the sidebar card's "Install now" too) changes what is on disk:
+  // load on mount and again whenever the last running download ends.
+  const isDownloading = Object.values(installs.value).some((progress) => progress.busy);
+  useEffect(() => {
+    if (!isDownloading) refresh();
+  }, [isDownloading]);
 
   const changed = (message) => {
     setNotice(message);
@@ -548,9 +553,11 @@ export default function Models({ active }) {
       {status && (
         <>
           <GlobalControls managed={managed} onChanged={changed} />
-          {ordered.map(([role, entry]) => (
-            <RoleSetup key={role} role={role} entry={entry} pinned={pins.includes(role)} onChanged={changed} />
-          ))}
+          <div class={setup.cards}>
+            {ordered.map(([role, entry]) => (
+              <RoleSetup key={role} role={role} entry={entry} pinned={pins.includes(role)} onChanged={changed} />
+            ))}
+          </div>
           <Memory memory={memory} roles={Object.fromEntries(entries.map(([role, entry]) => [role, { default: entry.default }]))} onChanged={changed} />
         </>
       )}

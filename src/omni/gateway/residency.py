@@ -47,7 +47,7 @@ async def plan(ctx, role: str, model: str) -> Plan:
         return Plan(advisories, registry.fit_blockers(match["size_bytes"]), None)
     if registry.runner(role) == "ollama":
         # loading never pulls: Ollama answers "model not found", so this is not force-able
-        return Plan(advisories, [], f"{model} is not installed; install it first (see Install below)")
+        return Plan(advisories, [], f"{model} is not installed; install it first")
     return Plan(advisories, [f"{model} is not downloaded yet; loading downloads it first"], None)
 
 

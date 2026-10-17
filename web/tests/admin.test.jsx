@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import { render } from "preact-render-to-string";
 
 const ModelsModule = await import("../src/tabs/Models.jsx");
-const { RoleSetup, GlobalControls, Search, Install, DownloadedList, Memory } = ModelsModule;
+const { RoleSetup, GlobalControls, Search, Install, DownloadedList, Memory, GatedNotice } = ModelsModule;
 const Models = ModelsModule.default;
 const { RoleCard } = await import("../src/components/RoleCard.jsx");
 const { runtime } = await import("../src/api/roles.js");
@@ -74,7 +74,7 @@ describe("a role's setup card", () => {
     expect(html).toContain(gb(1_900_000_000));
     // parameters and quantization ride along with the size
     expect(html).toContain("3B · Q4_K_M");
-    expect(html).toContain("Find more");
+    expect(html).toContain("install a model");
     expect(html).toContain("Install");
   });
 
@@ -95,13 +95,23 @@ describe("a role's setup card", () => {
   });
 
   test("search is per role and install shows the runner hint", () => {
-    expect(render(<Search role="chat" onPick={noop} />)).toContain("blank for most downloaded");
+    expect(render(<Search role="chat" onPick={noop} />)).toContain("blank: most downloaded");
     // the pump that follows a picked model is an effect, so it is not exercised here
     const html = render(<Install role="chat" runner="ollama" initial={null} onInstalled={noop} />);
     expect(html).toContain("Check");
     expect(html).toContain("Install");
     expect(html).toContain("hf.co/user/repo-GGUF:Q4_K_M");
     expect(html).toContain("Ollama: a library name");
+  });
+});
+
+describe("a gated model", () => {
+  test("shows accept-terms link and retry button", () => {
+    const html = render(<GatedNotice model="dgrauet/ltx-2.5-mlx-q4" acceptUrl="https://huggingface.co/dgrauet/ltx-2.5-mlx-q4" busy={false} onRetry={noop} />);
+    expect(html).toContain("dgrauet/ltx-2.5-mlx-q4");
+    expect(html).toContain("Accept terms on Hugging Face");
+    expect(html).toContain("https://huggingface.co/dgrauet/ltx-2.5-mlx-q4");
+    expect(html).toContain("Retry install");
   });
 });
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "preact/hooks";
 import { signal } from "@preact/signals";
 import { Button } from "./ui.jsx";
+import { runtime } from "../api/roles.js";
 import styles from "./Confirm.module.css";
 
 /**
@@ -69,6 +70,28 @@ export function ask(options) {
   return new Promise((resolve) => {
     pendingConfirm.value = { options, resolve };
   });
+}
+
+/**
+ * Run a gateway action that may be refused for something about the model (a 409 `overload` with
+ * `blockers`): show the blockers, and retry with `{ force: true }` if the person says go. Resolves to
+ * the action's result, or null when they decline; any other failure is thrown.
+ */
+export async function withForce(action, { title, message }) {
+  try {
+    return await action({});
+  } catch (error) {
+    if (error.code !== "overload") throw error;
+    const go = await ask({
+      title,
+      message,
+      reasons: error.blockers,
+      advisories: runtime.value.warnings,
+      confirmLabel: "Load anyway",
+      cancelLabel: "Not now",
+    });
+    return go ? action({ force: true }) : null;
+  }
 }
 
 /** Renders whichever question is pending. Mount once, at the app root. */

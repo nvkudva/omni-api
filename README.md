@@ -246,6 +246,15 @@ Ports:
 - **Ollama roles are never downloaded by a load.** `POST /admin/models/load` (and a pin) answers `409`
   `conflict` for an Ollama model that is not installed; install it with `POST /admin/models/pull` first.
   Worker roles are different — loading them does download the repo on first use.
+- **Model downloads fail with `network is unreachable` and an IPv6 address.** The network hands out an
+  IPv6 address but does not route it, and Ollama tries the host's IPv6 address first. Switch IPv6 to
+  link-local only, then restart Ollama:
+  ```
+  networksetup -setv6LinkLocal Wi-Fi
+  ```
+  Undo it with `networksetup -setv6automatic Wi-Fi`. On Ethernet, find the service name with
+  `networksetup -listallnetworkservices`. The same switch is in System Settings > Network > Details >
+  TCP/IP > Configure IPv6.
 - **Background runs inside agent sandboxes** may be stopped after a time limit. For long sessions, run `omni serve` in your own terminal.
 - **tts voices:** American and British English only, since misaki[en] covers just those two.
 - **Not yet built:** `pull`, `logs`, `test`, `bench`, and the WebSocket `/v1/realtime` (wake word, VAD and streaming speech).

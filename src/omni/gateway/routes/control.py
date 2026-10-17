@@ -5,7 +5,7 @@ import importlib.metadata
 import httpx
 import psutil
 from fastapi import FastAPI, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from omni import config, registry
 from omni.commands import lifecycle
@@ -31,8 +31,8 @@ def _version() -> str:
         return ""
 
 
-def _tail(lines: int) -> list[str]:
-    path = config.LOG_DIR / "omni.log"
+def _tail(lines: int, name: str = "omni") -> list[str]:
+    path = config.LOG_DIR / f"{name}.log"
     try:
         with path.open("rb") as file:
             file.seek(0, 2)
@@ -99,3 +99,13 @@ def register(app: FastAPI, ctx: Context) -> None:
     @app.get("/admin/logs")
     async def admin_logs(lines: int = Query(200, ge=1, le=1000)) -> dict:
         return {"path": str(config.LOG_DIR / "omni.log"), "lines": _tail(lines)}
+
+    @app.get("/admin/logs/{role}")
+    async def admin_role_log(role: str, lines: int = Query(500, ge=1, le=5000)) -> PlainTextResponse:
+        if role not in config.ROLES:
+            return error_response(404, f"no role named {role}", "not_found")
+        worker = "chat" if role in registry.OLLAMA_ROLES else role
+        path = config.LOG_DIR / f"{worker}.log"
+        if not path.exists():
+            return PlainTextResponse(f"no log at {path} (this runtime is not managed by omni)\n", status_code=404)
+        return PlainTextResponse("\n".join(_tail(lines, worker)) + "\n")
