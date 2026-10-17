@@ -8,10 +8,11 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import { render } from "preact-render-to-string";
 
 const ModelsModule = await import("../src/tabs/Models.jsx");
-const { RoleSetup, GlobalControls, Search, Install, DownloadedList, Memory, GatedNotice } = ModelsModule;
+const { GlobalControls, Search, Install, DownloadedList, Memory, GatedNotice } = ModelsModule;
 const { LogsCard } = await import("../src/components/LogsCard.jsx");
 const Models = ModelsModule.default;
-const { RoleCard } = await import("../src/components/RoleCard.jsx");
+const { RoleModelCard } = await import("../src/components/RoleModelCard.jsx");
+const { FindAndInstall, criteriaFor } = await import("../src/components/FindAndInstall.jsx");
 const { runtime } = await import("../src/api/roles.js");
 const { WorkerRows, ModelRows } = ModelsModule;
 const { models } = await import("../src/api/models.js");
@@ -66,7 +67,7 @@ const MEMORY = {
 
 describe("a role's setup card", () => {
   test("a ready role shows its current model, load controls, downloads and storage", () => {
-    const html = render(<RoleSetup role="chat" entry={READY_ENTRY} pinned={false} onChanged={noop} />);
+    const html = render(<RoleModelCard density="detail" role="chat" entry={READY_ENTRY} pinned={false} onChanged={noop} />);
     expect(html).toContain("qwen2.5:3b");
     expect(html).toContain("Load");
     expect(html).toContain("Unload");
@@ -75,12 +76,12 @@ describe("a role's setup card", () => {
     expect(html).toContain(gb(1_900_000_000));
     // parameters and quantization ride along with the size
     expect(html).toContain("3B · Q4_K_M");
-    expect(html).toContain("install a model");
-    expect(html).toContain("Install");
+    expect(html).toContain("Add model");
+    expect(html).not.toContain("Find &amp; install");
   });
 
   test("a missing default names the reason and disables the warm switch", () => {
-    const html = render(<RoleSetup role="decide" entry={MISSING_ENTRY} pinned={false} onChanged={noop} />);
+    const html = render(<RoleModelCard density="detail" role="decide" entry={MISSING_ENTRY} pinned={false} onChanged={noop} />);
     expect(html).toContain("is not installed; install it first");
     expect(html).toContain("Nothing downloaded for this role yet.");
     expect(html).toContain("Keep warm");
@@ -88,13 +89,13 @@ describe("a role's setup card", () => {
   });
 
   test("every card carries a health button for its runtime details", () => {
-    const html = render(<RoleSetup role="chat" entry={READY_ENTRY} pinned={false} onChanged={noop} />);
+    const html = render(<RoleModelCard density="detail" role="chat" entry={READY_ENTRY} pinned={false} onChanged={noop} />);
     expect(html).toContain("Chat health details");
   });
 
   test("the tts card carries its default voice tunable", () => {
     const html = render(
-      <RoleSetup role="tts" entry={READY_ENTRY} pinned={false} tunables={{ "tts.voice": "af_heart" }} onChanged={noop} onSaved={noop} />,
+      <RoleModelCard density="detail" role="tts" entry={READY_ENTRY} pinned={false} tunables={{ "tts.voice": "af_heart" }} onChanged={noop} onSaved={noop} />,
     );
     expect(html).toContain("Default voice");
     expect(html).toContain('value="af_heart"');
@@ -126,6 +127,30 @@ describe("a gated model", () => {
     expect(html).toContain("Accept terms on Hugging Face");
     expect(html).toContain("https://huggingface.co/dgrauet/ltx-2.5-mlx-q4");
     expect(html).toContain("Retry install");
+  });
+});
+
+
+describe("the Find and Install popup", () => {
+  test("one popup, criteria follow the role: GGUF for chat, parakeet family for stt", () => {
+    const chat = render(<FindAndInstall role="chat" onClose={noop} onInstalled={noop} />);
+    expect(chat).toContain('role="dialog"');
+    expect(chat).toContain("Find &amp; install — Chat");
+    expect(chat).toContain("GGUF · text generation");
+    expect(chat).toContain("hf.co/user/repo-GGUF:Q4_K_M");
+    expect(chat).not.toContain("parakeet");
+    const stt = render(<FindAndInstall role="stt" onClose={noop} onInstalled={noop} />);
+    expect(stt).toContain("Find &amp; install — Speech to text");
+    expect(stt).toContain("MLX · Parakeet speech-to-text");
+    expect(stt).toContain("parakeet");
+    expect(stt).toContain("mlx-community/parakeet-tdt-0.6b-v3");
+  });
+
+  test("criteria fall back by runner for an unknown role, and an unknown role opens nothing", () => {
+    expect(criteriaFor("chat").kind).toContain("GGUF");
+    expect(criteriaFor("stt").family).toBe("parakeet");
+    expect(criteriaFor("image").family).toBe("qwen-image-2");
+    expect(render(<FindAndInstall role={null} onClose={noop} onInstalled={noop} />)).toBe("");
   });
 });
 
@@ -191,7 +216,7 @@ describe("the sidebar card", () => {
         },
       },
     };
-    return render(<RoleCard role="chat" active={false} onOpen={noop} onSetup={noop} />);
+    return render(<RoleModelCard density="mini" role="chat" active={false} onOpen={noop} onSetup={noop} />);
   };
 
   test("a role whose default cannot run shows Setup instead of the switch", () => {
@@ -211,6 +236,21 @@ describe("the sidebar card", () => {
     const html = card("ready");
     expect(html).toContain('role="switch"');
     expect(html).not.toContain(">Setup<");
+  });
+
+  test("mini density shows no detail controls, detail header mirrors mini", () => {
+    const mini = card("ready");
+    expect(mini).toContain("/v1/chat/completions");
+    expect(mini).not.toContain("Find &amp; install a model");
+    expect(mini).not.toContain("Nothing downloaded for this role yet.");
+    const detail = render(<RoleModelCard density="detail" role="chat" entry={READY_ENTRY} pinned onChanged={noop} />);
+    expect(detail).toContain("Add model");
+    expect(detail).not.toContain("Find &amp; install");
+    // same colourful header as mini: role colour badge, label, endpoint, warm pill
+    expect(detail).toContain("#0a84ff");
+    expect(detail).toContain("Chat");
+    expect(detail).toContain("/v1/chat/completions");
+    expect(detail).toContain("warm");
   });
 
   beforeEach(() => {

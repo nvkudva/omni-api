@@ -5,7 +5,7 @@ import { usePolling } from "./hooks/usePolling.js";
 import { useTheme } from "./hooks/useTheme.js";
 import { GatewayStatus, LastRequest } from "./components/GatewayStatus.jsx";
 import { ConfirmHost } from "./components/Confirm.jsx";
-import { RoleCard } from "./components/RoleCard.jsx";
+import { RoleModelCard } from "./components/RoleModelCard.jsx";
 import * as store from "./store.js";
 import { Icon } from "./components/Icon.jsx";
 import styles from "./App.module.css";
@@ -92,7 +92,7 @@ export default function App() {
       </header>
       <nav class={styles.cards} aria-label="Models">
         {ROLES.map((role) => (
-          <RoleCard key={role} role={role} active={role === tab} onOpen={choose} onSetup={openSetup} />
+          <RoleModelCard key={role} density="mini" role={role} active={role === tab} onOpen={choose} onSetup={openSetup} />
         ))}
       </nav>
       <main class={styles.main}>
