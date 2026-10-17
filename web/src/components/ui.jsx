@@ -187,7 +187,7 @@ export function DropZone({ accept, onFile, children }) {
       role="button"
       tabIndex={0}
       onClick={() => input.current.click()}
-      onKeyDown={(event) => (event.key === "Enter" || event.key === " ") && input.current.click()}
+      onKeyDown={(event) => { if (event.key !== "Enter" && event.key !== " ") return; event.preventDefault(); input.current.click(); }}
       onDragOver={(event) => { event.preventDefault(); setOver(true); }}
       onDragLeave={() => setOver(false)}
       onDrop={(event) => { event.preventDefault(); setOver(false); pick(event.dataTransfer.files[0]); }}

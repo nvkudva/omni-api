@@ -31,6 +31,9 @@
   --radius-sm: 8px;
   --radius: 12px;
   --radius-lg: 16px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px;
+  --control-h: 36px; --control-h-sm: 30px;
+  --focus-ring: 0 0 0 3px var(--accent-soft), 0 0 0 1px var(--accent);
   color-scheme: light;
 }
 
@@ -82,7 +85,7 @@ button, input, select, textarea { font: inherit; color: inherit; letter-spacing:
 
 input[type="text"], input[type="number"], input:not([type]), select, textarea {
   width: 100%;
-  padding: 8px 11px;
+  min-height: var(--control-h); padding: 8px 12px;
   background: var(--field);
   border: 1px solid var(--hairline-strong);
   border-radius: var(--radius-sm);
@@ -113,7 +116,9 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-::selection { background: var(--accent-soft); }
+::selection { background: var(--accent); color: #fff; }
+a:focus-visible, summary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
+* { scrollbar-width: thin; scrollbar-color: var(--hairline-strong) transparent; }
 
 table { width: 100%; border-collapse: collapse; }
 th {

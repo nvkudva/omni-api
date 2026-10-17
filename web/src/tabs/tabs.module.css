@@ -3,6 +3,7 @@
 .mono { font-family: var(--mono); font-size: 12px; }
 .link { color: var(--accent); font-size: 13px; text-decoration: none; white-space: nowrap; }
 .link:hover { text-decoration: underline; }
+.link:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
 
 .nameCell { display: inline-flex; align-items: center; gap: 8px; }
 .numeric { font-variant-numeric: tabular-nums; color: var(--text-2); white-space: nowrap; }

@@ -7,5 +7,7 @@
 .logs > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-2); list-style: none; }
 .logs > summary::-webkit-details-marker { display: none; }
 .logs > summary:hover { color: var(--text); }
+.logs > summary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
+.logs > summary { min-height: 32px; }
 .logsPath { font-family: var(--mono); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .logsTools { margin-left: auto; display: inline-flex; }

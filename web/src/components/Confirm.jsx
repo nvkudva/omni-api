@@ -27,6 +27,7 @@ export function ConfirmDialog({
     const opener = document.activeElement;
     confirmRef.current?.focus();
     const trap = (event) => {
+      if (event.key === "Escape") { event.preventDefault(); onCancel(); return; }
       if (event.key !== "Tab" || !dialogRef.current) return;
       const focusable = [...dialogRef.current.querySelectorAll("button, [href], input, select, textarea, [tabIndex]")];
       if (!focusable.length) return;

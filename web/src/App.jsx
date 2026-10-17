@@ -81,7 +81,7 @@ export default function App() {
             aria-label={`Theme: ${THEME_LABEL[theme]}. Switch to ${THEME_LABEL[nextTheme]}`}
             onClick={() => setTheme(nextTheme)}
           >
-            <Icon name={theme} size={17} />
+            <Icon name={theme} size={16} />
           </button>
           <button
             type="button"
@@ -91,7 +91,7 @@ export default function App() {
             aria-current={settingsOpen ? "page" : undefined}
             onClick={() => choose("settings")}
           >
-            <Icon name="settings" size={17} />
+            <Icon name="settings" size={16} />
           </button>
         </div>
       </header>
