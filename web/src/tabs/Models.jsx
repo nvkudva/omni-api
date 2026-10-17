@@ -496,12 +496,12 @@ export default function Models({ active }) {
     }
   };
 
+  // Settings mounts this page only for its section, so mounting means showing:
+  // load on mount, whether or not the caller passes `active`.
   useEffect(() => {
-    if (active) {
-      setFocus(store.get("omni.setupRole", null));
-      refresh();
-    }
-  }, [active]);
+    setFocus(store.get("omni.setupRole", null));
+    refresh();
+  }, []);
 
   const changed = (message) => {
     setNotice(message);

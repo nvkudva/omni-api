@@ -7,7 +7,9 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { render } from "preact-render-to-string";
 
-const { RoleSetup, GlobalControls, Search, Install, DownloadedList, Memory } = await import("../src/tabs/Models.jsx");
+const ModelsModule = await import("../src/tabs/Models.jsx");
+const { RoleSetup, GlobalControls, Search, Install, DownloadedList, Memory } = ModelsModule;
+const Models = ModelsModule.default;
 const { RoleCard } = await import("../src/components/RoleCard.jsx");
 const { runtime } = await import("../src/api/roles.js");
 const { WorkerRows, ModelRows } = await import("../src/tabs/Health.jsx");
@@ -100,6 +102,15 @@ describe("a role's setup card", () => {
     expect(html).toContain("Install");
     expect(html).toContain("hf.co/user/repo-GGUF:Q4_K_M");
     expect(html).toContain("Ollama: a library name");
+  });
+});
+
+describe("the Models section", () => {
+  test("it starts loading without needing an active prop", () => {
+    // Settings mounts the page with no props; effects never run in SSR, so only the loading state renders
+    const html = render(<Models />);
+    expect(html).toContain("Models");
+    expect(html).toContain("loading models…");
   });
 });
 
