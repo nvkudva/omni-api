@@ -11,6 +11,8 @@ from omni.errors import UpstreamError
 LETTERS = "ABCDEFGHIJ"
 TOP_LOGPROBS = 20
 MAX_CONCURRENCY = 4
+MAX_QUESTIONS = 32
+MAX_STATE_CHARS = 20000
 NOUL_WITHOUT_INSTRUCTIONS = "Is the statement true, or is the answer to the question yes?"
 NOUL_DEFAULT_TRUE = "the statement is true / the answer is yes"
 NOUL_DEFAULT_FALSE = "the statement is false / the answer is no"
@@ -168,10 +170,14 @@ async def run(client: httpx.AsyncClient, model: str, payload: dict) -> dict:
     questions = payload.get("questions")
     if not isinstance(questions, dict) or not questions:
         raise ValueError("questions: a non-empty map of id -> question")
+    if len(questions) > MAX_QUESTIONS:
+        raise ValueError(f"questions: at most {MAX_QUESTIONS} per request")
     if "state" not in payload:
         raise ValueError("state is required")
     state = payload["state"]
     state = state if isinstance(state, str) else json.dumps(state, ensure_ascii=False, indent=2)
+    if len(state) > MAX_STATE_CHARS:
+        raise ValueError(f"state: at most {MAX_STATE_CHARS} characters")
     rendered = {question_id: question(spec) for question_id, spec in questions.items()}
 
     semaphore = asyncio.Semaphore(MAX_CONCURRENCY)

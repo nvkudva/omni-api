@@ -79,10 +79,17 @@ def validate(settings: dict) -> None:
         raise ConfigError("gateway.port must be between 1 and 65535")
     if gateway["idle_unload_minutes"] <= 0:
         raise ConfigError("gateway.idle_unload_minutes must be greater than 0")
-    if settings["image"]["steps"] < 1:
-        raise ConfigError("image.steps must be at least 1")
-    if settings["video"]["frames"] < 1 or settings["video"]["fps"] <= 0:
-        raise ConfigError("video.frames must be at least 1 and video.fps greater than 0")
+    if not gateway["host"].strip():
+        raise ConfigError("gateway.host must not be empty")
+    if not 0 < gateway["idle_unload_minutes"] <= 1440:
+        raise ConfigError("gateway.idle_unload_minutes must be between 0 and 1440")
+    for section in ("chat", "decide", "embed", "stt", "tts", "image", "video"):
+        if not settings[section]["model"].strip():
+            raise ConfigError(f"{section}.model must not be empty")
+    if not 1 <= settings["image"]["steps"] <= 100:
+        raise ConfigError("image.steps must be between 1 and 100")
+    if not 1 <= settings["video"]["frames"] <= 1000 or not 1 <= settings["video"]["fps"] <= 60:
+        raise ConfigError("video.frames must be 1..1000 and video.fps 1..60")
 
 
 def _read(path: Path) -> dict:
@@ -145,8 +152,12 @@ def ollama_url() -> str:
         host = "127.0.0.1"
     if ":" in host:
         host = f"[{host}]"
+    try:
+        port = parts.port
+    except ValueError as error:
+        raise ConfigError(f"OLLAMA_HOST has an invalid port: {raw!r}") from error
     default_port = 443 if parts.scheme == "https" else OLLAMA_DEFAULT_PORT
-    return f"{parts.scheme}://{host}:{parts.port or default_port}"
+    return f"{parts.scheme}://{host}:{port or default_port}"
 
 
 def ensure_dirs() -> None:

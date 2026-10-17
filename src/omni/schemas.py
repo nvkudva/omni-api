@@ -50,7 +50,7 @@ class ImageRequest(BaseModel):
     size: str = Field("1024x1024", pattern=SIZE_PATTERN)
     negative_prompt: str | None = Field(None, max_length=MAX_NEGATIVE_CHARS)
     steps: int | None = Field(None, ge=1, le=IMAGE_MAX_STEPS)
-    seed: int | None = None
+    seed: int | None = Field(None, ge=0, le=2**63 - 1)
     response_format: str = Field("b64_json", pattern="^b64_json$")
 
 
@@ -59,7 +59,7 @@ class VideoRequest(BaseModel):
     model: str | None = None
     size: str = Field("704x480", pattern=SIZE_PATTERN)
     seconds: float = Field(VIDEO_DEFAULT_SECONDS, gt=0, le=VIDEO_MAX_SECONDS)
-    seed: int = VIDEO_DEFAULT_SEED
+    seed: int = Field(VIDEO_DEFAULT_SEED, ge=0, le=2**63 - 1)
     negative_prompt: str | None = Field(None, max_length=MAX_NEGATIVE_CHARS)
     image: str | None = Field(None, description="base64 first frame, optional")
 

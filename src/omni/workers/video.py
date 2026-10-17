@@ -74,7 +74,7 @@ def _decode_frame(data: str) -> bytes:
 
 
 def _public(job_id: str) -> dict:
-    return {key: value for key, value in jobs[job_id].items() if key != "path"}
+    return {key: value for key, value in list(jobs[job_id].items()) if key != "path"}
 
 
 def _generate(job_id: str, req: schemas.VideoRequest, width: int, height: int) -> None:
@@ -129,6 +129,10 @@ async def _sweep_jobs() -> None:
         await asyncio.sleep(SWEEP_SECONDS)
         cutoff = time.time() - JOB_TTL_SECONDS
         for job_id, job in list(jobs.items()):
+            if job["status"] == "in_progress" and time.time() - job.get("created_at", time.time()) > JOB_TTL_SECONDS:
+                job.update(status="failed", failed_at=int(time.time()),
+                           error={"message": "generation timed out", "type": "timeout"})
+                continue
             if job["status"] not in ("completed", "failed"):
                 continue
             finished = job.get("completed_at") or job.get("failed_at") or job.get("created_at")
@@ -167,7 +171,7 @@ async def create(req: schemas.VideoRequest) -> dict:
     except ValueError as error:
         raise HTTPException(400, str(error)) from error
     if req.image:
-        _decode_frame(req.image)
+        await asyncio.to_thread(_decode_frame, req.image)
     job_id = f"video_{uuid.uuid4().hex[:16]}"
     frames = _frames(req.seconds)
     jobs[job_id] = {"id": job_id, "object": "video", "model": model_name, "status": "queued",

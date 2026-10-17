@@ -55,10 +55,13 @@ async def _ollama_pull(client: httpx.AsyncClient, model: str) -> AsyncIterator[d
                     event = json.loads(line)
                 except ValueError:
                     continue
+                if not isinstance(event, dict):
+                    continue
+                total = event.get("total")
                 # the biggest layer is the weights; its size is the first sign of whether they fit
-                if not warned and event.get("total", 0) > SIZE_WARNING_THRESHOLD:
+                if not warned and isinstance(total, (int, float)) and total > SIZE_WARNING_THRESHOLD:
                     warned = True
-                    for warning in fit_blockers(event["total"]):
+                    for warning in fit_blockers(total):
                         yield {"warning": warning}
                 yield event
     except httpx.HTTPError as error:

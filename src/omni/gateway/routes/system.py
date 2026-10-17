@@ -50,7 +50,8 @@ def register(app: FastAPI, ctx: Context) -> None:
     async def health() -> dict:
         statuses = ctx.pool.status()
         if "chat" not in statuses:
-            statuses["chat"] = {"status": "external", "url": ctx.chat_url}
+            reachable = bool(await _chat_models(ctx.clients["chat"]))
+            statuses["chat"] = {"status": "external" if reachable else "unavailable", "url": ctx.chat_url}
         # a worker the admin stopped on purpose is not a reason for the gateway to report itself unhealthy
         ok = all(entry["status"] in READY_STATES or entry.get("held") for entry in statuses.values())
         # the pins a person set, so the sidebar can show which cards are meant to stay warm

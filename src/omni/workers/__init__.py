@@ -21,7 +21,7 @@ def app(model: Lazy, lifespan: Lifespan | None = None,
          model_executor: ModelExecutor | None = None) -> FastAPI:
     """A worker app whose failures use the OpenAI error shape, with routes to load or drop its model."""
     api = FastAPI(lifespan=lifespan)
-    install_error_handlers(api, expose_internal=True)
+    install_error_handlers(api, expose_internal=False)
 
     async def run_model(fn: Callable[[], Any]) -> Any:
         if model_executor is not None:

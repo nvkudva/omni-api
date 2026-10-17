@@ -8,7 +8,7 @@ import psutil
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from omni import config, registry
+from omni import config, registry, schemas
 from omni.commands import lifecycle
 from omni.errors import error_response
 from omni.gateway.context import Context
@@ -91,7 +91,15 @@ def register(app: FastAPI, ctx: Context) -> None:
         candidate[section][key] = value
         try:
             config.validate(candidate)
-        except config.ConfigError as error:
+            if (section, key) == ("tts", "voice") and value not in schemas.TTS_VOICES:
+                raise config.ConfigError(f"tts.voice: one of {', '.join(schemas.TTS_VOICES)}")
+            if (section, key) == ("image", "steps") and not 1 <= value <= schemas.IMAGE_MAX_STEPS:
+                raise config.ConfigError(f"image.steps: 1..{schemas.IMAGE_MAX_STEPS}")
+            if (section, key) == ("video", "fps") and not 1 <= value <= 60:
+                raise config.ConfigError("video.fps: 1..60")
+            if (section, key) == ("video", "frames") and not 1 <= value <= 1000:
+                raise config.ConfigError("video.frames: 1..1000")
+        except (config.ConfigError, TypeError) as error:
             return error_response(400, str(error), "invalid_request_error")
         config.save_override(section, key, value)
         settings[section][key] = value
@@ -112,9 +120,9 @@ def register(app: FastAPI, ctx: Context) -> None:
             # Ollama serves these roles itself, so its own server log is the role's log.
             path = Path.home() / ".ollama" / "logs" / "server.log"
             if not path.exists():
-                return PlainTextResponse(f"no log at {path} (Ollama has not written one)\n", status_code=404)
+                return error_response(404, f"no log at {path} (Ollama has not written one)", "not_found")
             return PlainTextResponse("\n".join(_tail_file(path, lines)) + "\n")
         path = config.LOG_DIR / f"{role}.log"
         if not path.exists():
-            return PlainTextResponse(f"no log at {path} (this runtime is not managed by omni)\n", status_code=404)
+            return error_response(404, f"no log at {path} (this runtime is not managed by omni)", "not_found")
         return PlainTextResponse("\n".join(_tail(lines, role)) + "\n")

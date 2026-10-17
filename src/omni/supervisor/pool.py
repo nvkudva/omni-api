@@ -94,7 +94,8 @@ class Supervisor:
 
     async def _watch(self) -> None:
         while True:
-            await asyncio.gather(*(self._check(worker) for worker in self.workers.values()))
+            await asyncio.gather(
+                *(self._check(worker) for worker in self.workers.values()), return_exceptions=True)
             await asyncio.sleep(CHECK_SECONDS)
 
     async def _check(self, worker: Worker) -> None:
@@ -154,6 +155,7 @@ class Supervisor:
         return True
 
     def _schedule_restart(self, worker: Worker, now: float) -> None:
+        worker.restart_requested = False
         delay = min(2.0**worker.restarts, MAX_BACKOFF_SECONDS)
         worker.restarts += 1
         worker.next_start = now + delay

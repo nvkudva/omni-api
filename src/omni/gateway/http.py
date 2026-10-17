@@ -4,13 +4,33 @@ from typing import Any
 
 from fastapi import HTTPException, Request
 
+MAX_JSON_BYTES = 8 * 1024 * 1024
+
 
 async def json_body(request: Request) -> Any:
     """The request body parsed as JSON, or a 400 in the OpenAI shape."""
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > MAX_JSON_BYTES:
+        raise HTTPException(413, "body: larger than 8 MB")
+    chunks, total = [], 0
+    async for chunk in request.stream():
+        total += len(chunk)
+        if total > MAX_JSON_BYTES:
+            raise HTTPException(413, "body: larger than 8 MB")
+        chunks.append(chunk)
     try:
-        return json.loads(await request.body())
+        return json.loads(b"".join(chunks))
     except json.JSONDecodeError as error:
         raise HTTPException(400, f"body must be JSON ({error})") from error
+
+
+def optional_model(payload: dict) -> str | None:
+    value = payload.get("model")
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise HTTPException(400, "model: must be a non-empty string")
+    return value.strip()
 
 
 async def json_object(request: Request) -> dict:

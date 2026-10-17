@@ -29,12 +29,12 @@ def register(app: FastAPI, ctx: Context) -> None:
     async def model_request(request: Request) -> tuple[str, str]:
         """The role and model a /admin/models request names."""
         payload = await json_object(request)
-        role, model = payload.get("role"), str(payload.get("model", "")).strip()
+        role, raw_model = payload.get("role"), payload.get("model")
         if role not in registry.ROLES:
             raise _bad_role()
-        if not model:
-            raise HTTPException(400, "model: required")
-        return role, model
+        if not isinstance(raw_model, str) or not raw_model.strip():
+            raise HTTPException(400, "model: must be a non-empty string")
+        return role, raw_model.strip()
 
     @app.get("/admin/models")
     async def admin_models() -> JSONResponse:
@@ -86,6 +86,8 @@ def register(app: FastAPI, ctx: Context) -> None:
                 await asyncio.to_thread(registry.hf_delete, model)
         except httpx.HTTPError as error:
             return error_response(502, f"ollama: {error}", "upstream_error")
+        except FileNotFoundError as error:
+            return error_response(404, str(error), "not_found")
         except HF_ERRORS as error:
             return error_response(502, f"huggingface: {error}", "upstream_error")
         return JSONResponse({"deleted": model})
@@ -197,7 +199,12 @@ def register(app: FastAPI, ctx: Context) -> None:
         role = payload.get("role")
         if role not in registry.ROLES:
             raise _bad_role()
-        model = str(payload.get("model") or settings[role]["model"]).strip()
+        raw_model = payload.get("model")
+        if raw_model is not None and not isinstance(raw_model, str):
+            raise HTTPException(400, "model: must be a string")
+        model = (raw_model or settings[role]["model"]).strip()
+        if not model:
+            raise HTTPException(400, "model: must be a non-empty string")
         if role in registry.PYTHON_WORKERS and model != settings[role]["model"]:
             raise HTTPException(400, f"the {role} worker serves only its default, {settings[role]['model']}; "
                                      f"make {model} the default first")
@@ -263,7 +270,10 @@ def register(app: FastAPI, ctx: Context) -> None:
         if role not in registry.ROLES:
             raise _bad_role()
         pinned = bool(payload.get("pinned"))
-        model = str(payload.get("model") or settings[role]["model"]).strip()
+        raw_model = payload.get("model")
+        if raw_model is not None and not isinstance(raw_model, str):
+            raise HTTPException(400, "model: must be a string")
+        model = (raw_model or settings[role]["model"]).strip()
         if role in registry.PYTHON_WORKERS and model != settings[role]["model"]:
             raise HTTPException(400, f"the {role} worker serves only its default, {settings[role]['model']}")
         force = bool(payload.get("force"))
@@ -284,7 +294,9 @@ def register(app: FastAPI, ctx: Context) -> None:
             pool.note_unreachable(role)
             loaded = False
         except httpx.HTTPStatusError as error:
-            return error_response(502, f"{role}: {error.response.text}", "upstream_error")
+            if pinned:
+                return error_response(502, f"{role}: {error.response.text}", "upstream_error")
+            loaded = False  # unpin must succeed even when the model is already gone
         current = config.load_pins()
         stored = config.save_pins([*current, role] if pinned else [name for name in current if name != role])
         return JSONResponse({"role": role, "model": model, "pinned": role in stored,

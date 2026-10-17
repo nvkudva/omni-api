@@ -25,12 +25,12 @@ SEARCH_FILTERS = {
 }
 
 
-def canonical(name: str) -> str:
-    return name.removesuffix(":latest")
+def canonical(name) -> str:
+    return name.removesuffix(":latest") if isinstance(name, str) else ""
 
 
-def matches(name: str, model: str) -> bool:
-    return canonical(name) == canonical(model)
+def matches(name, model) -> bool:
+    return bool(name) and bool(model) and canonical(name) == canonical(model)
 
 
 def runner(role: str) -> str:
@@ -54,8 +54,12 @@ def normalize_repo_id(name: str) -> str:
     text = re.sub(r"^https?://(www\.)?", "", text)
     text = text.removeprefix("huggingface.co/")
     parts = text.split("/")
-    if len(parts) > 3 and parts[2] in ("tree", "blob", "resolve", "commit", "discussions", "pulls"):
+    markers = ("tree", "blob", "resolve", "commit", "discussions", "pulls")
+    # bare user/repo/tree/... and hf.co/user/repo/tree/... both drop the page suffix
+    if len(parts) > 3 and parts[2] in markers:
         text = "/".join(parts[:2])
+    elif len(parts) > 4 and parts[0] == "hf.co" and parts[3] in markers:
+        text = "/".join(parts[:3])
     return text.split("?")[0].split("#")[0].rstrip("/")
 
 

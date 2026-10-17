@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from omni import registry
 from omni.errors import UpstreamError, error_response
 from omni.gateway.context import Context
-from omni.gateway.http import json_object
+from omni.gateway.http import json_object, optional_model
 from omni.inference import decide, embed
 
 
@@ -14,7 +14,7 @@ def register(app: FastAPI, ctx: Context) -> None:
     async def on_ollama(request: Request, role: str, run) -> JSONResponse:
         """Parse the JSON body and answer it with `run(ollama_client, model, payload)`."""
         payload = await json_object(request)
-        model = payload.get("model")
+        model = optional_model(payload)
         if not model or model == role:
             model = ctx.settings[role]["model"]
         embed_model = ctx.settings["embed"]["model"]

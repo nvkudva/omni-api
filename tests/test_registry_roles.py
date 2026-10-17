@@ -50,12 +50,19 @@ class Normalize(unittest.TestCase):
         self.assertEqual(roles.normalize_repo_id("hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0"),
                          "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0")
 
+    def test_hf_co_tree_url_is_dropped(self):
+        self.assertEqual(roles.normalize_repo_id("https://hf.co/user/repo/tree/main"), "hf.co/user/repo")
+
     def test_bare_id_strips_the_hf_prefix_and_tag(self):
         self.assertEqual(roles.bare_repo_id("hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0"),
                          "mradermacher/OneJev1.5-0.8B-GGUF")
 
 
 class Matches(unittest.TestCase):
+    def test_matches_tolerates_non_strings(self):
+        self.assertFalse(roles.matches(123, "qwen2.5:3b"))
+        self.assertFalse(roles.matches(None, None))
+
     def test_latest_is_the_same_model(self):
         self.assertTrue(roles.matches("embeddinggemma-2:latest", "embeddinggemma-2"))
         self.assertTrue(roles.matches("qwen2.5:3b", "qwen2.5:3b"))

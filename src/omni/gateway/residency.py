@@ -60,7 +60,7 @@ async def set_residency(ctx, role: str, model: str, load: bool, *, keep_warm: bo
         else:
             await registry.ollama_unload(ctx.clients["chat"], role, model)
         return None
-    response = await ctx.clients[role].post("/load" if load else "/unload", timeout=None)
+    response = await ctx.clients[role].post("/load" if load else "/unload", timeout=600.0)
     response.raise_for_status()
     try:
         report = response.json()

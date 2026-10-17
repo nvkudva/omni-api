@@ -119,11 +119,16 @@ def serve(host: str, port: int) -> int:
     except config.ConfigError as error:
         print(f"omni: bad configuration: {error}", file=sys.stderr)
         return 1
+    if host not in ("127.0.0.1", "localhost", "::1") and os.environ.get("OMNI_ALLOW_NON_LOOPBACK") != "1":
+        print("omni: refusing non-loopback host (admin routes have no auth); "
+              "set OMNI_ALLOW_NON_LOOPBACK=1 to override", file=sys.stderr)
+        return 1
     config.PIDFILE.write_text(json.dumps({"pid": os.getpid(), "host": host, "port": port}))
     try:
         uvicorn.run(app, host=host, port=port, log_level="info")
     finally:
-        config.PIDFILE.unlink(missing_ok=True)
+        if _read_record().get("pid") == os.getpid():
+            config.PIDFILE.unlink(missing_ok=True)
     return 0
 
 
@@ -163,13 +168,16 @@ def up(host: str, port: int) -> int:
                 print(tail, file=sys.stderr)
             return 1
         try:
-            httpx.get(f"http://{host}:{port}/health", timeout=1.0)
+            response = httpx.get(f"http://{host}:{port}/health", timeout=1.0)
+            if response.status_code != 200:
+                raise httpx.HTTPError("not ready")
         except httpx.HTTPError:
             time.sleep(POLL_SECONDS)
             continue
         print(f"omni up: http://{host}:{port}/playground  (workers warm up in the background; `omni status`)")
         return 0
-    print(f"omni: gateway did not answer in {UP_TIMEOUT_SECONDS}s; see {log_path}", file=sys.stderr)
+    process.terminate()
+    print(f"omni: gateway did not answer in {UP_TIMEOUT_SECONDS}s; stopped it; see {log_path}", file=sys.stderr)
     return 1
 
 

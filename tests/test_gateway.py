@@ -255,3 +255,32 @@ class Gateway(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TypeValidation(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.spawn = patch("omni.supervisor.pool.Supervisor.start", new=AsyncMock())
+        cls.spawn.start()
+        cls.client = TestClient(gateway.create(), raise_server_exceptions=False)
+        cls.client.__enter__()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.client.__exit__(None, None, None)
+        cls.spawn.stop()
+
+    def test_chat_non_string_model_is_400_not_500(self):
+        response = self.client.post("/v1/chat/completions", json={"model": 123, "messages": "nope"})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()["error"]["type"], "invalid_request_error")
+
+    def test_admin_non_string_model_is_400(self):
+        response = self.client.post("/admin/models/pull", json={"role": "tts", "model": {"x": 1}})
+        self.assertEqual(response.status_code, 400)
+
+    def test_oversized_json_is_413(self):
+        response = self.client.post("/v1/chat/completions",
+                                    content=b'{"messages":"' + b"x" * (9 * 1024 * 1024) + b'"}',
+                                    headers={"content-type": "application/json"})
+        self.assertEqual(response.status_code, 413)

@@ -209,12 +209,13 @@ def kill_leftovers() -> list[str]:
         if pidfile == config.PIDFILE:
             continue
         record = _read_pidfile(pidfile)
-        pidfile.unlink(missing_ok=True)
         if record is None:
+            pidfile.unlink(missing_ok=True)
             touched.append(pidfile.stem)  # nothing is left to protect
             continue
         pid, argv = record
         if not _group_alive(pid):
+            pidfile.unlink(missing_ok=True)
             touched.append(pidfile.stem)  # the worker is already gone; its socket is stale
             continue
         if argv and not is_ours(pid, argv):
@@ -223,6 +224,7 @@ def kill_leftovers() -> list[str]:
         if not argv:
             log.warning("cannot verify pid %s from %s; leaving it alone", pid, pidfile.name)
             continue
+        pidfile.unlink(missing_ok=True)
         _kill_group(pid)
         stopped.append(pidfile.stem)
         touched.append(pidfile.stem)

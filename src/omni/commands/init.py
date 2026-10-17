@@ -29,8 +29,8 @@ def run() -> int:
     try:
         httpx.get(f"{ollama_url}/api/version", timeout=2.0).raise_for_status()
     except httpx.HTTPError:
-        print(f"ollama is not running at {ollama_url}; models are pulled on the next `omni init` once it is")
-        return 0
+        print(f"ollama is not running at {ollama_url}; start it, then run `omni init` again", file=sys.stderr)
+        return 1
 
     try:
         settings = config.load()

@@ -27,9 +27,9 @@ DEFAULT_MAX_BYTES = 8 * 1024 * 1024
 
 
 def timeout() -> httpx.Timeout:
-    """Reads are unbounded: an image or a video streams for minutes without a byte. A worker that stops
-    answering is killed by the supervisor, which closes the socket and ends the request."""
-    return httpx.Timeout(connect=5.0, read=None, write=60.0, pool=5.0)
+    """Finite reads: a stalled upstream must not hold a gateway request forever. 300s covers slow
+    first-token and media gaps; the supervisor also kills hung workers, closing their sockets."""
+    return httpx.Timeout(connect=5.0, read=300.0, write=60.0, pool=5.0)
 
 
 def uds_client(role: str, timeout_: httpx.Timeout | float = None) -> httpx.AsyncClient:
@@ -85,9 +85,13 @@ class Proxy:
                 self.pool.note_unreachable(role)
             return error_response(503, self.unavailable(role), "unavailable")
         if upstream.status_code >= 400:
-            await upstream.aread()
+            capped = bytearray()
+            async for chunk in upstream.aiter_raw():
+                capped.extend(chunk[: max(0, 1024 * 1024 - len(capped))])
+                if len(capped) >= 1024 * 1024:
+                    break
             await upstream.aclose()
-            return self._upstream_error(role, upstream)
+            return self._upstream_error(role, upstream, bytes(capped))
         response_headers = {name: value for name, value in upstream.headers.items()
                            if name in FORWARDED_RESPONSE_HEADERS}
         return StreamingResponse(
@@ -97,8 +101,8 @@ class Proxy:
             background=BackgroundTask(upstream.aclose),
         )
 
-    def _upstream_error(self, role: str, upstream: httpx.Response) -> JSONResponse:
-        text = upstream.text
+    def _upstream_error(self, role: str, upstream: httpx.Response, raw: bytes | None = None) -> JSONResponse:
+        text = raw.decode(errors="replace") if raw is not None else upstream.text
         try:
             parsed = json.loads(text)
         except ValueError:

@@ -9,10 +9,12 @@ async def installed(client: httpx.AsyncClient) -> list[dict]:
     response.raise_for_status()
     models = []
     for model in response.json().get("models", []):
-        details = model.get("details", {})
+        if not isinstance(model, dict) or not model.get("name"):
+            continue
+        details = model.get("details") or {}
         models.append({
             "name": model["name"],
-            "size_bytes": model["size"],
+            "size_bytes": model.get("size") or 0,
             "parameters": details.get("parameter_size"),
             "quantization": details.get("quantization_level"),
         })
@@ -35,7 +37,7 @@ async def load(client: httpx.AsyncClient, role: str, model: str, keep_alive: str
         path, body = "/api/embed", {"model": model, "input": "", "keep_alive": keep_alive}
     else:
         path, body = "/api/generate", {"model": model, "keep_alive": keep_alive}
-    response = await client.post(path, json=body, timeout=None)
+    response = await client.post(path, json=body, timeout=600.0)
     response.raise_for_status()
 
 
