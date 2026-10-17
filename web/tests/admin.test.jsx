@@ -160,7 +160,13 @@ describe("the sidebar card", () => {
     const html = card("missing", MISSING_ENTRY.reason);
     expect(html).toContain("Setup");
     expect(html).not.toContain('role="switch"');
-    expect(html).toContain("is not installed; install it first");
+  });
+
+  test("the card marks the problem with a badge, never error text", () => {
+    const html = card("missing", MISSING_ENTRY.reason);
+    // the badge flags it and carries the words for its tooltip; the card prints no error paragraph
+    expect(html).toContain("needs attention");
+    expect(html).not.toContain('role="alert"');
   });
 
   test("a ready role keeps its warm switch", () => {

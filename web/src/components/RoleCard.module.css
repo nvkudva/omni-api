@@ -38,7 +38,6 @@
 
 .foot { display: flex; align-items: center; gap: 6px; margin-top: 1px; }
 .status { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--text-2); }
-.problem { font-size: 10.5px; line-height: 1.35; color: var(--red); overflow-wrap: anywhere; }
 .switch {
   margin-left: auto; position: relative; width: 34px; height: 19px; flex: none; padding: 0;
   border-radius: 999px; border: 1px solid var(--hairline-strong);
@@ -63,3 +62,12 @@
 }
 .setup:hover { border-color: var(--accent); color: var(--accent); }
 .setup:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+/* The one sign something is wrong; the words live behind it, not on the card. */
+.warnBadge {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 17px; height: 17px; padding: 0; border: 0; border-radius: 50%;
+  background: color-mix(in srgb, var(--orange) 22%, transparent); color: var(--orange);
+  cursor: pointer;
+}
+.warnBadge:hover { background: color-mix(in srgb, var(--orange) 38%, transparent); }
+.warnBadge:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }

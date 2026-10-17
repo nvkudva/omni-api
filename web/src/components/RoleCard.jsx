@@ -1,7 +1,9 @@
 import { useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { ask } from "./Confirm.jsx";
-import { ROLE_META, runtime, setPinned } from "../api/roles.js";
+import { ndjson } from "../api/client.js";
+import { pullModel } from "../api/endpoints.js";
+import { ROLE_META, pollRuntime, runtime, setPinned } from "../api/roles.js";
 import { gb } from "../lib/format.js";
 import { cx } from "../lib/cx.js";
 import { Dot } from "./ui.jsx";
@@ -42,13 +44,16 @@ function StatusDot({ status, loaded }) {
  * the model warm — on loads it and holds it, off unloads it.
  *
  * When the default is not on disk (or its runtime refuses it) the switch would
- * promise what it cannot do, so a Setup button takes its place and opens the
- * role's setup card. The card opens the role's page; both controls stand alone,
- * so a click on either must not also navigate.
+ * promise what it cannot do, so a Setup button takes its place. The card never
+ * prints the error: a warning badge marks the problem, and Setup (or the badge)
+ * explains it in a popup with the one action that clears it — install the model
+ * here, or open the setup page when the runtime refuses it. The card opens the
+ * role's page; the controls stand alone, so a click on any must not navigate.
  */
 export function RoleCard({ role, active, onOpen, onSetup }) {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState("");
+  const [installing, setInstalling] = useState("");
   const state = runtime.value.roles[role] ?? { ...ROLE_META[role], role, ...UNKNOWN };
 
   const running = state.loaded;
@@ -95,6 +100,49 @@ export function RoleCard({ role, active, onOpen, onSetup }) {
     }
   };
 
+  // Download the default from the card, reporting progress where the status word was.
+  const installDefault = async () => {
+    setInstalling("installing…");
+    setProblem("");
+    try {
+      const response = await pullModel({ role, model: state.model });
+      for await (const event of ndjson(response)) {
+        if (event.error) throw new Error(event.error);
+        const percent = event.total ? ` ${Math.round(((event.completed ?? 0) / event.total) * 100)}%` : "";
+        setInstalling(`${event.status ?? "installing…"}${percent}`);
+      }
+      await pollRuntime();
+    } catch (error) {
+      setProblem(error.message);
+    } finally {
+      setInstalling("");
+    }
+  };
+
+  // What stands in the way, and the one action that clears it: install the model,
+  // or (when its runtime refuses it) go and pick another on the setup page.
+  const explain = async (event) => {
+    event.stopPropagation();
+    const reason = problem || state.setupReason;
+    if (state.setupState === "incompatible") {
+      const go = await ask({
+        title: `${state.label} can't run this model`,
+        message: reason,
+        confirmLabel: "Open setup",
+        cancelLabel: "Not now",
+      });
+      if (go) onSetup?.(role);
+      return;
+    }
+    const go = await ask({
+      title: `${state.label} isn't ready`,
+      message: reason,
+      confirmLabel: "Install now",
+      cancelLabel: "Not now",
+    });
+    if (go) installDefault();
+  };
+
   // The switch is a button inside the clickable card: clicks and keys from it
   // must never also open the page.
   const open = (event) => {
@@ -121,6 +169,17 @@ export function RoleCard({ role, active, onOpen, onSetup }) {
         <span class={styles.badge} style={{ background: state.color }}><Icon name={role} /></span>
         <span class={styles.name}>{state.label}</span>
         {pinned && <span class={styles.warm} title="kept warm: this model stays loaded">warm</span>}
+        {(needsSetup || problem) && (
+          <button
+            type="button"
+            class={styles.warnBadge}
+            aria-label={`${state.label} needs attention`}
+            title={problem || state.setupReason}
+            onClick={explain}
+          >
+            <Icon name="warn" size={11} />
+          </button>
+        )}
         <span class={styles.runner}>{state.runner}</span>
       </span>
       <span class={styles.endpoint} title={state.endpoint}>{state.endpoint}</span>
@@ -131,18 +190,15 @@ export function RoleCard({ role, active, onOpen, onSetup }) {
       <span class={styles.foot}>
         <span class={styles.status}>
           <StatusDot status={state.status} loaded={running} />
-          {word}
+          {installing || word}
         </span>
         {needsSetup
           ? (
             <button
               type="button"
               class={styles.setup}
-              title={state.setupReason || `Set up ${state.label}`}
-              onClick={(event) => {
-                event.stopPropagation();
-                onSetup?.(role);
-              }}
+              disabled={Boolean(installing)}
+              onClick={explain}
             >
               Setup
             </button>
@@ -161,9 +217,7 @@ export function RoleCard({ role, active, onOpen, onSetup }) {
             />
           )}
       </span>
-      {(problem || (needsSetup && state.setupReason)) && (
-        <span class={styles.problem} role="alert">{problem || state.setupReason}</span>
-      )}
+{/* No error text on the card: the warning badge says there is a problem, and Setup explains it. */}
     </div>
   );
 }
