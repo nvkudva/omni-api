@@ -10,7 +10,7 @@
   flex: none;
   border-bottom: 1px solid var(--hairline);
   background: var(--surface);
-  padding: 16px 24px;
+  padding: 16px;
 }
 .barInner { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: flex-end; }
 .barHead { flex: 1 1 300px; min-width: 0; }
@@ -42,7 +42,7 @@
 
 .main {
   flex: 1; min-height: 0; overflow: hidden;
-  padding: 16px 24px 24px;
+  padding: 16px 16px 24px;
   display: grid; gap: 16px;
   grid-template-columns: minmax(0, 47fr) minmax(0, 53fr);
   grid-template-rows: minmax(0, 1fr);
