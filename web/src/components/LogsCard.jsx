@@ -11,8 +11,8 @@ const LOG_LINES = 300;
  * Full-width live log for one role, minimized until clicked. While open it tails
  * `/admin/logs/<role>` every two seconds and sticks to the newest line.
  */
-export function LogsCard({ role }) {
-  const [open, setOpen] = useState(false);
+export function LogsCard({ role, initialOpen = false }) {
+  const [open, setOpen] = useState(initialOpen);
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const viewRef = useRef(null);
@@ -44,12 +44,6 @@ export function LogsCard({ role }) {
       </button>
       {open && (
         <div class={styles.terminal}>
-          <div class={styles.terminalBar} aria-hidden="true">
-            <span class={`${styles.dot} ${styles.dotRed}`} />
-            <span class={`${styles.dot} ${styles.dotYellow}`} />
-            <span class={`${styles.dot} ${styles.dotGreen}`} />
-            <span class={styles.terminalName}>{fileName}</span>
-          </div>
           <pre ref={viewRef} class={styles.terminalBody}>{error || text || "loading…"}</pre>
         </div>
       )}

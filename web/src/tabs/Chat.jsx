@@ -40,7 +40,7 @@ function requestBody(model, system, messages, shortenImages = false) {
 }
 
 function timing(firstToken, elapsed, usage) {
-  let text = `first token ${firstToken} ms · total ${elapsed} ms`;
+  let text = `TTFS ${firstToken} ms · total ${elapsed} ms`;
   const generating = (elapsed - firstToken) / 1000;
   if (usage?.completion_tokens && generating > 0) text += ` · ${(usage.completion_tokens / generating).toFixed(0)} tok/s`;
   return text;

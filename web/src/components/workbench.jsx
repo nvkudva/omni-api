@@ -1,6 +1,5 @@
 import { useState } from "preact/hooks";
 import { cx } from "../lib/cx.js";
-import { shortModel } from "../lib/format.js";
 import * as ui from "./ui.jsx";
 import styles from "./workbench.module.css";
 
@@ -148,7 +147,6 @@ export function Turn({
       {collapsible && <span class={styles.turnCaret} aria-hidden="true">{open ? "▾" : "▸"}</span>}
       <span class={styles.turnLabel}>{label}</span>
       {time && <span>· {time}</span>}
-      {model && <span class={styles.turnModel} title={model}>· {shortModel(model)}</span>}
       <span class={styles.turnMeta}>
         {warn && <span class={styles.turnWarn}>{warn}</span>}
         {status && <span>{status}</span>}

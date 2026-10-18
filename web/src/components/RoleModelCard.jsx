@@ -4,6 +4,7 @@ import { ask, withForce } from "./Confirm.jsx";
 import { OLLAMA_ROLES, ROLE_META, install, installs, runtime, setPinned } from "../api/roles.js";
 import { deleteModel, loadRole, saveSetting, setRoleDefault, unloadRole } from "../api/endpoints.js";
 import { InstallProgress } from "./FindAndInstall.jsx";
+import { LogsCard } from "./LogsCard.jsx";
 import { health } from "../api/health.js";
 import { gb, shortModel } from "../lib/format.js";
 import { cx } from "../lib/cx.js";
@@ -100,6 +101,7 @@ export function WarmSwitch({ role, model, pinned, disabled, onChanged }) {
 
 export function Section({ title, meta, role, tools, warm, children }) {
   const roleMeta = role ? ROLE_META[role] : null;
+  const [logOpen, setLogOpen] = useState(false);
   return (
     <section class={styles.setup}>
       {(title || meta) && (
@@ -116,7 +118,7 @@ export function Section({ title, meta, role, tools, warm, children }) {
                   {warm && <span class={styles.warm} title="kept warm: this model stays loaded">warm</span>}
                   <div class={styles.setupTools}>
                     {tools}
-                    <a class={styles.logLink} href={`/admin/logs/${role}`} target="_blank" rel="noreferrer" title="Open this role's log file">Log</a>
+                    <ui.IconButton icon="logs" label={logOpen ? "Hide this role's log" : "Show this role's log"} aria-expanded={logOpen} onClick={() => setLogOpen(!logOpen)} />
                   </div>
                 </div>
                 <div class={styles.setupHeadSub}>
@@ -135,6 +137,11 @@ export function Section({ title, meta, role, tools, warm, children }) {
               </>
             )}
         </header>
+      )}
+      {logOpen && roleMeta && (
+        <div class={styles.setupLog}>
+          <LogsCard role={role} initialOpen />
+        </div>
       )}
       <div class={styles.setupBody}>{children}</div>
     </section>

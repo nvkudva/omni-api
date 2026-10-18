@@ -1,6 +1,6 @@
 /* Shared by the two system pages (Models, Health): tables and inline controls. */
 
-.mono { font-family: var(--mono); font-size: 12px; }
+.mono { font-family: var(--font); font-size: 12px; }
 .link { color: var(--accent); font-size: 13px; text-decoration: none; white-space: nowrap; }
 .link:hover { text-decoration: underline; }
 .link:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
@@ -8,7 +8,7 @@
 .nameCell { display: inline-flex; align-items: center; gap: 8px; }
 .numeric { font-variant-numeric: tabular-nums; color: var(--text-2); white-space: nowrap; }
 .actionCell { text-align: right; width: 1%; }
-.tableSelect { min-width: 220px; font-family: var(--mono); font-size: 12px; }
+.tableSelect { min-width: 220px; font-family: var(--font); font-size: 12px; }
 .buttons { display: inline-flex; gap: 6px; justify-content: flex-end; }
 
 .subhead {
