@@ -3,7 +3,7 @@
 .facts dt { color: var(--text-3); font-size: 11px; }
 .facts dd { margin: 0; font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
 
-.logs { margin-top: 12px; border-top: 1px solid var(--hairline); padding-top: 8px; }
+.logs { margin-top: 8px; border-top: 1px solid var(--hairline); padding-top: 8px; }
 .logs > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-2); list-style: none; }
 .logs > summary::-webkit-details-marker { display: none; }
 .logs > summary:hover { color: var(--text); }

@@ -126,10 +126,10 @@ th {
   font-weight: 500;
   font-size: 12px;
   color: var(--text-2);
-  padding: 8px 12px;
+  padding: 8px;
   border-bottom: 1px solid var(--hairline);
 }
-td { padding: 10px 12px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
+td { padding: 8px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
 
 @media (prefers-reduced-motion: reduce) {

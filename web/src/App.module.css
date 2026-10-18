@@ -2,7 +2,7 @@
 
 .header {
   flex: none; display: flex; align-items: center; gap: 16px;
-  padding: 8px 16px;
+  padding: 8px;
   background: var(--sidebar);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
@@ -32,7 +32,7 @@
 .cards {
   flex: none; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(184px, 1fr);
   align-items: start; gap: 8px;
-  padding: 12px 16px;
+  padding: 8px;
   overflow-x: auto;
   border-bottom: 1px solid var(--hairline);
 }
@@ -43,7 +43,7 @@
 .pageHidden { display: none; }
 
 @media (max-width: 700px) {
-  .header { padding: 8px 14px; gap: 12px; }
+  .header { padding: 8px; gap: 12px; }
   .lastRequest { display: none; }
-  .cards { padding: 10px 14px; }
+  .cards { padding: 8px; }
 }

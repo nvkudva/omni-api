@@ -1,7 +1,7 @@
 /* Mini density: the top-strip navigation card. */
 .card {
   display: flex; flex-direction: column; gap: 8px;
-  padding: 12px;
+  padding: 8px;
   border: 1px solid var(--hairline); border-radius: var(--radius);
   background: var(--surface);
   cursor: pointer; text-align: left; min-width: 0;
@@ -81,13 +81,13 @@
 }
 .setupHead {
   flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 7px 10px; border-bottom: 1px solid var(--hairline);
+  padding: 7px 8px; border-bottom: 1px solid var(--hairline);
 }
 .setupTitleGroup { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; }
 .setupHeadColor { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 4px; }
 .setupHeadRow { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .setupHeadRow .setupTools { margin-left: auto; }
-.setupHeadSub { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; padding-left: 28px; }
+.setupHeadSub { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; padding-left: 8px; }
 .setupEndpoint { font: 11px var(--mono); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .setupTitle { font-size: 13px; font-weight: 600; }
 .setupTools { flex: none; display: inline-flex; align-items: center; gap: 4px; }
@@ -98,7 +98,7 @@
 .health dt { color: var(--text-3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
 .health dd { margin: 0; font-family: var(--mono); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; overflow-wrap: anywhere; }
 .setupMeta { font-family: var(--mono); font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
-.setupBody { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 12px; }
+.setupBody { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 12px; }
 .setupBody button { height: var(--control-h-sm); padding: 0 12px; font-size: 12px; }
 .setupBody select, .setupBody input:not([type]), .setupBody input[type="text"] { min-height: var(--control-h-sm); height: var(--control-h-sm); padding: 0 8px; font-size: 12px; }
 .setupBody select { padding-right: 24px; background-position: right 8px center; }
