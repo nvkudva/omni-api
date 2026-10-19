@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { errorText, record } from "../api/client.js";
 import { synthesize, transcribe, voices as fetchVoices } from "../api/endpoints.js";
+import { cancelExec, newExecId } from "../api/execs.js";
 import { curlJson } from "../lib/curl.js";
+import { uid } from "../lib/uid.js";
 import { since, wavSeconds } from "../lib/format.js";
 import { usePolling } from "../hooks/usePolling.js";
 import * as store from "../store.js";
@@ -44,6 +46,7 @@ export default function Tts() {
   const [view, setView] = useState("ui");
   const clipsRef = useRef([]);
   const abort = useRef(null);
+  const execId = useRef(null);
   const turnState = useTurnState();
 
   useEffect(() => () => {
@@ -86,7 +89,7 @@ export default function Tts() {
   const speak = async () => {
     const payload = view === "json" ? json.body : body;
     if (!payload?.input?.trim()) return;
-    const id = crypto.randomUUID();
+    const id = uid();
     const at = Date.now();
     const controller = new AbortController();
     abort.current = controller;
@@ -95,7 +98,8 @@ export default function Tts() {
     setMeta("speaking…");
     const start = performance.now();
     try {
-      const response = await synthesize(payload, controller.signal);
+      execId.current = id;
+      const response = await synthesize(payload, controller.signal, id);
       const elapsed = since(start);
       record("tts", response.status, elapsed);
       if (!response.ok) throw new Error(await errorText(response));
@@ -110,7 +114,7 @@ export default function Tts() {
       });
       setMeta(`${elapsed} ms`);
       if (!roundTrip) return;
-      const { result } = await transcribe(blob, "speech.wav", "text", controller.signal);
+      const { result } = await transcribe(blob, "speech.wav", "text", controller.signal, execId.current = newExecId());
       const heard = typeof result === "string" ? result : result?.text;
       if (heard != null) updateClip(id, { heard });
     } catch (error) {
@@ -136,7 +140,7 @@ export default function Tts() {
           <>
             <span class={styles.foot}>{text.length} / {MAX_LENGTH} characters</span>
             {busy
-              ? <ui.Button variant="stop" onClick={() => abort.current?.abort()}>Stop</ui.Button>
+              ? <ui.Button variant="stop" onClick={() => cancelExec(abort.current, execId.current)}>Stop</ui.Button>
               : <ui.Button variant="primary" disabled={!canSpeak} onClick={speak}>Speak</ui.Button>}
           </>
         )}

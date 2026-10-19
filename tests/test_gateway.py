@@ -2,17 +2,18 @@
 
 Every response must use the one OpenAI error shape, whatever the failure.
 """
+import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 from fastapi.testclient import TestClient
 
 from omni import config, gateway
 from omni.gateway import residency
-from omni.registry import ROLES
+from omni.registry import ROLES, pulling
 
 
 def _error(response):
@@ -186,7 +187,8 @@ class Gateway(unittest.TestCase):
         """The worker's report is the truth: a load that left nothing resident must not claim `loaded`."""
         report = httpx.Response(200, json={"loaded": False},
                                 request=httpx.Request("POST", "http://worker/load"))
-        with patch.object(httpx.AsyncClient, "post", new=AsyncMock(return_value=report)):
+        with patch.object(httpx.AsyncClient, "post", new=AsyncMock(return_value=report)), \
+                patch.object(residency, "ensure_downloaded", new=AsyncMock()):
             response = self.client.post("/admin/models/load", json={"role": "stt", "force": True})
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.json()["loaded"])
@@ -238,6 +240,123 @@ class Gateway(unittest.TestCase):
             response = self.client.post("/admin/pins", json={"role": "chat", "pinned": True})
         self.assertEqual(response.status_code, 409)
         self.assertEqual(_error(response)["type"], "conflict")
+
+    def test_downloads_lists_in_flight_downloads_for_progress_bars(self):
+        pulling.track("stt", "mlx/parakeet", 100, 40)
+        try:
+            response = self.client.get("/admin/models/downloads")
+        finally:
+            pulling.finish("mlx/parakeet")
+        self.assertEqual(response.status_code, 200)
+        downloads = response.json()["downloads"]
+        self.assertEqual(len(downloads), 1)
+        self.assertEqual(downloads[0]["role"], "stt")
+        self.assertEqual(downloads[0]["completed"], 40)
+
+    def test_downloads_is_empty_when_nothing_is_downloading(self):
+        pulling.ACTIVE.clear()
+        pulling.DONE.clear()
+        try:
+            response = self.client.get("/admin/models/downloads")
+        finally:
+            pulling.ACTIVE.clear()
+            pulling.DONE.clear()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"downloads": [], "recent": []})
+
+    def test_downloads_reports_recently_finished_downloads(self):
+        pulling.DONE["mlx/parakeet"] = {"role": "stt", "model": "mlx/parakeet",
+                                        "status": "success", "finished_at": 1.0}
+        try:
+            with patch.object(pulling, "RECENT_TTL_SECONDS", 10**9):
+                response = self.client.get("/admin/models/downloads")
+        finally:
+            pulling.DONE.clear()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([entry["model"] for entry in response.json()["recent"]], ["mlx/parakeet"])
+
+    def test_pull_streams_the_shared_download_to_success(self):
+        outcome = {"role": "tts", "model": "mlx-community/Kokoro-82M-bf16", "status": "success"}
+        task = Mock(done=lambda: True)
+        with patch("omni.registry.ensure_started", return_value=task), \
+                patch("omni.registry.outcome", return_value=outcome):
+            response = self.client.post("/admin/models/pull",
+                                        json={"role": "tts",
+                                              "model": "mlx-community/Kokoro-82M-bf16"})
+        self.assertEqual(response.status_code, 200)
+        lines = [json.loads(line) for line in response.text.splitlines() if line.strip()]
+        self.assertTrue(lines)
+        self.assertEqual(lines[-1]["status"], "success")
+
+    def test_pull_streams_a_terminal_error_as_an_error_event(self):
+        outcome = {"role": "tts", "model": "nope", "error": "huggingface: 401 Unauthorized"}
+        task = Mock(done=lambda: True)
+        with patch("omni.registry.ensure_started", return_value=task), \
+                patch("omni.registry.outcome", return_value=outcome):
+            response = self.client.post("/admin/models/pull", json={"role": "tts", "model": "nope"})
+        lines = [json.loads(line) for line in response.text.splitlines() if line.strip()]
+        self.assertTrue(lines[-1].get("error", "").startswith("huggingface: 401"))
+
+    def test_image_generation_downloads_the_model_first(self):
+        from fastapi.responses import JSONResponse
+        with patch.object(residency, "ensure_ready", new=AsyncMock(return_value=None)) as ready, \
+                patch("omni.gateway.proxy.Proxy.forward",
+                      new=AsyncMock(return_value=JSONResponse({}))) as forward:
+            response = self.client.post("/v1/images/generations", json={"prompt": "a cat"})
+        self.assertEqual(response.status_code, 200)
+        ready.assert_called_once()
+        self.assertEqual(ready.call_args.args[1], "image")
+        forward.assert_called_once()
+
+    def test_image_generation_reports_a_failed_first_download(self):
+        with patch.object(residency, "ensure_ready", new=AsyncMock(return_value="image: gated")):
+            response = self.client.post("/v1/images/generations", json={"prompt": "a cat"})
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(_error(response)["type"], "upstream_error")
+
+    def test_a_retained_decide_call_replays_without_rerunning(self):
+        payload = {"state": "the sky is blue",
+                   "questions": {"q1": {"instructions": "is the sky blue?",
+                                         "criteria": ["yes", "no"]}}}
+        headers = {"x-omni-exec": "decide-1"}
+        with patch("omni.inference.decide.run", new=AsyncMock(return_value={"answers": {}})) as run:
+            first = self.client.post("/v1/systemone", json=payload, headers=headers)
+            second = self.client.post("/v1/systemone", json=payload, headers=headers)
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(first.json(), second.json())
+        run.assert_called_once()
+
+    def test_requests_lists_and_serves_a_retained_result(self):
+        payload = {"state": "the sky is blue",
+                   "questions": {"q1": {"instructions": "is the sky blue?",
+                                         "criteria": ["yes", "no"]}}}
+        with patch("omni.inference.decide.run", new=AsyncMock(return_value={"answers": {}})):
+            self.client.post("/v1/systemone", json=payload, headers={"x-omni-exec": "decide-2"})
+        listing = self.client.get("/admin/requests").json()
+        self.assertEqual([entry["id"] for entry in listing["recent"] if entry["id"] == "decide-2"],
+                         ["decide-2"])
+        single = self.client.get("/admin/requests/decide-2").json()
+        self.assertEqual(single["status"], "done")
+        self.assertNotIn("body", single)
+        result = self.client.get("/admin/requests/decide-2/result")
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json(), {"answers": {}})
+
+    def test_unknown_request_ids_are_404(self):
+        self.assertEqual(self.client.get("/admin/requests/nope").status_code, 404)
+        self.assertEqual(self.client.get("/admin/requests/nope/result").status_code, 404)
+
+    def test_transcription_downloads_the_model_first(self):
+        from fastapi.responses import JSONResponse
+        with patch.object(residency, "ensure_ready", new=AsyncMock(return_value=None)) as ready, \
+                patch("omni.gateway.proxy.Proxy.forward",
+                      new=AsyncMock(return_value=JSONResponse({}))) as forward:
+            response = self.client.post("/v1/audio/transcriptions", files={"file": ("a.wav", b"data")})
+        self.assertEqual(response.status_code, 200)
+        ready.assert_called_once()
+        self.assertEqual(ready.call_args.args[1], "stt")
+        forward.assert_called_once()
 
     def test_a_pin_stands_even_when_the_worker_is_not_up_yet(self):
         with tempfile.TemporaryDirectory() as directory:

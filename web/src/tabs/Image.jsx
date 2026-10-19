@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { record } from "../api/client.js";
 import { generateImage } from "../api/endpoints.js";
+import { cancelExec } from "../api/execs.js";
 import { curlJson } from "../lib/curl.js";
+import { uid } from "../lib/uid.js";
 import { since } from "../lib/format.js";
 import * as ui from "../components/ui.jsx";
 import { Panel, Pending, RequestBody, Turn, TurnError, UiJson, Workbench, useTurnState } from "../components/workbench.jsx";
@@ -41,6 +43,7 @@ export default function Image() {
   const [view, setView] = useState("ui");
   const turnsRef = useRef([]);
   const abort = useRef(null);
+  const execId = useRef(null);
   const turnState = useTurnState();
 
   useEffect(() => () => {
@@ -69,14 +72,15 @@ export default function Image() {
     if (!payload?.prompt) return;
     const controller = new AbortController();
     abort.current = controller;
-    const id = crypto.randomUUID();
+    const id = uid();
+    execId.current = id;
     const at = Date.now();
     commit([...turnsRef.current, { id, at, request: payload, prompt: payload.prompt, pending: true }]);
     setBusy(true);
     setMeta("generating…");
     const start = performance.now();
     try {
-      const { status, data: result } = await generateImage(payload, controller.signal);
+      const { status, data: result } = await generateImage(payload, controller.signal, id);
       const elapsed = since(start);
       record("image", status, elapsed);
       const seedText = payload.seed != null ? ` · seed ${payload.seed}` : "";
@@ -121,7 +125,7 @@ export default function Image() {
           <>
             <span style={{ marginRight: "auto", color: "var(--text-3)", fontSize: "12px" }}>{steps} steps · {size}</span>
             {busy
-              ? <ui.Button variant="stop" onClick={() => abort.current?.abort()}>Stop</ui.Button>
+              ? <ui.Button variant="stop" onClick={() => cancelExec(abort.current, execId.current)}>Stop</ui.Button>
               : <ui.Button variant="primary" disabled={view === "ui" && !body.prompt} onClick={generate}>Generate</ui.Button>}
           </>
         )}

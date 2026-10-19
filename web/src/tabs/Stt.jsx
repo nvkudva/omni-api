@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { transcribe } from "../api/endpoints.js";
+import { cancelExec } from "../api/execs.js";
 import { models } from "../api/models.js";
 import { ORIGIN } from "../api/client.js";
 import { clock } from "../lib/format.js";
+import { uid } from "../lib/uid.js";
 import * as ui from "../components/ui.jsx";
 import { Panel, Pending, RequestBody, Turn, TurnError, UiJson, Workbench, useTurnState } from "../components/workbench.jsx";
 import { LogsCard } from "../components/LogsCard.jsx";
@@ -127,6 +129,7 @@ export default function Stt() {
     turnUrls.current.clear();
   };
   const abort = useRef(null);
+  const execId = useRef(null);
   const alive = useRef(true);
   const turnState = useTurnState();
 
@@ -149,7 +152,8 @@ export default function Stt() {
     if (!blob || busy) return;
     const controller = new AbortController();
     abort.current = controller;
-    const id = crypto.randomUUID();
+    const id = uid();
+    execId.current = id;
     const at = Date.now();
     const url = URL.createObjectURL(blob);
     turnUrls.current.set(id, url);
@@ -157,7 +161,7 @@ export default function Stt() {
     setTurns((current) => [...current, { id, at, url, request: { file: name, response_format: responseFormat }, pending: true }]);
     setMeta("transcribing…");
     try {
-      const { result, elapsed: ms } = await transcribe(blob, name, responseFormat, controller.signal);
+      const { result, elapsed: ms } = await transcribe(blob, name, responseFormat, controller.signal, id);
       const duration = result?.duration;
       const caption = duration
         ? `${ms} ms · ${duration.toFixed(1)} s audio · ${(duration / (ms / 1000)).toFixed(1)}× realtime`
@@ -261,7 +265,7 @@ export default function Stt() {
           <>
             <span style={{ marginRight: "auto", color: "var(--text-3)", fontSize: "12px" }}>{recording ? clock(elapsed) : format}</span>
             {busy
-              ? <ui.Button variant="stop" onClick={() => abort.current?.abort()}>Stop</ui.Button>
+              ? <ui.Button variant="stop" onClick={() => cancelExec(abort.current, execId.current)}>Stop</ui.Button>
               : <ui.Button variant="primary" disabled={!canTranscribe} onClick={() => run(clip.blob, clip.name, sendFormat)}>Transcribe</ui.Button>}
           </>
         )}

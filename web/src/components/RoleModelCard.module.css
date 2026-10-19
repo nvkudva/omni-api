@@ -10,7 +10,7 @@
 }
 .card:hover { border-color: var(--hairline-strong); }
 .card:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.on { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.on { background: var(--muted); border-color: var(--foreground); }
 .off { opacity: 0.72; }
 
 .top { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -46,7 +46,7 @@
   border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   transition: transform 0.16s cubic-bezier(0.3, 0.7, 0.3, 1);
 }
-.switchOn { background: var(--green); border-color: var(--green); }
+.switchOn { background: var(--primary); border-color: var(--primary); }
 .switchOn::after { transform: translateX(16px); }
 .switch:disabled { opacity: 0.5; cursor: default; }
 .switch:focus-visible { outline: none; box-shadow: var(--focus-ring); }
@@ -56,16 +56,16 @@
   background: var(--surface); color: var(--text);
   font-size: 11px; font-weight: 600; cursor: pointer;
 }
-.setupButton:hover { border-color: var(--accent); color: var(--accent); }
+.setupButton:hover { border-color: var(--ring); background: var(--muted); }
 .setupButton:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 /* Starting a stopped worker is the card's only offered action, so it is the filled one. */
 .startButton {
   margin-left: auto; flex: none; min-height: 28px; padding: 4px 12px;
-  border: 1px solid var(--accent); border-radius: var(--radius-sm);
-  background: var(--accent); color: var(--accent-fg);
+  border: 1px solid var(--primary); border-radius: var(--radius-sm);
+  background: var(--primary); color: var(--primary-foreground);
   font-size: 11px; font-weight: 600; cursor: pointer;
 }
-.startButton:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+.startButton:hover:not(:disabled) { background: color-mix(in srgb, var(--primary) 90%, transparent); }
 .startButton:disabled { opacity: 0.5; cursor: default; }
 .startButton:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .warnBadge {

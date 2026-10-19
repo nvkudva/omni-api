@@ -2,8 +2,10 @@ import { signal } from "@preact/signals";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { errorText, readDataUrl, record, sseEvents } from "../api/client.js";
 import { chatStream } from "../api/endpoints.js";
+import { cancelExec, newExecId } from "../api/execs.js";
 import { models } from "../api/models.js";
 import { curlJson } from "../lib/curl.js";
+import { uid } from "../lib/uid.js";
 import { cx } from "../lib/cx.js";
 import { shorten, since } from "../lib/format.js";
 import * as store from "../store.js";
@@ -98,6 +100,7 @@ export default function Chat() {
   const [view, setView] = useState("ui");
   const [conversation, setConversation] = useState(() => store.get("omni.chat.conversation", "chat"));
   const abort = useRef(null);
+  const execId = useRef(null);
   const fileInput = useRef(null);
   const stream = useMemo(() => signal(""), []);
   const turns = useMemo(() => toTurns(messages), [messages]);
@@ -141,11 +144,11 @@ export default function Chat() {
       outgoing = json.body;
       const lastUser = [...(outgoing.messages ?? [])].reverse().find((message) => message.role === "user");
       if (!lastUser) return;
-      userMessage = { id: crypto.randomUUID(), role: "user", content: textOf(lastUser), images: [], at: Date.now() };
+      userMessage = { id: uid(), role: "user", content: textOf(lastUser), images: [], at: Date.now() };
     } else {
       const text = input.trim();
       if (!text) return;
-      userMessage = { id: crypto.randomUUID(), role: "user", content: text, images, at: Date.now() };
+      userMessage = { id: uid(), role: "user", content: text, images, at: Date.now() };
       outgoing = requestBody(selected, system, [...messages, userMessage], false);
     }
 
@@ -164,7 +167,7 @@ export default function Chat() {
     let usage = null;
     let status = 0;
     try {
-      const response = await chatStream(outgoing, abort.current.signal);
+      const response = await chatStream(outgoing, abort.current.signal, execId.current = newExecId());
       status = response.status;
       if (!response.ok) throw new Error(await errorText(response));
       for await (const event of sseEvents(response)) {
@@ -180,16 +183,16 @@ export default function Chat() {
       const text = timing(firstToken ?? elapsed, elapsed, usage);
       setMeta(text);
       setMessages([...base, {
-        id: crypto.randomUUID(), role: "assistant", content: reply, usage,
+        id: uid(), role: "assistant", content: reply, usage,
         request: wireRequest, response: { content: reply, usage },
         meta: text, at: Date.now(), model: outgoing.model ?? selected,
       }]);
     } catch (error) {
       if (error.name === "AbortError") {
-        if (reply) setMessages([...base, { id: crypto.randomUUID(), role: "assistant", content: reply }]);
+        if (reply) setMessages([...base, { id: uid(), role: "assistant", content: reply }]);
       } else {
         record("chat", status || 0, since(start));
-        setMessages([...base, { id: crypto.randomUUID(), role: "assistant", content: `⚠ ${error.message}` }]);
+        setMessages([...base, { id: uid(), role: "assistant", content: `⚠ ${error.message}` }]);
       }
     } finally {
       setStreaming(false);
@@ -243,7 +246,7 @@ export default function Chat() {
               )
               : <span class={styles.footHint}>sending the JSON above</span>}
             {streaming
-              ? <ui.Button variant="stop" onClick={() => abort.current?.abort()}>Stop</ui.Button>
+              ? <ui.Button variant="stop" onClick={() => cancelExec(abort.current, execId.current)}>Stop</ui.Button>
               : <ui.Button variant="primary" disabled={!canSend} onClick={send}>Send</ui.Button>}
           </>
         )}

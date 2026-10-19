@@ -2,6 +2,8 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import Response
 
+from omni.errors import error_response
+from omni.gateway import residency
 from omni.gateway.context import Context
 from omni.schemas import STT_MAX_BYTES
 
@@ -12,11 +14,17 @@ TRANSCRIPTION_MAX_BYTES = STT_MAX_BYTES + 8 * 1024 * 1024
 def register(app: FastAPI, ctx: Context) -> None:
     @app.post("/v1/audio/transcriptions")
     async def transcriptions(request: Request) -> Response:
+        refused = await residency.ensure_ready(ctx, "stt")
+        if refused is not None:
+            return error_response(502, refused, "upstream_error")
         return await ctx.proxy.forward(request, "stt", "/v1/audio/transcriptions",
                                        max_bytes=TRANSCRIPTION_MAX_BYTES)
 
     @app.post("/v1/audio/speech")
     async def speech(request: Request) -> Response:
+        refused = await residency.ensure_ready(ctx, "tts")
+        if refused is not None:
+            return error_response(502, refused, "upstream_error")
         return await ctx.proxy.forward(request, "tts", "/v1/audio/speech")
 
     @app.get("/v1/audio/voices")

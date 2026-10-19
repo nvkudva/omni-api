@@ -151,6 +151,11 @@ export async function setPinned(role, pinned, { force = false } = {}) {
 // shows the same progress: { model, busy, status, fraction, warnings, error }.
 export const installs = signal({});
 
+// Downloads the gateway reports, whatever started them: an install here, a load that downloads
+// first, or a keep-warm pin. Polled, so a progress bar shows even when another tab or the server
+// itself started the download. Same shape per role as `installs`.
+export const downloads = signal({});
+
 function updateInstall(role, patch) {
   installs.value = { ...installs.value, [role]: { ...installs.value[role], ...patch } };
 }
@@ -159,6 +164,60 @@ function progressOf(event) {
   if (!event.total) return { status: event.status ?? "working…" };
   const completed = event.completed ?? 0;
   return { status: `${event.status ?? "downloading"} · ${gb(completed)} / ${gb(event.total)}`, fraction: completed / event.total };
+}
+
+function downloadProgressOf(entry) {
+  if (!entry.total) return { model: entry.model, busy: true, status: entry.status, fraction: 0, warnings: [], error: "" };
+  const completed = entry.completed ?? 0;
+  return {
+    model: entry.model,
+    busy: true,
+    status: `${entry.status} · ${gb(completed)} / ${gb(entry.total)}`,
+    fraction: completed / entry.total,
+    warnings: [],
+    error: "",
+  };
+}
+
+// Recent failures already shown once: a later success must not be overwritten by an old failure.
+const surfacedFailures = new Set();
+
+/** Poll the gateway for every download in flight, whatever started it. */
+export async function pollDownloads() {
+  try {
+    const body = await getJson("/admin/models/downloads");
+    const next = {};
+    for (const entry of body.downloads ?? []) {
+      if (entry.role) next[entry.role] = downloadProgressOf(entry);
+    }
+    downloads.value = next;
+    // A download that failed while this browser was closed still reports: surface it like a
+    // local failure, once, unless this tab already has its own (busier or newer) state for the role.
+    for (const entry of body.recent ?? []) {
+      if (!entry.error) continue;
+      const failure = `${entry.model}@${entry.finished_at}`;
+      if (surfacedFailures.has(failure)) continue;
+      surfacedFailures.add(failure);
+      if (installs.value[entry.role]?.busy || installs.value[entry.role]?.error) continue;
+      installs.value = {
+        ...installs.value,
+        [entry.role]: {
+          model: entry.model, busy: false, status: "install failed", fraction: 0,
+          error: entry.error, code: entry.code ?? "", acceptUrl: entry.accept_url ?? "",
+        },
+      };
+    }
+  } catch {
+    // keep the last good set: one transient failure must not flicker every progress bar
+  }
+  return downloads.value;
+}
+
+/** The download to show for `role`: this tab's own install first, else the gateway's report. */
+export function downloadFor(role) {
+  return installs.value[role]?.busy || installs.value[role]?.error
+    ? installs.value[role]
+    : downloads.value[role] ?? installs.value[role];
 }
 
 /** Download `model` for `role`, publishing progress in `installs`. Resolves true once it is on disk. */

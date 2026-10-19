@@ -3,6 +3,7 @@ import { ORIGIN, readDataUrl, record } from "../api/client.js";
 import { createVideo, videoJob } from "../api/endpoints.js";
 import { models } from "../api/models.js";
 import { curlJson } from "../lib/curl.js";
+import { uid } from "../lib/uid.js";
 import { shorten, since } from "../lib/format.js";
 import * as ui from "../components/ui.jsx";
 import { Panel, Pending, RequestBody, Turn, TurnError, UiJson, Workbench, useTurnState } from "../components/workbench.jsx";
@@ -106,7 +107,7 @@ export default function Video() {
     // The JSON pane shows a shortened data URL; send the real frame instead.
     if (typeof payload.image === "string" && payload.image.endsWith("…") && form.frame) payload.image = form.frame.url;
 
-    const id = crypto.randomUUID();
+    const id = uid();
     const at = Date.now();
     const controller = new AbortController();
     controllers.current.set(id, controller);
@@ -115,7 +116,7 @@ export default function Video() {
     setMeta("submitting…");
     const start = performance.now();
     try {
-      const { status, data: job } = await createVideo(payload, controller.signal);
+      const { status, data: job } = await createVideo(payload, controller.signal, id);
       record("video", status, since(start));
       setMeta(job.id);
       setBusy(false);

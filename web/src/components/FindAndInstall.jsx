@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
-import { OLLAMA_ROLES, ROLE_META, install, installs } from "../api/roles.js";
+import { OLLAMA_ROLES, ROLE_META, downloadFor, install, installs } from "../api/roles.js";
 import { checkModel, searchModels } from "../api/endpoints.js";
 import { gb, size } from "../lib/format.js";
 import * as ui from "./ui.jsx";
@@ -53,8 +53,8 @@ export function GatedNotice({ model, acceptUrl, busy, onRetry, actionLabel = "Re
 
 /** Where a role's download stands: the same progress every view of that role shows. */
 export function InstallProgress({ role }) {
-  const progress = installs.value[role];
-  if (!progress) return null;
+  const progress = downloadFor(role);
+  if (!progress || (!progress.busy && !progress.error && progress.fraction !== 1)) return null;
   if (progress.code === "gated") {
     return (
       <>

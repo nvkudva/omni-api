@@ -1,8 +1,10 @@
 import { useState } from "preact/hooks";
 import { record } from "../api/client.js";
 import { decide } from "../api/endpoints.js";
+import { newExecId } from "../api/execs.js";
 import { models } from "../api/models.js";
 import { curlJson } from "../lib/curl.js";
+import { uid } from "../lib/uid.js";
 import { since } from "../lib/format.js";
 import * as questionSet from "../lib/questions.js";
 import * as store from "../store.js";
@@ -177,10 +179,10 @@ export default function Decide() {
     const at = Date.now();
     record("decide", 0, 0);
     try {
-      const { status, data } = await decide(payload);
+      const { status, data } = await decide(payload, undefined, newExecId());
       const elapsed = since(start);
       record("decide", status, elapsed);
-      setTurns((current) => [...current, { id: crypto.randomUUID(), at, request: payload, response: data, meta: `${elapsed} ms` }]);
+      setTurns((current) => [...current, { id: uid(), at, request: payload, response: data, meta: `${elapsed} ms` }]);
     } catch (failure) {
       record("decide", failure.status ?? 0, since(start));
       setError(failure.message);

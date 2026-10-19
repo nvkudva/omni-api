@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { loadModels } from "./api/models.js";
-import { pollRuntime, ROLE_ORDER } from "./api/roles.js";
+import { downloads, installs, pollDownloads, pollRuntime, ROLE_META, ROLE_ORDER } from "./api/roles.js";
+import { execs, execResult, pollExecs } from "./api/execs.js";
+import { Meter, Spinner } from "./components/ui.jsx";
+import { size } from "./lib/format.js";
 import { usePolling } from "./hooks/usePolling.js";
 import { useTheme } from "./hooks/useTheme.js";
 import { GatewayStatus, LastRequest } from "./components/GatewayStatus.jsx";
@@ -33,6 +36,103 @@ function savedTab() {
   return TAB_IDS.includes(tab) ? tab : "chat";
 }
 
+/** Every model download in flight, on every tab: installs, first-setup loads and keep-warm pins. */
+function DownloadStrip() {
+  const merged = { ...downloads.value };
+  for (const [role, progress] of Object.entries(installs.value)) {
+    if (progress?.busy) merged[role] = progress;
+  }
+  const entries = Object.values(merged);
+  if (!entries.length) return null;
+  return (
+    <div class={styles.downloads} role="status" aria-label="Model downloads in progress">
+      {entries.map((entry) => (
+        <div key={entry.model} class={styles.download}>
+          <span class={styles.downloadLabel} title={entry.status}>
+            <strong>{ROLE_META[entry.role]?.label ?? entry.role}</strong> · {entry.status}
+          </span>
+          <Meter fraction={entry.fraction} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The picture inside an images API response (`data[0].b64_json`), or "" when there is none. */
+function generatedImageUrl(text) {
+  try {
+    const b64 = JSON.parse(text)?.data?.[0]?.b64_json;
+    return typeof b64 === "string" ? `data:image/png;base64,${b64}` : "";
+  } catch {
+    return "";
+  }
+}
+
+/** A retained result, rendered by what it is: JSON/text as code, images shown, audio playable. */
+function ExecResult({ execId }) {
+  const [state, setState] = useState({ loading: true, kind: "", url: "", text: "", error: "" });
+  useEffect(() => {
+    let alive = true;
+    let url = "";
+    execResult(execId).then(async ({ blob, contentType: type }) => {
+      if (!alive) return;
+      if (type.startsWith("image/") || type.startsWith("audio/")) {
+        url = URL.createObjectURL(blob);
+        setState({ loading: false, kind: type.split("/")[0], url, text: "", error: "" });
+        return;
+      }
+      const text = await blob.text();
+      const imageUrl = type.includes("json") ? generatedImageUrl(text) : "";
+      if (imageUrl) setState({ loading: false, kind: "image", url: imageUrl, text: "", error: "" });
+      else setState({ loading: false, kind: "text", url: "", text: text.slice(0, 20000), error: "" });
+    }).catch((failure) => {
+      if (alive) setState({ loading: false, kind: "", url: "", text: "", error: failure.message });
+    });
+    return () => { alive = false; if (url) URL.revokeObjectURL(url); };
+  }, [execId]);
+  if (state.loading) return <span class={styles.downloadLabel}>reading result…</span>;
+  if (state.error) return <span class={styles.downloadLabel}>result unreadable: {state.error}</span>;
+  if (state.kind === "image") return <img src={state.url} alt="retained result" class={styles.execImage} />;
+  if (state.kind === "audio") return <audio controls src={state.url} class={styles.execAudio} />;
+  return <pre class={styles.execText}>{state.text}</pre>;
+}
+
+/** Every retained inference execution, on every tab: running ones with live bytes, recent ones
+ *  with their results. Work the browser never saw finish is still here after a reopen. */
+function ExecStrip() {
+  const [openId, setOpenId] = useState(null);
+  const { running = [], recent = [] } = execs.value;
+  const entries = [...running, ...recent.filter((entry) => entry.id !== openId)].slice(0, 8);
+  const open = recent.find((entry) => entry.id === openId);
+  if (!entries.length && !open) return null;
+  const word = (entry) => entry.error ? "failed"
+    : entry.finished_at ? `done · ${size(entry.size)}` : `running · ${size(entry.bytes)}`;
+  return (
+    <div class={styles.downloads} role="status" aria-label="Recent requests">
+      {entries.map((entry) => (
+        <div key={entry.id} class={styles.download}>
+          <span class={styles.downloadLabel} title={`${entry.id} · ${entry.error ?? entry.path}`}>
+            <strong>{ROLE_META[entry.role]?.label ?? entry.role}</strong> · {entry.path} · {word(entry)}
+            {entry.error ? ` · ${entry.error}` : ""}
+          </span>
+          {entry.finished_at
+            ? <button type="button" class={styles.execButton} onClick={() => setOpenId(openId === entry.id ? null : entry.id)}>View</button>
+            : <Spinner />}
+        </div>
+      ))}
+      {open && (
+        <div key={open.id} class={styles.download}>
+          <span class={styles.downloadLabel} title={open.id}>
+            <strong>{ROLE_META[open.role]?.label ?? open.role}</strong> · {open.path} · {word(open)}
+          </span>
+          <button type="button" class={styles.execButton} onClick={() => setOpenId(null)}>Close</button>
+        </div>
+      )}
+      {open && <ExecResult execId={open.id} />}
+    </div>
+  );
+}
+
 export default function App() {
   const [tab, setTab] = useState(savedTab);
   const [theme, setTheme] = useTheme();
@@ -41,6 +141,8 @@ export default function App() {
 
   // Pauses itself while the document is hidden.
   usePolling(pollRuntime, 4000);
+  usePolling(pollDownloads, 2000);
+  usePolling(pollExecs, 2000);
 
   const cardsRef = useRef(null);
   useEffect(() => {
@@ -104,6 +206,8 @@ export default function App() {
           <RoleModelCard key={role} density="mini" role={role} active={role === tab} onOpen={choose} onSetup={openSetup} onServer={openServer} />
         ))}
       </nav>
+      <DownloadStrip />
+      <ExecStrip />
       <main class={styles.main}>
         {/* Every page stays mounted so an in-flight request survives a tab
             switch; the inactive ones just hide. */}

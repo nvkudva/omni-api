@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { ask, withForce } from "./Confirm.jsx";
-import { ROLE_META, WORKER_ROLES, install, installs, pollRuntime, runtime, setPinned } from "../api/roles.js";
+import { ROLE_META, WORKER_ROLES, downloadFor, install, pollRuntime, runtime, setPinned } from "../api/roles.js";
 import { deleteModel, loadRole, saveSetting, setRoleDefault, unloadRole, workerAction } from "../api/endpoints.js";
 import { InstallProgress } from "./FindAndInstall.jsx";
 import { HealthCard } from "./HealthCard.jsx";
@@ -340,7 +340,7 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
   const setupState = state.setupState ?? "unknown";
   const needsSetup = !checking && (setupState === "missing" || setupState === "incompatible");
   const shownModel = state.runningModel ?? state.model ?? "—";
-  const download = installs.value[role];
+  const download = downloadFor(role);
   const installing = Boolean(download?.busy);
   const trouble = problem || download?.error || "";
   const status = cardStatus(state, { checking, needsSetup, installing });
@@ -481,7 +481,7 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
 
   const load = () => run((options) => setResidency(role, true, entry.default, options), `loaded ${entry.default}`);
   const unload = () => run(() => setResidency(role, false, entry.default), `unloaded ${entry.default}`);
-  const installing = Boolean(installs.value[role]?.busy);
+  const installing = Boolean(downloadFor(role)?.busy);
   const installDefault = async () => {
     if (await install(role, entry.default)) onChanged(`installed ${entry.default}`);
   };

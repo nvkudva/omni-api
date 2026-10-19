@@ -1,7 +1,7 @@
 .figure { display: flex; flex-direction: column; gap: 8px; }
 .picture { display: block; width: 100%; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--hairline); }
 .foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.link { color: var(--accent); font-size: 13px; text-decoration: none; white-space: nowrap; }
+.link { color: var(--foreground); font-size: 13px; text-decoration: none; white-space: nowrap; }
 .link:hover { text-decoration: underline; }
 .link:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
 .gallery { display: flex; flex-direction: column; gap: 16px; }

@@ -9,7 +9,7 @@ import {
   workerAction,
   workersAction,
 } from "../api/endpoints.js";
-import { installs, matchesModel, ROLE_ORDER, runtime } from "../api/roles.js";
+import { downloads, installs, matchesModel, ROLE_ORDER, runtime } from "../api/roles.js";
 import { pollHealth } from "../api/health.js";
 import { gb } from "../lib/format.js";
 import { ask, withForce } from "../components/Confirm.jsx";
@@ -241,7 +241,8 @@ export default function Models() {
     }
   };
 
-  const isDownloading = Object.values(installs.value).some((progress) => progress.busy);
+  const isDownloading = Object.values(installs.value).some((progress) => progress.busy)
+    || Object.keys(downloads.value).length > 0;
   useEffect(() => {
     if (!isDownloading) refresh();
   }, [isDownloading]);

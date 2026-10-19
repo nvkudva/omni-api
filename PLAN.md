@@ -65,6 +65,7 @@ New uv project, installed with `uv tool install`. After the 2026-10-16 review it
 - Gateway's own `/v1/systemone` shim must match the published request and response schema.
 
 ## Revisions
+- 2026-10-19: server-owned inference. A request with an `X-Omni-Exec` id is retained: the gateway pumps the upstream in its own task and stores the full response, so closing the tab or browser never cancels the work. `GET /admin/requests` lists running/recent, `GET /admin/requests/{id}/result` replays the stored response, and re-POSTing a finished id replays without rerunning (a running id is 409). Bodies cap at 24 MB stored (64 MB hard). The playground sends an id per inference call (turn ids where they exist) and shows a global executions strip with a result viewer. Downloads already work this way via the pulling manager.
 - 2026-10-15 prototype: `decide` runs ollajev as its own TCP process on gateway port+2 (`/v1/systemone`) instead of a vegaml unix-socket worker; ollajev already owns the schema, normalisation and model presets.
 - 2026-10-15: chat reuses a running Ollama on :11434; omni starts its own on port+1 only when none is running.
 - 2026-10-15: tts uses Kokoro through mlx-audio (American and British voices only, as misaki[en] covers just those). The first call downloads its spaCy model and voice weights.

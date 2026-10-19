@@ -1,20 +1,22 @@
+import { uid } from "./uid.js";
+
 // The Decide request builder: editor rows <-> the `questions` object /v1/systemone takes.
 // A row is { name, type, instructions, criteria }; criteria is [[label, description]] for
 // choice, [rung] for score and [whenTrue, whenFalse] for noul.
 
 export function blankRow(type) {
   const criteria = type === "choice" ? [["", ""]] : type === "score" ? ["", "", ""] : [];
-  return { id: crypto.randomUUID(), name: "", type, instructions: "", criteria };
+  return { id: uid(), name: "", type, instructions: "", criteria };
 }
 
 export function rowsFromQuestions(questions) {
   return Object.entries(questions).map(([name, question]) => {
     const { type, instructions = "", criteria } = question;
     if (type === "choice") {
-      return { id: crypto.randomUUID(), name, type, instructions, criteria: Object.entries(criteria ?? {}).map(([label, description]) => [label, description ?? ""]) };
+      return { id: uid(), name, type, instructions, criteria: Object.entries(criteria ?? {}).map(([label, description]) => [label, description ?? ""]) };
     }
-    if (type === "score") return { id: crypto.randomUUID(), name, type, instructions, criteria: [...(criteria ?? [])] };
-    if (type === "noul") return { id: crypto.randomUUID(), name, type, instructions, criteria: [criteria?.true ?? "", criteria?.false ?? ""] };
+    if (type === "score") return { id: uid(), name, type, instructions, criteria: [...(criteria ?? [])] };
+    if (type === "noul") return { id: uid(), name, type, instructions, criteria: [criteria?.true ?? "", criteria?.false ?? ""] };
     throw new Error(`question '${name}' has an unknown type '${type}'`);
   });
 }

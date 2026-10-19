@@ -37,7 +37,14 @@ from omni.registry.ollama import (
 from omni.registry.ollama import (
     unload as ollama_unload,
 )
-from omni.registry.pulling import pull
+from omni.registry.pulling import (
+    ensure_started,
+    outcome,
+    progress,
+    pull,
+    recent,
+    snapshot,
+)
 from omni.registry.roles import (
     HF_ROLES,
     OLLAMA_ROLES,
@@ -61,6 +68,7 @@ __all__ = [
     "cache_dir",
     "canonical",
     "capabilities",
+    "ensure_started",
     "family",
     "fit_blockers",
     "folder_size",
@@ -76,10 +84,14 @@ __all__ = [
     "ollama_installed",
     "ollama_load",
     "ollama_unload",
+    "outcome",
     "overload_advisories",
+    "progress",
     "pull",
+    "recent",
     "runner",
     "search",
+    "snapshot",
     "supports",
 ]
 

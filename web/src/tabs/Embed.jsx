@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { readDataUrl, record } from "../api/client.js";
 import { describeImage, embed, transcribe } from "../api/endpoints.js";
+import { newExecId } from "../api/execs.js";
 import { models } from "../api/models.js";
 import { shortModel, since, size } from "../lib/format.js";
+import { uid } from "../lib/uid.js";
 import { cx } from "../lib/cx.js";
 import * as corpus from "../lib/corpus.js";
 import * as storage from "../lib/storage.js";
@@ -282,7 +284,7 @@ export default function Embed() {
     const start = performance.now();
     const at = Date.now();
     try {
-      const { data } = await embed(request);
+      const { data } = await embed(request, undefined, newExecId());
       const ms = since(start);
       record("embed", 200, ms);
       const vector = data.data?.[0]?.embedding;
@@ -290,7 +292,7 @@ export default function Embed() {
       const hits = corpus.search(vector, chunks, TOP_K);
       if (!hits.length) throw new Error(`no indexed passage has ${vector.length} dimensions: the embedded data was made with a different embedding model`);
       const response = { model: data.model, usage: data.usage, results: hits.map((hit) => ({ id: hit.chunk.id, score: hit.score })) };
-      setTurns((current) => [...current, { id: crypto.randomUUID(), at, query: text, hits, request, response, meta: `${ms} ms` }]);
+      setTurns((current) => [...current, { id: uid(), at, query: text, hits, request, response, meta: `${ms} ms` }]);
     } catch (failure) {
       record("embed", failure.status ?? 0, since(start));
       setError(failure.message);

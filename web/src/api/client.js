@@ -38,10 +38,10 @@ async function assertOk(response) {
   throw error;
 }
 
-export async function postJson(path, body, { signal: abortSignal } = {}) {
+export async function postJson(path, body, { signal: abortSignal, headers = {} } = {}) {
   const response = await fetch(path, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...headers },
     body: JSON.stringify(body),
     signal: abortSignal,
   });

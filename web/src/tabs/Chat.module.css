@@ -2,7 +2,7 @@
 
 /* The Chat view: the same turns as Requests, read as a transcript. */
 .chat { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.bubble { max-width: 82%; padding: 8px 12px; border-radius: 16px; font-size: 14px; line-height: 1.5; }
+.bubble { max-width: 82%; padding: 8px 12px; border-radius: var(--radius-lg); font-size: 14px; line-height: 1.5; border: 1px solid var(--border); }
 .bubbleText { white-space: pre-wrap; overflow-wrap: anywhere; }
 .user { align-self: flex-end; background: var(--bubble-user); color: var(--bubble-user-text); border-bottom-right-radius: 6px; }
 .assistant { align-self: flex-start; background: var(--bubble-bot); border-bottom-left-radius: 6px; }
