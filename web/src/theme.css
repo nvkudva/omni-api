@@ -1,66 +1,81 @@
+/* OMNI API theme — palette from Nexus Core logo:
+   cyan #22D3EE -> indigo #818CF8 -> fuchsia #E879F9 on navy #0B1026.
+   Structure follows shadcn/ui: neutral surfaces, one primary, hairline
+   borders, ring focus, small radii, flat shadows. Gradient reserved for
+   brand + progress only; primary actions stay solid. */
 :root {
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
 
-  --accent: #0071e3;
-  --accent-hover: #0077ed;
-  --accent-soft: rgba(0, 113, 227, 0.1);
-  --green: #28a745;
-  --orange: #f5a623;
-  --red: #e5383b;
+  /* Logo hues */
+  --cyan: #22d3ee;
+  --indigo: #818cf8;
+  --fuchsia: #e879f9;
+  --brand: linear-gradient(120deg, var(--cyan), var(--indigo) 55%, var(--fuchsia));
 
-  --bg: #f5f5f7;
-  --sidebar: rgba(236, 236, 240, 0.72);
+  --accent: #4f46e5;
+  --accent-hover: #4338ca;
+  --accent-soft: rgba(79, 70, 229, 0.09);
+  --accent-fg: #ffffff;
+  --green: #16a34a;
+  --orange: #d97706;
+  --red: #dc2626;
+
+  --bg: #f6f7fb;
+  --sidebar: rgba(255, 255, 255, 0.85);
   --surface: #ffffff;
-  --surface-2: #f5f5f7;
+  --surface-2: #eef0f6;
   --field: #ffffff;
-  --text: #1d1d1f;
-  --text-2: #6e6e73;
-  --text-3: #76767c;
-  --hairline: rgba(0, 0, 0, 0.09);
-  --hairline-strong: rgba(0, 0, 0, 0.16);
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
-  --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.12);
-  --code-bg: #f5f5f7;
-  --signal: #0071e3;
-  --bubble-user: #0071e3;
+  --text: #0b1026;
+  --text-2: #565b73;
+  --text-3: #7d8199;
+  --hairline: rgba(11, 16, 38, 0.09);
+  --hairline-strong: rgba(11, 16, 38, 0.17);
+  --shadow: 0 1px 2px rgba(11, 16, 38, 0.05);
+  --shadow-pop: 0 12px 32px rgba(11, 16, 38, 0.14), 0 2px 8px rgba(11, 16, 38, 0.08);
+  --code-bg: #eef0f6;
+  --signal: #0284c7;
+  --bubble-user: #4f46e5;
   --bubble-user-text: #ffffff;
-  --bubble-bot: #e9e9eb;
+  --bubble-bot: #eef0f6;
 
-  --radius-sm: 8px;
-  --radius: 12px;
-  --radius-lg: 16px;
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px;
   --control-h: 36px; --control-h-sm: 30px;
-  --focus-ring: 0 0 0 3px var(--accent-soft), 0 0 0 1px var(--accent);
+  --ring: rgba(79, 70, 229, 0.55);
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--ring);
   color-scheme: light;
 }
 
 :root[data-theme="dark"] {
-  --accent: #0a84ff;
-  --accent-hover: #409cff;
-  --accent-soft: rgba(10, 132, 255, 0.16);
-  --green: #30d158;
-  --orange: #ff9f0a;
-  --red: #ff453a;
+  --accent: #818cf8;
+  --accent-hover: #a5b4fc;
+  --accent-soft: rgba(129, 140, 248, 0.14);
+  --accent-fg: #0b1026;
+  --green: #34d399;
+  --orange: #fbbf24;
+  --red: #f87171;
 
-  --bg: #000000;
-  --sidebar: rgba(28, 28, 30, 0.72);
-  --surface: #1c1c1e;
-  --surface-2: #2c2c2e;
-  --field: #2c2c2e;
-  --text: #f5f5f7;
-  --text-2: #98989d;
-  --text-3: #8e8e93;
-  --hairline: rgba(255, 255, 255, 0.09);
-  --hairline-strong: rgba(255, 255, 255, 0.16);
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.5);
-  --code-bg: #161618;
-  --signal: #0a84ff;
-  --bubble-user: #0a84ff;
-  --bubble-bot: #2c2c2e;
+  --bg: #07070d;
+  --sidebar: rgba(11, 16, 38, 0.82);
+  --surface: #0e1226;
+  --surface-2: #171c36;
+  --field: #121830;
+  --text: #f2f4ff;
+  --text-2: #a3a8c3;
+  --text-3: #7d8199;
+  --hairline: rgba(163, 168, 195, 0.14);
+  --hairline-strong: rgba(163, 168, 195, 0.26);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
+  --code-bg: #171c36;
+  --signal: #22d3ee;
+  --bubble-user: #6366f1;
+  --bubble-bot: #171c36;
+  --ring: rgba(129, 140, 248, 0.6);
   color-scheme: dark;
 }
 
@@ -69,7 +84,7 @@
 html, body { margin: 0; height: 100%; }
 
 body {
-  font: 14px/1.45 var(--font);
+  font: 14px/1.5 var(--font);
   letter-spacing: -0.01em;
   color: var(--text);
   background: var(--bg);
@@ -98,7 +113,7 @@ textarea { resize: vertical; line-height: 1.5; }
 select {
   appearance: none;
   padding-right: 30px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%238e8e93' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%237d8199' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 11px center;
 }
@@ -116,7 +131,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
-::selection { background: var(--accent); color: #fff; }
+::selection { background: var(--accent); color: var(--accent-fg); }
 a:focus-visible, summary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
 * { scrollbar-width: thin; scrollbar-color: var(--hairline-strong) transparent; }
 
@@ -129,17 +144,21 @@ table {
   border: 1px solid var(--hairline);
   border-radius: var(--radius-sm);
   overflow: hidden;
+  background: var(--surface);
 }
 th {
   text-align: left;
   font-weight: 500;
   font-size: 12px;
   color: var(--text-2);
-  padding: 8px;
+  background: var(--surface-2);
+  padding: 8px 12px;
   border-bottom: 1px solid var(--hairline);
 }
-td { padding: 8px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
+td { padding: 8px 12px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
+tbody tr { transition: background-color 0.12s; }
+tbody tr:hover { background: var(--surface-2); }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }

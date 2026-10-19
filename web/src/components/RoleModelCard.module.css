@@ -1,15 +1,16 @@
 /* Mini density: the top-strip navigation card. */
 .card {
   display: flex; flex-direction: column; gap: 8px;
-  padding: 8px;
+  padding: 12px;
   border: 1px solid var(--hairline); border-radius: var(--radius);
   background: var(--surface);
+  box-shadow: var(--shadow);
   cursor: pointer; text-align: left; min-width: 0;
   transition: border-color 0.15s, background-color 0.15s;
 }
 .card:hover { border-color: var(--hairline-strong); }
 .card:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.on { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 42%, transparent); }
+.on { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .off { opacity: 0.72; }
 
 .top { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -51,8 +52,8 @@
 .switch:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .setupButton {
   margin-left: auto; flex: none; min-height: 28px; padding: 4px 12px;
-  border: 1px solid var(--hairline-strong); border-radius: 999px;
-  background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--hairline-strong); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text);
   font-size: 11px; font-weight: 600; cursor: pointer;
 }
 .setupButton:hover { border-color: var(--accent); color: var(--accent); }
@@ -60,8 +61,8 @@
 /* Starting a stopped worker is the card's only offered action, so it is the filled one. */
 .startButton {
   margin-left: auto; flex: none; min-height: 28px; padding: 4px 12px;
-  border: 1px solid var(--accent); border-radius: 999px;
-  background: var(--accent); color: #fff;
+  border: 1px solid var(--accent); border-radius: var(--radius-sm);
+  background: var(--accent); color: var(--accent-fg);
   font-size: 11px; font-weight: 600; cursor: pointer;
 }
 .startButton:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
