@@ -146,7 +146,7 @@ export default function Video() {
   ];
 
   return (
-    <Workbench title="Video" subtitle="Text or image to video, run as a background job you can stop and poll." readout={readout}>
+    <Workbench title="Video" subtitle="Text or image to video, run as a background job you can stop and poll." readout={readout} modelRole="video">
       <Panel
         title="Request"
         tools={<UiJson view={view} onChange={setView} />}

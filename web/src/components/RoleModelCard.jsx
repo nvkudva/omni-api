@@ -1,11 +1,11 @@
 import { useEffect, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { ask, withForce } from "./Confirm.jsx";
-import { OLLAMA_ROLES, ROLE_META, install, installs, runtime, setPinned } from "../api/roles.js";
+import { ROLE_META, install, installs, runtime, setPinned } from "../api/roles.js";
 import { deleteModel, loadRole, saveSetting, setRoleDefault, unloadRole } from "../api/endpoints.js";
 import { InstallProgress } from "./FindAndInstall.jsx";
+import { HealthCard } from "./HealthCard.jsx";
 import { LogsCard } from "./LogsCard.jsx";
-import { health } from "../api/health.js";
 import { gb, shortModel } from "../lib/format.js";
 import { cx } from "../lib/cx.js";
 import * as ui from "./ui.jsx";
@@ -84,24 +84,28 @@ function useWarmToggle(role, model, pinned, { onChanged, onProblem } = {}) {
   return [busy, flip];
 }
 
-/** Detail-density keep-warm control. */
-export function WarmSwitch({ role, model, pinned, disabled, onChanged }) {
-  const [busy, flip] = useWarmToggle(role, model, pinned, { onChanged });
+/** The keep-warm switch. Mini puts it in the card's footer and detail in the
+ *  card header (right of the log button); both drive it through
+ *  `useWarmToggle`, so it does the same thing in either place. */
+export function WarmSwitch({ pinned, disabled, busy, title, label, onClick }) {
   return (
-    <ui.Button
-      small
+    <button
+      type="button"
+      role="switch"
+      aria-checked={pinned}
+      aria-label={label}
+      title={title}
       disabled={busy || disabled}
-      onClick={flip}
-      title={pinned ? "Warm: on (stays loaded)" : "Warm: off (unloads when idle)"}
-    >
-      {pinned ? "Warm: off" : "Keep warm"}
-    </ui.Button>
+      class={cx(styles.switch, pinned && styles.switchOn)}
+      onClick={onClick}
+    />
   );
 }
 
-export function Section({ title, meta, role, tools, warm, children }) {
+export function Section({ title, meta, role, tools, warmToggle, health, children }) {
   const roleMeta = role ? ROLE_META[role] : null;
   const [logOpen, setLogOpen] = useState(false);
+  const [healthOpen, setHealthOpen] = useState(false);
   return (
     <section class={styles.setup}>
       {(title || meta) && (
@@ -115,10 +119,15 @@ export function Section({ title, meta, role, tools, warm, children }) {
                 <div class={styles.setupHeadRow}>
                   <span class={styles.badge} style={{ background: roleMeta.color }}><Icon name={role} /></span>
                   {title && <h2 class={styles.setupTitle}>{title}</h2>}
-                  {warm && <span class={styles.warm} title="kept warm: this model stays loaded">warm</span>}
                   <div class={styles.setupTools}>
                     {tools}
-                    <ui.IconButton icon="logs" label={logOpen ? "Hide this role's log" : "Show this role's log"} aria-expanded={logOpen} onClick={() => setLogOpen(!logOpen)} />
+                    <span class={styles.setupIcons}>
+                      {health && (
+                        <ui.IconButton icon="health" label={`${title} health details`} aria-expanded={healthOpen} onClick={() => setHealthOpen(!healthOpen)} />
+                      )}
+                      <ui.IconButton icon="logs" label={logOpen ? "Hide this role's log" : "Show this role's log"} aria-expanded={logOpen} onClick={() => setLogOpen(!logOpen)} />
+                    </span>
+                    {warmToggle}
                   </div>
                 </div>
                 <div class={styles.setupHeadSub}>
@@ -138,6 +147,11 @@ export function Section({ title, meta, role, tools, warm, children }) {
             )}
         </header>
       )}
+      {healthOpen && roleMeta && (
+        <div class={styles.setupLog}>
+          <HealthCard role={role} label={title} />
+        </div>
+      )}
       {logOpen && roleMeta && (
         <div class={styles.setupLog}>
           <LogsCard role={role} initialOpen />
@@ -156,10 +170,9 @@ export function Tunable({ spec, stored, onSaved }) {
 
   useEffect(() => { setDraft(stored == null ? "" : String(stored)); }, [stored]);
 
-  const dirty = draft !== (stored == null ? "" : String(stored));
-  const save = async () => {
+  const current = stored == null ? "" : String(stored);
+  const write = async (value) => {
     const [section, key] = spec.key.split(".");
-    const value = spec.number ? Number(draft) : draft;
     setBusy(true);
     setError("");
     setSaved("");
@@ -173,6 +186,30 @@ export function Tunable({ spec, stored, onSaved }) {
       setBusy(false);
     }
   };
+
+  // A fixed choice has nothing to confirm: picking an option saves it there and then.
+  if (spec.options) {
+    const choices = current !== "" && !spec.options.some((option) => String(option.value) === current)
+      ? [...spec.options, { value: current, label: `${current} minutes` }]
+      : spec.options;
+    return (
+      <ui.Field label={spec.label} hint={error || saved || spec.hint}>
+        <div class={styles.tunable}>
+          <select
+            aria-label={spec.label}
+            value={current}
+            disabled={busy}
+            onChange={(event) => write(spec.number ? Number(event.currentTarget.value) : event.currentTarget.value)}
+          >
+            {choices.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </div>
+      </ui.Field>
+    );
+  }
+
+  const dirty = draft !== current;
+  const save = () => write(spec.number ? Number(draft) : draft);
 
   return (
     <ui.Field label={spec.label} hint={error || saved || spec.hint}>
@@ -235,27 +272,6 @@ export function DownloadedList({ role, installed, onChanged }) {
         ))}
       </tbody>
     </table>
-  );
-}
-
-function RoleHealth({ role }) {
-  const worker = health.value?.workers?.[role];
-  if (!worker) {
-    return (
-      <ui.Meta>
-        {OLLAMA_ROLES.has(role)
-          ? "Served by Ollama — see the Ollama card under Server."
-          : "No health data yet."}
-      </ui.Meta>
-    );
-  }
-  return (
-    <dl class={styles.health}>
-      <div><dt>Status</dt><dd><ui.Dot status={worker.status} />{worker.status}{worker.held ? " (held)" : ""}</dd></div>
-      <div><dt>Loaded</dt><dd>{worker.loaded ? (worker.model || "loaded") : "—"}</dd></div>
-      <div><dt>Process</dt><dd>{worker.pid ?? worker.url ?? "—"}</dd></div>
-      <div><dt>Restarts</dt><dd>{worker.restarts ?? "—"}</dd></div>
-    </dl>
   );
 }
 
@@ -361,15 +377,13 @@ function MiniCard({ role, active, onOpen, onSetup }) {
             </button>
           )
           : (
-            <button
-              type="button"
-              role="switch"
-              aria-checked={pinned}
-              aria-label={`${pinned ? "stop keeping warm" : "keep warm"} ${state.label}`}
+            <WarmSwitch
+              pinned={pinned}
+              busy={warmBusy}
+              disabled={checking}
+              label={`${pinned ? "stop keeping warm" : "keep warm"} ${state.label}`}
               title={checking ? "waiting for the gateway"
                 : pinned ? `Stop keeping ${shownModel} warm` : `Keep ${state.model} warm (loads it now and holds it)`}
-              disabled={warmBusy || checking}
-              class={cx(styles.switch, pinned && styles.switchOn)}
               onClick={flip}
             />
           )}
@@ -384,7 +398,7 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
   if (!names.includes(entry.default)) names.unshift(entry.default);
   const current = entry.installed.find((model) => model.name === entry.default);
   const [busy, run] = useAction(onChanged);
-  const [showHealth, setShowHealth] = useState(false);
+  const [warmBusy, flipWarm] = useWarmToggle(role, entry.default, pinned, { onChanged });
   const specs = (tunables && ROLE_TUNABLES[role]) || [];
 
   const load = () => run((options) => setResidency(role, true, entry.default, options), `loaded ${entry.default}`);
@@ -403,23 +417,24 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
     }
   };
 
-  const healthLabel = `${meta?.label ?? role} health details`;
   return (
     <Section
       title={meta?.label ?? role}
       role={role}
-      warm={pinned}
-      meta={`${entry.runner} · ${entry.installed.length} downloaded · ${gb(entry.total_bytes)} · ${STATE_LABEL[entry.state] ?? entry.state}`}
-      tools={(
-        <ui.IconButton
-          icon="health"
-          label={healthLabel}
-          aria-expanded={showHealth}
-          onClick={() => setShowHealth(!showHealth)}
+      health
+      tools={<ui.Button small onClick={() => onAdd?.(role)}>Add model</ui.Button>}
+      warmToggle={(
+        <WarmSwitch
+          pinned={pinned}
+          busy={warmBusy}
+          disabled={entry.state !== "ready"}
+          label={`${pinned ? "stop keeping warm" : "keep warm"} ${meta?.label ?? role}`}
+          title={pinned ? `Stop keeping ${entry.default} warm` : `Keep ${entry.default} warm (loads it now and holds it)`}
+          onClick={flipWarm}
         />
       )}
+      meta={`${entry.runner} · ${entry.installed.length} downloaded · ${gb(entry.total_bytes)} · ${STATE_LABEL[entry.state] ?? entry.state}`}
     >
-      {showHealth && <RoleHealth role={role} />}
       {entry.reason && <ui.Notice tone={entry.state === "missing" ? "warn" : "error"}>{entry.reason}</ui.Notice>}
       {entry.state === "missing" && (
         <ui.Row>
@@ -435,13 +450,9 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
         </select>
         <ui.Button small disabled={busy || entry.state !== "ready"} onClick={load}>Load</ui.Button>
         <ui.Button small disabled={busy} onClick={unload}>Unload</ui.Button>
-        <WarmSwitch role={role} model={entry.default} pinned={pinned} disabled={entry.state !== "ready"} onChanged={onChanged} />
       </div>
       <DownloadedList role={role} installed={entry.installed} onChanged={onChanged} />
       {specs.map((spec) => <Tunable key={spec.key} spec={spec} stored={tunables[spec.key]} onSaved={onSaved} />)}
-      <ui.Row>
-        <ui.Button small variant="primary" onClick={() => onAdd?.(role)}>Add model</ui.Button>
-      </ui.Row>
     </Section>
   );
 }

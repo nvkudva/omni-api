@@ -91,12 +91,17 @@
 .setupEndpoint { font: 11px var(--font); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .setupTitle { font-size: 13px; font-weight: 600; }
 .setupTools { flex: none; display: inline-flex; align-items: center; gap: 4px; }
+/* Header icon buttons read as secondary buttons: a hairline-bordered surface at
+   the same height as the Add model button beside them. */
+.setupIcons { display: inline-flex; align-items: center; gap: 4px; }
+.setupIcons button {
+  width: var(--control-h-sm); height: var(--control-h-sm);
+  background: var(--surface-2); color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--hairline);
+}
+.setupIcons button:hover:not(:disabled) { background: var(--hairline); }
 .tunable { display: flex; gap: 8px; align-items: center; }
-.tunable input { max-width: 260px; }
-.health { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 6px 12px; padding: 6px 8px; background: var(--surface-2); border-radius: 8px; }
-.health > div { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.health dt { color: var(--text-3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
-.health dd { margin: 0; font-family: var(--font); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; overflow-wrap: anywhere; }
+.tunable input, .tunable select { max-width: 260px; }
 .setupMeta { font-family: var(--font); font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
 .setupBody { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 12px; }
 .setupBody button { height: var(--control-h-sm); padding: 0 12px; font-size: 12px; }

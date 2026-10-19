@@ -259,7 +259,7 @@ export default function Stt() {
   ];
 
   return (
-    <Workbench title="Speech to text" subtitle="Record or upload audio, get a transcript with segment timings you can click to replay." readout={readout}>
+    <Workbench title="Speech to text" subtitle="Record or upload audio, get a transcript with segment timings you can click to replay." readout={readout} modelRole="stt">
       <Panel
         title="Request"
         meta={clip ? `${clip.name} · ${(clip.blob.size / 1024).toFixed(0)} KB` : "no clip"}

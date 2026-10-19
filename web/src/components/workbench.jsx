@@ -1,6 +1,8 @@
 import { useState } from "preact/hooks";
 import { cx } from "../lib/cx.js";
+import { ROLE_META } from "../api/roles.js";
 import * as ui from "./ui.jsx";
+import { ModelSettingsPopup } from "./ModelSettings.jsx";
 import styles from "./workbench.module.css";
 
 // The shared request/response workbench: everything the model pages need to lay a
@@ -21,19 +23,32 @@ export function useTurnState() {
   };
 }
 
-export function Workbench({ title, subtitle, readout, single, children }) {
+export function Workbench({ title, subtitle, readout, single, modelRole, children }) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const roleLabel = (modelRole && ROLE_META[modelRole]?.label) ?? modelRole;
   return (
     <div class={styles.shell}>
       <header class={styles.bar}>
         <div class={styles.barInner}>
           <div class={styles.barHead}>
-            <h1 class={styles.title}>{title}</h1>
+            <div class={styles.titleRow}>
+              <h1 class={styles.title}>{title}</h1>
+              {modelRole && (
+                <ui.IconButton
+                  icon="settings"
+                  label={roleLabel ? `Open ${roleLabel} model settings` : "Open model settings"}
+                  title={roleLabel ? `${roleLabel} model settings` : "Model settings"}
+                  onClick={() => setSettingsOpen(true)}
+                />
+              )}
+            </div>
             {subtitle && <p class={styles.subtitle}>{subtitle}</p>}
           </div>
           {readout && <Readout fields={readout} />}
         </div>
       </header>
       <main class={cx(styles.main, single && styles.mainSingle)}>{children}</main>
+      {settingsOpen && modelRole && <ModelSettingsPopup role={modelRole} onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }

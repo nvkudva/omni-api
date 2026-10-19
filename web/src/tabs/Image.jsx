@@ -122,6 +122,7 @@ export default function Image() {
       title="Image"
       subtitle="Text to image with a local diffusion model. First request loads it (~1 min); fewer steps and smaller sizes are faster."
       readout={readout}
+      modelRole="image"
     >
       <Panel
         title="Request"

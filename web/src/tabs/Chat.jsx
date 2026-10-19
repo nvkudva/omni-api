@@ -206,7 +206,7 @@ export default function Chat() {
   ];
 
   return (
-    <Workbench title="Chat" subtitle="Streaming completions from the chat role, OpenAI wire format." readout={readout}>
+    <Workbench title="Chat" subtitle="Streaming completions from the chat role, OpenAI wire format." readout={readout} modelRole="chat">
       <Panel
         title="Request"
         tools={(

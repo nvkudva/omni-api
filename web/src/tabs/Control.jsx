@@ -4,7 +4,7 @@ import { serverAction, serverInfo, serverLogs, workerAction } from "../api/endpo
 import { pollRuntime, runtime } from "../api/roles.js";
 import * as ui from "../components/ui.jsx";
 import { Panel, Workbench } from "../components/workbench.jsx";
-import { WorkerRow } from "./Models.jsx";
+import { Memory } from "./Models.jsx";
 import styles from "./Control.module.css";
 
 const RECONNECT_TIMEOUT_MS = 60000;
@@ -211,25 +211,6 @@ function Ollama({ info, onChanged }) {
   );
 }
 
-function Workers() {
-  const workers = runtime.value.memory?.workers ?? {};
-  const entries = Object.entries(workers);
-  return (
-    <Panel title="Workers" meta="stt · tts · image · video" flush>
-      {entries.length
-        ? (
-          <table>
-            <thead><tr><th>Worker</th><th>Status</th><th>CPU</th><th>Memory</th><th /></tr></thead>
-            <tbody>
-              {entries.map(([name, worker]) => <WorkerRow key={name} name={name} worker={worker} onChanged={pollRuntime} />)}
-            </tbody>
-          </table>
-        )
-        : <ui.Empty>No workers reported. If the gateway is down, restart it above.</ui.Empty>}
-    </Panel>
-  );
-}
-
 export function Server() {
   const { info, error, refresh } = useInfo();
   const reconnected = () => {
@@ -237,12 +218,16 @@ export function Server() {
     pollHealth();
     pollRuntime();
   };
+  const memory = runtime.value.memory;
+  const roles = Object.fromEntries(
+    Object.entries(runtime.value.roles).map(([role, entry]) => [role, { default: entry.model }]),
+  );
   return (
     <Workbench single title="Server" subtitle="Start, stop and restart the gateway, Ollama and the workers.">
       {error && <ui.ErrorText>server info failed: {error}</ui.ErrorText>}
       {info && <Gateway info={info} onReconnected={reconnected} />}
       {info && <Ollama info={info} onChanged={async () => { await refresh(); await pollRuntime(); }} />}
-      <Workers />
+      <Memory memory={memory} roles={roles} onChanged={pollRuntime} />
     </Workbench>
   );
 }

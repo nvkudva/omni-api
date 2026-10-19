@@ -14,6 +14,8 @@
 }
 .barInner { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: flex-end; }
 .barHead { flex: 1 1 300px; min-width: 0; }
+.titleRow { display: flex; align-items: center; gap: 4px; }
+.titleRow .title { flex: none; }
 .title { font-size: 20px; font-weight: 600; letter-spacing: -0.018em; }
 .subtitle { margin: 4px 0 0; color: var(--text-2); font-size: 13px; line-height: 1.5; max-width: 74ch; }
 

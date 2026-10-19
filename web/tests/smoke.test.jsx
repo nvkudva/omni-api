@@ -102,7 +102,7 @@ describe("pages render before the first poll", () => {
 
   test("Settings lists its sections beside the server controls", () => {
     const html = render(<pages.Settings />);
-    for (const word of ["Server", "Models", "Workers"]) expect(html).toContain(word);
+    for (const word of ["Server", "All models", "Memory", "Chat"]) expect(html).toContain(word);
     for (const word of ["Runtime", "Appearance", ">Logs<", ">Health<"]) expect(html).not.toContain(word);
   });
 
@@ -112,6 +112,14 @@ describe("pages render before the first poll", () => {
       const html = render(<Page active />);
       expect(html).toContain(endpoint);
       expect(html).not.toContain("POST /v1/");
+    }
+  });
+
+  test("each role page header has a model settings button", () => {
+    for (const [name, Page] of Object.entries(pages)) {
+      if (name === "Models" || name === "Settings") continue;
+      const html = render(<Page active />);
+      expect(html).toContain("model settings");
     }
   });
 });

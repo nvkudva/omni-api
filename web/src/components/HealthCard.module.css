@@ -1,0 +1,10 @@
+/* Per-role runtime readout at the foot of a model card's header: its own card, styled like the log card. */
+.healthCard { grid-column: 1 / -1; min-width: 0; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.healthHead { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 8px; }
+.healthTitle { font-size: 13px; font-weight: 600; }
+.healthMeta { margin-left: auto; font-family: var(--font); font-size: 11px; color: var(--text-2); }
+.readout { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 6px 12px; padding: 8px; background: var(--surface-2); border-top: 1px solid var(--hairline); }
+.readout > div { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.readout dt { color: var(--text-3); font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
+.readout dd { margin: 0; font-family: var(--font); font-size: 12px; display: inline-flex; align-items: center; gap: 6px; overflow-wrap: anywhere; }
+.empty { padding: 8px; border-top: 1px solid var(--hairline); }

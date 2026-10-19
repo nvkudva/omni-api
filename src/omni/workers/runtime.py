@@ -42,7 +42,9 @@ class Lazy:
         self._model: Any = None
         self._last_used = 0.0
         self._lock = threading.Lock()
-        threading.Thread(target=self._unload_when_idle, daemon=True).start()
+        # idle_seconds 0 means never unload, so there is no timer to run.
+        if idle_seconds > 0:
+            threading.Thread(target=self._unload_when_idle, daemon=True).start()
 
     @property
     def loaded(self) -> bool:

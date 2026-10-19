@@ -137,7 +137,7 @@ export default function Tts() {
   ];
 
   return (
-    <Workbench title="Text to speech" subtitle="Kokoro voices on MLX, returned as WAV. The first request loads the voice model." readout={readout}>
+    <Workbench title="Text to speech" subtitle="Kokoro voices on MLX, returned as WAV. The first request loads the voice model." readout={readout} modelRole="tts">
       <Panel
         title="Request"
         tools={<UiJson view={view} onChange={setView} />}

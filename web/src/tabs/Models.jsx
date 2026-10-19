@@ -3,19 +3,16 @@ import { getJson } from "../api/client.js";
 import { models } from "../api/models.js";
 import {
   loadRole,
-  memory as fetchMemory,
   modelStatus,
   serverInfo,
   unloadRole,
   workerAction,
   workersAction,
 } from "../api/endpoints.js";
-import { installs, matchesModel } from "../api/roles.js";
+import { installs, matchesModel, ROLE_ORDER, runtime } from "../api/roles.js";
 import { pollHealth } from "../api/health.js";
 import { gb } from "../lib/format.js";
-import { usePolling } from "../hooks/usePolling.js";
 import { ask, withForce } from "../components/Confirm.jsx";
-import * as store from "../store.js";
 import * as ui from "../components/ui.jsx";
 import { Workbench } from "../components/workbench.jsx";
 import { RoleModelCard, Section, Tunable } from "../components/RoleModelCard.jsx";
@@ -27,14 +24,16 @@ export { DownloadedList, WarmSwitch } from "../components/RoleModelCard.jsx";
 export { GatedNotice, Install, Search } from "../components/FindAndInstall.jsx";
 export { RoleModelCard as RoleSetup } from "../components/RoleModelCard.jsx";
 
-const MEMORY_POLL_MS = 5000;
-
 const GATEWAY_TUNABLE = {
   key: "gateway.idle_unload_minutes",
-  label: "Idle unload (minutes)",
+  label: "Idle unload",
   hint: "Unload a worker's model after this long unused. Restarts every worker.",
   number: true,
-  step: "any",
+  options: [
+    { value: 0, label: "Never" },
+    { value: 10, label: "10 minutes" },
+    { value: 20, label: "20 minutes" },
+  ],
 };
 
 function useAction(onChanged) {
@@ -56,6 +55,17 @@ function useAction(onChanged) {
 function setResidency(role, load, model, { force = false } = {}) {
   const call = load ? loadRole : unloadRole;
   return call({ role, model, force });
+}
+
+const rankRole = (role) => {
+  const index = ROLE_ORDER.indexOf(role);
+  return index === -1 ? ROLE_ORDER.length : index;
+};
+
+/** The role cards in the same order as the mini cards' tabs, whatever order the
+ *  status API happened to return its roles in. */
+export function orderRoles(roles) {
+  return Object.entries(roles).sort(([a], [b]) => rankRole(a) - rankRole(b));
 }
 
 /** Start, stop and restart the workers and Ollama. Kept beside the models they serve. */
@@ -125,18 +135,6 @@ export function ModelRows() {
       <td>{model.id}{defaults[model.role] === model.id ? "  (default)" : ""}</td>
     </tr>
   ));
-}
-
-function useMemory(active) {
-  const [memory, setMemory] = useState(null);
-  usePolling(async () => {
-    try {
-      setMemory(await fetchMemory());
-    } catch {
-      setMemory(null);
-    }
-  }, MEMORY_POLL_MS, { active });
-  return memory;
 }
 
 export function OllamaRow({ model, roles, onChanged }) {
@@ -214,16 +212,16 @@ export function Memory({ memory, roles, onChanged }) {
   );
 }
 
-export default function Models({ active }) {
+export default function Models() {
   const [status, setStatus] = useState(null);
   const [managed, setManaged] = useState(false);
   const [tunables, setTunables] = useState(null);
   const [pins, setPins] = useState([]);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
-  const [focus, setFocus] = useState(() => store.get("omni.setupRole", null));
   const [addRole, setAddRole] = useState(null);
-  const memory = useMemory(active);
+  // RAM figures ride the shared runtime poll; the meters themselves live on the Server tab.
+  const memory = runtime.value.memory;
 
   const refresh = async () => {
     try {
@@ -243,10 +241,6 @@ export default function Models({ active }) {
     }
   };
 
-  useEffect(() => {
-    setFocus(store.get("omni.setupRole", null));
-  }, []);
-
   const isDownloading = Object.values(installs.value).some((progress) => progress.busy);
   useEffect(() => {
     if (!isDownloading) refresh();
@@ -257,10 +251,9 @@ export default function Models({ active }) {
     refresh();
   };
 
-  const entries = status ? Object.entries(status.roles) : [];
-  const ordered = focus && status?.roles[focus]
-    ? [[focus, status.roles[focus]], ...entries.filter(([role]) => role !== focus)]
-    : entries;
+  // Cards read in the mini tabs' order, not the API's; the picked role is
+  // highlighted in the nav rather than pulled to the front.
+  const entries = status ? orderRoles(status.roles) : [];
   const downloadedTotal = entries.reduce((total, [, entry]) => total + (entry.total_bytes ?? 0), 0);
   const ramUsed = memory ? memory.total_bytes - memory.available_bytes : null;
 
@@ -280,11 +273,10 @@ export default function Models({ active }) {
         <>
           <GlobalControls managed={managed} tunables={tunables} onChanged={changed} onSaved={refresh} />
           <div class={setup.cards}>
-            {ordered.map(([role, entry]) => (
+            {entries.map(([role, entry]) => (
               <RoleModelCard key={role} density="detail" role={role} entry={entry} pinned={pins.includes(role)} tunables={tunables} onChanged={changed} onSaved={refresh} onAdd={setAddRole} />
             ))}
           </div>
-          <Memory memory={memory} roles={Object.fromEntries(entries.map(([role, entry]) => [role, { default: entry.default }]))} onChanged={changed} />
         </>
       )}
       {addRole && <FindAndInstall key={addRole} role={addRole} onClose={() => setAddRole(null)} onInstalled={() => changed("")} />}

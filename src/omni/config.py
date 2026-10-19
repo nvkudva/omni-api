@@ -77,12 +77,10 @@ def validate(settings: dict) -> None:
     gateway = settings["gateway"]
     if not 1 <= gateway["port"] <= 65535:
         raise ConfigError("gateway.port must be between 1 and 65535")
-    if gateway["idle_unload_minutes"] <= 0:
-        raise ConfigError("gateway.idle_unload_minutes must be greater than 0")
+    if not 0 <= gateway["idle_unload_minutes"] <= 1440:
+        raise ConfigError("gateway.idle_unload_minutes must be between 0 (never unload) and 1440")
     if not gateway["host"].strip():
         raise ConfigError("gateway.host must not be empty")
-    if not 0 < gateway["idle_unload_minutes"] <= 1440:
-        raise ConfigError("gateway.idle_unload_minutes must be between 0 and 1440")
     for section in ("chat", "decide", "embed", "stt", "tts", "image", "video"):
         if not settings[section]["model"].strip():
             raise ConfigError(f"{section}.model must not be empty")

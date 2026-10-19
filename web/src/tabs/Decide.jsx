@@ -224,6 +224,7 @@ export default function Decide() {
       title="Decide"
       subtitle="Yes/no, choice and score questions answered as probability distributions in one forward pass."
       readout={readout}
+      modelRole="decide"
     >
       <Panel
         title="Request"

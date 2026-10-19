@@ -120,7 +120,16 @@ a:hover { text-decoration: underline; }
 a:focus-visible, summary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
 * { scrollbar-width: thin; scrollbar-color: var(--hairline-strong) transparent; }
 
-table { width: 100%; border-collapse: collapse; }
+/* Separate borders so the frame can be rounded: only bottom hairlines are used,
+   so collapsing them made no visual difference. */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
 th {
   text-align: left;
   font-weight: 500;

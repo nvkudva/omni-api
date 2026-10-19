@@ -258,6 +258,7 @@ export default function Embed() {
       title="Embed"
       subtitle="Index files and folders, then search them by meaning. The model reads text only: images are indexed by a vision-model caption and audio by its transcript."
       readout={readout}
+      modelRole="embed"
     >
       <Panel
         title="Corpus"

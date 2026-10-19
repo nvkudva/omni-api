@@ -3,12 +3,14 @@
 The heavy runtimes (torch, mlx, parakeet) are imported lazily inside each worker, so importing the
 apps and calling their validation paths here does not load a model.
 """
+import time
 import unittest
+from unittest.mock import patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from omni.workers import image, stt, tts, video
+from omni.workers import image, runtime, stt, tts, video
 from omni.workers.runtime import Lazy
 
 
@@ -28,6 +30,22 @@ class LazyModel(unittest.TestCase):
         # dropping an already dropped model is a no-op
         lazy.unload()
         self.assertEqual(dropped, [True])
+
+    def test_zero_idle_seconds_never_unloads(self):
+        # 0 is "never": the model stays resident no matter how long it sits unused.
+        with patch.object(runtime, "IDLE_CHECK_SECONDS", 0.01):
+            lazy = Lazy(lambda: 42, idle_seconds=0)
+            lazy.load()
+            time.sleep(0.05)
+            self.assertTrue(lazy.loaded)
+
+    def test_positive_idle_seconds_drops_after_the_window(self):
+        # the control for the test above: with a real window the idle thread does drop the model
+        with patch.object(runtime, "IDLE_CHECK_SECONDS", 0.01):
+            lazy = Lazy(lambda: 42, idle_seconds=0.01)
+            lazy.load()
+            time.sleep(0.2)
+            self.assertFalse(lazy.loaded)
 
 
 class WorkerApps(unittest.TestCase):

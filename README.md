@@ -10,9 +10,69 @@ The first client is Hyperlight.
 
 ![Playground — Chat tab, dark theme](docs/screenshots/playground-chat.png)
 
-The playground at `/playground`: every role is a card on top (runner, endpoint, warm switch), and each tab is a workbench with a UI / JSON / cURL view of the same request. Below, the same page on a phone-width screen — cards scroll horizontally and the active card scrolls into view.
+The playground at `/playground`: every role is a card on top (runner, endpoint, warm switch), and each tab is a workbench with a UI / JSON / cURL view of the same request.
 
-![Playground on a narrow screen](docs/screenshots/playground-mobile.png)
+---
+
+## How it works
+
+```
+apps ──► 127.0.0.1:10000  omni gateway (FastAPI + httpx streaming proxy)
+           /v1/chat/completions      ──► Ollama          OLLAMA_HOST, else 127.0.0.1:11434
+           /v1/systemone             ──► Ollama          same instance, scored in the gateway
+           /v1/embeddings            ──► Ollama          same instance, EmbeddingGemma task prompts added in the gateway
+           /v1/images/generations    ──► image worker    unix:~/.omni-api/run/image.sock
+           /v1/audio/transcriptions  ──► stt worker      unix:~/.omni-api/run/stt.sock
+           /v1/audio/speech          ──► tts worker      unix:~/.omni-api/run/tts.sock
+           /playground, /static      ──► built playground (src/omni/static/app)
+```
+
+- **Gateway** (`gateway/`): the FastAPI app (`gateway/app.py`) builds the shared context and mounts one module per route family (`gateway/routes/`). `gateway/proxy.py` streams each request through to its worker with httpx, filling in the default chat model when the request leaves `model` out.
+- **Supervisor** (`supervisor/`):
+  - `pool.py` spawns each worker in its own process group and probes `/health` every 2 s.
+  - Restarts failed workers with exponential backoff, one lock per worker so a restart and the watch loop never overlap.
+  - `process.py` records each child's pid and command line, so on `down` only a pid that is still ours is signalled; leftover workers from an earlier run are cleaned up on start.
+- **Workers** (`workers/`): each role runs in its own uvicorn process, so a crash or memory spike in one model never takes down the others. Each loads its model on first use behind one lock and unloads it when idle.
+- **Chat, decide and embed** use the machine's own Ollama address (`OLLAMA_HOST`, else `127.0.0.1:11434`). If nothing answers there, omni spawns `ollama serve` on that same address; it never moves Ollama to another port.
+- **Decide** (`inference/decide.py`) turns each question into a lettered multiple-choice prompt, asks Ollama for one token with `top_logprobs`, and turns the option-letter probabilities into noul / choice / score answers. The prompt is OneJev's `qev-labels-v2` format, rendered as raw Qwen ChatML with thinking off.
+- **Image** (`workers/image.py`) runs `QwenImage21Pipeline` from diffusers on MPS in bf16. `[image] steps` sets the default step count.
+
+---
+
+## Usage
+
+```sh
+omni init      # install Ollama if missing, pull the chat/decide/embed models
+omni serve     # foreground: gateway + all workers
+omni up        # same, in the background (logs: ~/.omni-api/logs/omni.log)
+omni status    # worker health as JSON
+omni down      # stop the gateway and every worker
+```
+
+Then open **http://127.0.0.1:10000/playground**.
+
+### Playground
+
+Preact + CSS modules, built with Vite from `web/` into `src/omni/static/app/` (the built files are checked in, so `omni up` needs no Node). After editing `web/`:
+
+```bash
+cd web && bun install && bun run build   # rebuild into src/omni/static/app
+bun run dev                              # hot-reload dev server on :5180, proxies the API to :10000
+```
+
+Light, dark or system theme, picked in the sidebar. Its tabs:
+
+- **Chat**: streaming replies with a token rate. An attach button appears when the model has Ollama's `vision` capability.
+- **Decide**: yes/no (noul), choice and score questions, with probability bars.
+- **Image**: prompt, size, steps, seed and negative prompt; shows and downloads PNGs.
+- **Video**: prompt, size, length, seed and an optional first frame; queues a job, polls it and plays the mp4.
+- **Models**: per-role default picker, installed models with delete, install from Ollama or Hugging Face with progress, and memory with warnings.
+- **Embed**: rank documents against a query by cosine similarity.
+- **STT**: record from the mic or upload a file; shows a transcript with segment timings.
+- **TTS**: pick a voice and speed, play the result, and run a round trip back through stt.
+- **Health**: worker status and loaded models.
+
+---
 
 ## Cool features
 
@@ -70,31 +130,6 @@ Measured on Apple Silicon:
 
 ---
 
-## How it works
-
-```
-apps ──► 127.0.0.1:10000  omni gateway (FastAPI + httpx streaming proxy)
-           /v1/chat/completions      ──► Ollama          OLLAMA_HOST, else 127.0.0.1:11434
-           /v1/systemone             ──► Ollama          same instance, scored in the gateway
-           /v1/embeddings            ──► Ollama          same instance, EmbeddingGemma task prompts added in the gateway
-           /v1/images/generations    ──► image worker    unix:~/.omni-api/run/image.sock
-           /v1/audio/transcriptions  ──► stt worker      unix:~/.omni-api/run/stt.sock
-           /v1/audio/speech          ──► tts worker      unix:~/.omni-api/run/tts.sock
-           /playground, /static      ──► built playground (src/omni/static/app)
-```
-
-- **Gateway** (`gateway/`): the FastAPI app (`gateway/app.py`) builds the shared context and mounts one module per route family (`gateway/routes/`). `gateway/proxy.py` streams each request through to its worker with httpx, filling in the default chat model when the request leaves `model` out.
-- **Supervisor** (`supervisor/`):
-  - `pool.py` spawns each worker in its own process group and probes `/health` every 2 s.
-  - Restarts failed workers with exponential backoff, one lock per worker so a restart and the watch loop never overlap.
-  - `process.py` records each child's pid and command line, so on `down` only a pid that is still ours is signalled; leftover workers from an earlier run are cleaned up on start.
-- **Workers** (`workers/`): each role runs in its own uvicorn process, so a crash or memory spike in one model never takes down the others. Each loads its model on first use behind one lock and unloads it when idle.
-- **Chat, decide and embed** use the machine's own Ollama address (`OLLAMA_HOST`, else `127.0.0.1:11434`). If nothing answers there, omni spawns `ollama serve` on that same address; it never moves Ollama to another port.
-- **Decide** (`inference/decide.py`) turns each question into a lettered multiple-choice prompt, asks Ollama for one token with `top_logprobs`, and turns the option-letter probabilities into noul / choice / score answers. The prompt is OneJev's `qev-labels-v2` format, rendered as raw Qwen ChatML with thinking off.
-- **Image** (`workers/image.py`) runs `QwenImage21Pipeline` from diffusers on MPS in bf16. `[image] steps` sets the default step count.
-
----
-
 ## Install
 
 Requires macOS on Apple Silicon (MLX and MPS), Python 3.12–3.13, [uv](https://docs.astral.sh/uv/), and [Ollama](https://ollama.com) (`omni init` installs it if missing).
@@ -106,38 +141,7 @@ uv tool install -e /path/to/omni-api
 
 To run without installing, from the repo: `uv run omni serve`. From anywhere else: `uv run --project /path/to/omni-api omni serve`.
 
-## Usage
-
-```sh
-omni init      # install Ollama if missing, pull the chat/decide/embed models
-omni serve     # foreground: gateway + all workers
-omni up        # same, in the background (logs: ~/.omni-api/logs/omni.log)
-omni status    # worker health as JSON
-omni down      # stop the gateway and every worker
-```
-
-Then open **http://127.0.0.1:10000/playground**.
-
-### Playground
-
-Preact + CSS modules, built with Vite from `web/` into `src/omni/static/app/` (the built files are checked in, so `omni up` needs no Node). After editing `web/`:
-
-```bash
-cd web && bun install && bun run build   # rebuild into src/omni/static/app
-bun run dev                              # hot-reload dev server on :5180, proxies the API to :10000
-```
-
-Light, dark or system theme, picked in the sidebar. Its tabs:
-
-- **Chat**: streaming replies with a token rate. An attach button appears when the model has Ollama's `vision` capability.
-- **Decide**: yes/no (noul), choice and score questions, with probability bars.
-- **Image**: prompt, size, steps, seed and negative prompt; shows and downloads PNGs.
-- **Video**: prompt, size, length, seed and an optional first frame; queues a job, polls it and plays the mp4.
-- **Models**: per-role default picker, installed models with delete, install from Ollama or Hugging Face with progress, and memory with warnings.
-- **Embed**: rank documents against a query by cosine similarity.
-- **STT**: record from the mic or upload a file; shows a transcript with segment timings.
-- **TTS**: pick a voice and speed, play the result, and run a round trip back through stt.
-- **Health**: worker status and loaded models.
+`omni init` is the first thing to run. It validates `~/.omni-api/config.toml`, installs Ollama when the binary is missing, waits for the server to answer, pulls the chat/decide/embed models and confirms they landed; every failure prints the command to fix it and a link, so run it again from a fresh clone until it prints `ready`.
 
 ---
 

@@ -8,10 +8,12 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import { render } from "preact-render-to-string";
 
 const ModelsModule = await import("../src/tabs/Models.jsx");
-const { GlobalControls, Search, Install, DownloadedList, Memory, GatedNotice } = ModelsModule;
+const { GlobalControls, Search, Install, DownloadedList, Memory, GatedNotice, orderRoles } = ModelsModule;
 const { LogsCard } = await import("../src/components/LogsCard.jsx");
+const { HealthCard } = await import("../src/components/HealthCard.jsx");
+const { health } = await import("../src/api/health.js");
 const Models = ModelsModule.default;
-const { RoleModelCard } = await import("../src/components/RoleModelCard.jsx");
+const { RoleModelCard, Tunable } = await import("../src/components/RoleModelCard.jsx");
 const { FindAndInstall, criteriaFor } = await import("../src/components/FindAndInstall.jsx");
 const { runtime } = await import("../src/api/roles.js");
 const { WorkerRows, ModelRows } = ModelsModule;
@@ -71,7 +73,9 @@ describe("a role's setup card", () => {
     expect(html).toContain("qwen2.5:3b");
     expect(html).toContain("Load");
     expect(html).toContain("Unload");
-    expect(html).toContain("Keep warm");
+    // the keep-warm control is a switch in the card header, not a text button
+    expect(html).toContain('role="switch"');
+    expect(html).toContain("keep warm Chat");
     expect(html).toContain("Delete");
     expect(html).toContain(gb(1_900_000_000));
     // parameters and quantization ride along with the size
@@ -84,7 +88,7 @@ describe("a role's setup card", () => {
     const html = render(<RoleModelCard density="detail" role="decide" entry={MISSING_ENTRY} pinned={false} onChanged={noop} />);
     expect(html).toContain("is not installed; install it first");
     expect(html).toContain("Nothing downloaded for this role yet.");
-    expect(html).toContain("Keep warm");
+    expect(html).toContain('role="switch"');
     expect(html).toContain("disabled");
   });
 
@@ -154,6 +158,17 @@ describe("the Find and Install popup", () => {
   });
 });
 
+describe("the model settings popup", () => {
+  test("one dialog per role, loading its settings card", async () => {
+    const { ModelSettingsPopup } = await import("../src/components/ModelSettings.jsx");
+    const html = render(<ModelSettingsPopup role="chat" onClose={noop} />);
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain("chat model settings");
+    expect(html).toContain("loading model settings…");
+    expect(render(<ModelSettingsPopup role={null} onClose={noop} />)).toBe("");
+  });
+});
+
 describe("the Logs card", () => {
   test("starts minimized, naming the role's log file, with no terminal shown", () => {
     const html = render(<LogsCard role="video" />);
@@ -168,7 +183,32 @@ describe("the Logs card", () => {
   });
 });
 
+describe("the Health card", () => {
+  test("its own card, naming the role and the worker's runtime", () => {
+    health.value = { workers: { image: MEMORY.workers.image } };
+    const html = render(<HealthCard role="image" label="Image" />);
+    expect(html).toContain("Health");
+    expect(html).toContain("Image");
+    expect(html).toContain("ready");
+    expect(html).toContain("Qwen/Qwen-Image-2.1");
+  });
+
+  test("an Ollama role points at the server card", () => {
+    health.value = { workers: {} };
+    expect(render(<HealthCard role="chat" label="Chat" />)).toContain("Served by Ollama");
+  });
+
+  beforeEach(() => {
+    health.value = null;
+  });
+});
+
 describe("the Models section", () => {
+  test("role cards follow the mini tabs' order, not the API's", () => {
+    const apiOrder = { stt: 1, chat: 2, video: 3, embed: 4, tts: 5, decide: 6, image: 7 };
+    expect(orderRoles(apiOrder).map(([role]) => role)).toEqual(["chat", "decide", "embed", "image", "video", "stt", "tts"]);
+  });
+
   test("it starts loading without needing an active prop", () => {
     // Settings mounts the page with no props; effects never run in SSR, so only the loading state renders
     const html = render(<Models />);
@@ -188,6 +228,40 @@ describe("the global worker controls", () => {
   test("restart ollama is disabled when omni does not manage it", () => {
     const html = render(<GlobalControls managed={false} onChanged={noop} />);
     expect(html).toMatch(/disabled[^>]*>Restart Ollama/);
+  });
+});
+
+describe("a tunable setting", () => {
+  const choices = {
+    key: "gateway.idle_unload_minutes",
+    label: "Idle unload",
+    hint: "Unload a worker's model after this long unused.",
+    number: true,
+    options: [
+      { value: 0, label: "Never" },
+      { value: 10, label: "10 minutes" },
+      { value: 20, label: "20 minutes" },
+    ],
+  };
+
+  test("a fixed choice is a dropdown with no Save button", () => {
+    const html = render(<Tunable spec={choices} stored={10} onSaved={noop} />);
+    expect(html).toContain("<select");
+    expect(html).toContain("Never");
+    expect(html).toContain("20 minutes");
+    expect(html).not.toContain(">Save<");
+  });
+
+  test("a stored value outside the choices is shown, not silently reset", () => {
+    const html = render(<Tunable spec={choices} stored={42} onSaved={noop} />);
+    expect(html).toContain("42 minutes");
+  });
+
+  test("a free number still needs the Save button", () => {
+    const spec = { key: "image.steps", label: "Image steps", hint: "", number: true, step: 1 };
+    const html = render(<Tunable spec={spec} stored={4} onSaved={noop} />);
+    expect(html).not.toContain("<select");
+    expect(html).toContain(">Save<");
   });
 });
 

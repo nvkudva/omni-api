@@ -43,7 +43,7 @@ class Validate(unittest.TestCase):
 
     def test_idle_and_steps_and_video(self):
         for mutate in (
-            lambda s: s["gateway"].__setitem__("idle_unload_minutes", 0),
+            lambda s: s["gateway"].__setitem__("idle_unload_minutes", -1),
             lambda s: s["image"].__setitem__("steps", 0),
             lambda s: s["video"].__setitem__("fps", 0),
         ):
@@ -51,6 +51,12 @@ class Validate(unittest.TestCase):
             mutate(settings)
             with self.assertRaises(config.ConfigError):
                 config.validate(settings)
+
+    def test_idle_zero_is_valid_and_means_never(self):
+        settings = config.load()
+        settings["gateway"]["idle_unload_minutes"] = 0
+        config.validate(settings)  # 0 is allowed: the model stays loaded forever
+        self.assertEqual(config.idle_seconds(settings), 0)
 
 
 class Overrides(unittest.TestCase):

@@ -1,58 +1,73 @@
 import { useState } from "preact/hooks";
 import { Icon } from "../components/Icon.jsx";
+import { ROLE_META, ROLE_ORDER } from "../api/roles.js";
 import * as store from "../store.js";
 import * as control from "./Control.jsx";
 import Models from "./Models.jsx";
 import styles from "./Settings.module.css";
 
-const GROUPS = [
-  {
-    title: "Control",
-    sections: [{ value: "server", label: "Server", icon: "server" }],
-  },
-  {
-    title: "Models",
-    sections: [{ value: "models", label: "Models", icon: "models" }],
-  },
-];
-
-const SECTION_VALUES = GROUPS.flatMap((group) => group.sections.map((section) => section.value));
-
 export default function Settings() {
   const [section, setSection] = useState(() => {
     const saved = store.get("omni.settings", "server");
-    return SECTION_VALUES.includes(saved) ? saved : "server";
+    return saved === "models" ? "models" : "server";
   });
+  const [focusRole, setFocusRole] = useState(() => store.get("omni.setupRole", null));
 
-  const choose = (next) => {
-    setSection(next);
-    store.set("omni.settings", next);
+  const chooseServer = () => {
+    setSection("server");
+    store.set("omni.settings", "server");
+  };
+
+  const chooseModels = (role) => {
+    setSection("models");
+    store.set("omni.settings", "models");
+    setFocusRole(role ?? null);
+    store.set("omni.setupRole", role ?? null);
   };
 
   return (
     <div class={styles.page}>
       <nav class={styles.nav} aria-label="Settings sections">
-        {GROUPS.map((group) => (
-          <div key={group.title} class={styles.group}>
-            <h2 class={styles.groupTitle}>{group.title}</h2>
-            {group.sections.map((entry) => (
-              <button
-                type="button"
-                key={entry.value}
-                class={entry.value === section ? [styles.item, styles.itemOn].join(" ") : styles.item}
-                aria-current={entry.value === section ? "page" : undefined}
-                onClick={() => choose(entry.value)}
-              >
-                <Icon name={entry.icon} />
-                {entry.label}
-              </button>
-            ))}
-          </div>
-        ))}
+        <div class={styles.group}>
+          <h2 class={styles.groupTitle}>Control</h2>
+          <button
+            type="button"
+            class={section === "server" ? [styles.item, styles.itemOn].join(" ") : styles.item}
+            aria-current={section === "server" ? "page" : undefined}
+            onClick={chooseServer}
+          >
+            <Icon name="server" />
+            Server
+          </button>
+        </div>
+        <div class={styles.group}>
+          <h2 class={styles.groupTitle}>Models</h2>
+          <button
+            type="button"
+            class={section === "models" && !focusRole ? [styles.item, styles.itemOn].join(" ") : styles.item}
+            aria-current={section === "models" && !focusRole ? "page" : undefined}
+            onClick={() => chooseModels(null)}
+          >
+            <Icon name="models" />
+            All models
+          </button>
+          {ROLE_ORDER.map((role) => (
+            <button
+              type="button"
+              key={role}
+              class={[styles.item, styles.subitem, section === "models" && focusRole === role && styles.itemOn].filter(Boolean).join(" ")}
+              aria-current={section === "models" && focusRole === role ? "page" : undefined}
+              onClick={() => chooseModels(role)}
+            >
+              <Icon name={role} />
+              {ROLE_META[role]?.label ?? role}
+            </button>
+          ))}
+        </div>
       </nav>
       <div class={styles.content}>
         {section === "server" && <control.Server />}
-        {section === "models" && <Models />}
+        {section === "models" && <Models key={focusRole ?? "all"} />}
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { loadModels } from "./api/models.js";
-import { pollRuntime, ROLE_META } from "./api/roles.js";
+import { pollRuntime, ROLE_ORDER } from "./api/roles.js";
 import { usePolling } from "./hooks/usePolling.js";
 import { useTheme } from "./hooks/useTheme.js";
 import { GatewayStatus, LastRequest } from "./components/GatewayStatus.jsx";
@@ -18,10 +18,8 @@ import Stt from "./tabs/Stt.jsx";
 import Tts from "./tabs/Tts.jsx";
 import Settings from "./tabs/Settings.jsx";
 
-const ROLES = ["chat", "decide", "embed", "image", "video", "stt", "tts"];
-
 const COMPONENTS = { chat: Chat, decide: Decide, embed: Embed, image: Image, video: Video, stt: Stt, tts: Tts };
-const TAB_IDS = [...Object.keys(ROLE_META), "settings"];
+const TAB_IDS = [...ROLE_ORDER, "settings"];
 
 // Models and Health used to be tabs of their own; they live in Settings now.
 const RETIRED_TABS = { models: "settings", health: "settings" };
@@ -96,14 +94,14 @@ export default function App() {
         </div>
       </header>
       <nav ref={cardsRef} class={styles.cards} aria-label="Models">
-        {ROLES.map((role) => (
+        {ROLE_ORDER.map((role) => (
           <RoleModelCard key={role} density="mini" role={role} active={role === tab} onOpen={choose} onSetup={openSetup} />
         ))}
       </nav>
       <main class={styles.main}>
         {/* Every page stays mounted so an in-flight request survives a tab
             switch; the inactive ones just hide. */}
-        {ROLES.map((role) => {
+        {ROLE_ORDER.map((role) => {
           const RolePage = COMPONENTS[role];
           return (
             <div key={role} class={role === tab && !settingsOpen ? styles.page : styles.pageHidden} aria-hidden={role === tab && !settingsOpen ? undefined : true}>
