@@ -26,7 +26,7 @@ export function useTurnState() {
   };
 }
 
-export function Workbench({ title, subtitle, readout, single, modelRole, children }) {
+export function Workbench({ title, subtitle, readout, single, modelRole, headerTools, children }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const roleLabel = (modelRole && ROLE_META[modelRole]?.label) ?? modelRole;
   return (
@@ -36,6 +36,12 @@ export function Workbench({ title, subtitle, readout, single, modelRole, childre
           <div class={styles.barHead}>
             <div class={styles.titleRow}>
               <h1 class={styles.title}>{title}</h1>
+            </div>
+            {subtitle && <p class={styles.subtitle}>{subtitle}</p>}
+          </div>
+          {(headerTools || modelRole) && (
+            <div class={styles.barTools}>
+              {headerTools}
               {modelRole && (
                 <ui.IconButton
                   icon="settings"
@@ -45,8 +51,7 @@ export function Workbench({ title, subtitle, readout, single, modelRole, childre
                 />
               )}
             </div>
-            {subtitle && <p class={styles.subtitle}>{subtitle}</p>}
-          </div>
+          )}
           {readout && <Readout fields={readout} />}
         </div>
       </header>

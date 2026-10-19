@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { OLLAMA_ROLES, ROLE_META, install, installs } from "../api/roles.js";
 import { checkModel, searchModels } from "../api/endpoints.js";
-import { gb } from "../lib/format.js";
+import { gb, size } from "../lib/format.js";
 import * as ui from "./ui.jsx";
 import styles from "./FindAndInstall.module.css";
 import tabStyles from "../tabs/tabs.module.css";
@@ -112,13 +112,14 @@ export function Search({ role, onPick, inputRef }) {
       {results && (results.length
         ? (
           <table>
-            <thead><tr><th>Model</th><th>Downloads</th><th>Likes</th><th /></tr></thead>
+            <thead><tr><th>Model</th><th>Downloads</th><th>Likes</th><th>Size</th><th /></tr></thead>
             <tbody>
               {results.map((result) => (
                 <tr key={result.id}>
                   <td><a class={tabStyles.link} href={`https://huggingface.co/${result.id}`} target="_blank" rel="noreferrer">{result.id}</a></td>
                   <td class={tabStyles.numeric}>{(result.downloads ?? 0).toLocaleString()}</td>
                   <td class={tabStyles.numeric}>{(result.likes ?? 0).toLocaleString()}</td>
+                  <td class={tabStyles.numeric}>{result.size_bytes ? `≈ ${size(result.size_bytes)}` : "—"}</td>
                   <td class={tabStyles.actionCell}><ui.Button small onClick={() => onPick(result.name)}>Select</ui.Button></td>
                 </tr>
               ))}

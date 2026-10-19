@@ -72,8 +72,8 @@ export default function App() {
     <div class={styles.shell}>
       <header class={styles.header}>
         <div class={styles.brand}>
-          <img src={`${import.meta.env?.BASE_URL ?? "/"}favicon.svg`} alt="" width="26" height="26" />
-          <span class={styles.brandName}>omni</span>
+          <img src={`${import.meta.env?.BASE_URL ?? "/"}favicon.svg`} alt="" width="28" height="28" />
+          <span class={styles.brandName}>OMNI API</span>
           <GatewayStatus />
         </div>
         <LastRequest />

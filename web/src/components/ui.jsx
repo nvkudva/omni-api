@@ -8,7 +8,7 @@ const cx = (...names) => names.filter(Boolean).join(" ");
 
 // `trailing` is intentionally rendered as a sibling of the <label> element, never
 // inside it, so interactive controls (e.g. a Reset button) do not activate the field.
-export function Field({ label, hint, trailing, children }) {
+export function Field({ label, hint, trailing, class: extra, children }) {
   const id = useId();
   const list = toChildArray(children);
   // only native elements can take the label id; composites (Segmented etc.) label themselves
@@ -16,7 +16,7 @@ export function Field({ label, hint, trailing, children }) {
     ? cloneElement(list[0], { id })
     : children;
   return (
-    <div class={styles.field}>
+    <div class={cx(styles.field, extra)}>
       {(label || trailing) && (
         <span class={styles.fieldLabel}>
           {label && <label htmlFor={id}>{label}</label>}

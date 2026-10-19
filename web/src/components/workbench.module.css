@@ -14,6 +14,10 @@
 }
 .barInner { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: flex-end; }
 .barHead { flex: 1 1 300px; min-width: 0; }
+/* Page-level controls, e.g. the role's model picker plus its settings gear:
+   right side of the bar, vertically centered. */
+.barTools { margin-left: auto; align-self: center; display: flex; align-items: center; gap: 8px; }
+.barTools select { width: auto; max-width: 220px; }
 .titleRow { display: flex; align-items: center; gap: 4px; }
 .titleRow .title { flex: none; }
 .title { font-size: 20px; font-weight: 600; letter-spacing: -0.018em; }

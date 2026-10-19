@@ -55,20 +55,55 @@ def folder_size(folder: Path) -> int:
     return total
 
 
+def _dtype_bytes(dtype: str) -> float:
+    """Bytes per parameter from a safetensors dtype name like `BF16` or `F8_E4M3`."""
+    name = dtype.upper()
+    if "64" in name:
+        return 8
+    if "32" in name:
+        return 4
+    if "16" in name:
+        return 2
+    if "8" in name:
+        return 1
+    if "4" in name:
+        return 0.5
+    if "BOOL" in name:
+        return 0.125
+    return 2
+
+
+def approx_size_bytes(repo) -> int | None:
+    """Approximate download size without extra Hub calls: exact GGUF file bytes when reported,
+    else safetensors parameter counts times their dtype width."""
+    gguf = getattr(repo, "gguf", None) or {}
+    file_size = gguf.get("totalFileSize") if isinstance(gguf, dict) else getattr(gguf, "totalFileSize", None)
+    if file_size:
+        return int(file_size)
+    safetensors = getattr(repo, "safetensors", None) or {}
+    parameters = safetensors.get("parameters") if isinstance(safetensors, dict) else getattr(safetensors, "parameters", None)
+    if not parameters:
+        return None
+    return int(sum(count * _dtype_bytes(dtype) for dtype, count in parameters.items()))
+
+
 def search(role: str, query: str, limit: int = 20) -> list[dict]:
     """Hugging Face repos this role's runtime can load, most downloaded first."""
     filters = dict(SEARCH_FILTERS[role])
     family = filters.pop("family", None)
     terms = query.strip() or family
+    expand = ["downloads", "likes", "pipeline_tag", "safetensors"]
+    if runner(role) == "ollama":
+        expand.append("gguf")
     found = HfApi().list_models(search=terms, sort="downloads", limit=limit * 3 if family else limit,
-                                expand=["downloads", "likes", "pipeline_tag"], **filters)
+                                expand=expand, **filters)
     results = []
     for repo in found:
         if family and family not in repo.id.lower():
             continue
         name = f"hf.co/{repo.id}" if runner(role) == "ollama" else repo.id
         results.append({"name": name, "id": repo.id, "downloads": repo.downloads or 0, "likes": repo.likes or 0,
-                        "pipeline_tag": repo.pipeline_tag})
+                        "pipeline_tag": repo.pipeline_tag, "size_bytes": approx_size_bytes(repo)})
     return results[:limit]
 
 

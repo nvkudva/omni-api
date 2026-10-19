@@ -22,3 +22,8 @@
 
 .input { flex: 1; min-height: 44px; max-height: 200px; resize: none; field-sizing: content; }
 .footHint { margin-right: auto; color: var(--text-3); font-size: 12px; }
+
+/* The system prompt fills the request panel; the message composer sits in the
+   foot beside Send, so the thread tail stays next to the action. */
+.system { flex: 1; min-height: 120px; }
+.system textarea { flex: 1; resize: none; }

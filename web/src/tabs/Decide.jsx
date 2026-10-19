@@ -207,6 +207,12 @@ export default function Decide() {
       title="Decide"
       subtitle="Yes/no, choice and score questions answered as probability distributions in one forward pass."
       modelRole="decide"
+      headerTools={(
+        <select aria-label="decide model" value={effectiveModel} onChange={(event) => choose(event.currentTarget.value)}>
+          <option value="">{models.value.defaults.decide || "default"}</option>
+          {decideModels.filter((name) => name !== models.value.defaults.decide).map((name) => <option key={name} value={name}>{name}</option>)}
+        </select>
+      )}
     >
       <Panel
         title="Request"
@@ -216,10 +222,6 @@ export default function Decide() {
             <select aria-label="load an example" value="" onChange={(event) => loadExample(event.currentTarget.value)}>
               <option value="">Examples…</option>
               {Object.entries(questionSet.EXAMPLES).map(([key, example]) => <option key={key} value={key}>{example.label}</option>)}
-            </select>
-            <select aria-label="decide model" value={effectiveModel} onChange={(event) => choose(event.currentTarget.value)}>
-              <option value="">default</option>
-              {decideModels.map((name) => <option key={name} value={name}>{name}</option>)}
             </select>
             <UiJson view={view} onChange={changeView} />
           </>

@@ -209,23 +209,39 @@ export default function Chat() {
   const openId = turnState.open ?? turns[turns.length - 1]?.id;
   const bubbles = toBubbles(turns, streaming, stream.value);
 
+  const modelPicker = (
+    <select aria-label="chat model" value={selected} onChange={(event) => choose(event.currentTarget.value)}>
+      {names.length ? names.map((name) => <option key={name} value={name}>{name}</option>) : <option value="">no chat models</option>}
+    </select>
+  );
+
   return (
-    <Workbench title="Chat" subtitle="Streaming completions from the chat role, OpenAI wire format." modelRole="chat">
+    <Workbench title="Chat" subtitle="Streaming completions from the chat role, OpenAI wire format." modelRole="chat" headerTools={modelPicker}>
       <Panel
         title="Request"
         endpoint="/v1/chat/completions"
         tools={(
           <>
             {vision && <ui.IconButton icon="plus" label="Attach image" onClick={() => fileInput.current.click()} />}
-            <select aria-label="chat model" value={selected} onChange={(event) => choose(event.currentTarget.value)}>
-              {names.length ? names.map((name) => <option key={name} value={name}>{name}</option>) : <option value="">no chat models</option>}
-            </select>
             <UiJson view={view} onChange={setView} />
           </>
         )}
         foot={(
           <>
-            <span class={styles.footHint}>{view === "json" ? "sending the JSON above" : `${messages.length} messages in the thread`}</span>
+            {view === "ui"
+              ? (
+                <textarea
+                  class={styles.input}
+                  rows={3}
+                  placeholder="Message"
+                  aria-label="Message"
+                  title="Enter to send · Shift+Enter for a newline"
+                  value={input}
+                  onInput={(event) => setInput(event.currentTarget.value)}
+                  onKeyDown={onKeyDown}
+                />
+              )
+              : <span class={styles.footHint}>sending the JSON above</span>}
             {streaming
               ? <ui.Button variant="stop" onClick={() => abort.current?.abort()}>Stop</ui.Button>
               : <ui.Button variant="primary" disabled={!canSend} onClick={send}>Send</ui.Button>}
@@ -233,18 +249,8 @@ export default function Chat() {
         )}
       >
         <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error} curl={curl}>
-          <ui.Field label="System prompt">
-            <textarea rows={2} placeholder="optional" value={system} onInput={(event) => setSystem(event.currentTarget.value)} />
-          </ui.Field>
-          <ui.Field label="Message" hint="Enter to send · Shift+Enter for a newline">
-            <textarea
-              class={styles.input}
-              rows={3}
-              placeholder="Message"
-              value={input}
-              onInput={(event) => setInput(event.currentTarget.value)}
-              onKeyDown={onKeyDown}
-            />
+          <ui.Field label="System prompt" class={styles.system}>
+            <textarea placeholder="optional" value={system} onInput={(event) => setSystem(event.currentTarget.value)} />
           </ui.Field>
           {images.length > 0 && (
             <div class={styles.thumbs}>

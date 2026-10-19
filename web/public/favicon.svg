@@ -1,39 +1,33 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Ollajev giraffe logo">
-  <rect width="512" height="512" rx="112" fill="#FFF6E0"/>
-  <rect x="204" y="300" width="104" height="212" fill="#F2B84B"/>
-  <g fill="#B8702E">
-    <ellipse cx="236" cy="380" rx="20" ry="16"/>
-    <ellipse cx="282" cy="430" rx="18" ry="22"/>
-    <ellipse cx="240" cy="476" rx="22" ry="16"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="OMNI API logo">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B1026"/><stop offset="1" stop-color="#07070D"/>
+    </linearGradient>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#22D3EE"/><stop offset=".55" stop-color="#818CF8"/><stop offset="1" stop-color="#E879F9"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#818CF8" stop-opacity=".45"/><stop offset="1" stop-color="#818CF8" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="150" fill="url(#glow)"/>
+  <g stroke="url(#g)" stroke-width="7" stroke-linecap="round" opacity=".9">
+    <path d="M256 256 L110 150"/><path d="M256 256 L402 150"/>
+    <path d="M256 256 L96 300"/><path d="M256 256 L416 300"/>
+    <path d="M256 256 L176 392"/><path d="M256 256 L336 392"/>
   </g>
-  <g stroke="#6B3F1D" stroke-width="12" stroke-linecap="round">
-    <line x1="226" y1="132" x2="216" y2="80"/>
-    <line x1="286" y1="132" x2="296" y2="80"/>
+  <g fill="#fff">
+    <circle cx="110" cy="150" r="17"/><circle cx="402" cy="150" r="17"/>
+    <circle cx="96" cy="300" r="17"/><circle cx="416" cy="300" r="17"/>
+    <circle cx="176" cy="392" r="17"/><circle cx="336" cy="392" r="17"/>
   </g>
-  <g fill="#6B3F1D">
-    <circle cx="214" cy="74" r="15"/>
-    <circle cx="298" cy="74" r="15"/>
+  <g fill="url(#g)">
+    <circle cx="110" cy="150" r="8" fill="#22D3EE"/><circle cx="402" cy="150" r="8" fill="#E879F9"/>
+    <circle cx="96" cy="300" r="8" fill="#818CF8"/><circle cx="416" cy="300" r="8" fill="#818CF8"/>
+    <circle cx="176" cy="392" r="8" fill="#22D3EE"/><circle cx="336" cy="392" r="8" fill="#E879F9"/>
   </g>
-  <ellipse cx="168" cy="192" rx="38" ry="17" transform="rotate(-25 168 192)" fill="#F2B84B"/>
-  <ellipse cx="344" cy="192" rx="38" ry="17" transform="rotate(25 344 192)" fill="#F2B84B"/>
-  <ellipse cx="170" cy="192" rx="20" ry="8" transform="rotate(-25 170 192)" fill="#E89A8C"/>
-  <ellipse cx="342" cy="192" rx="20" ry="8" transform="rotate(25 342 192)" fill="#E89A8C"/>
-  <rect x="184" y="126" width="144" height="200" rx="68" fill="#F2B84B"/>
-  <g fill="#B8702E">
-    <ellipse cx="256" cy="156" rx="16" ry="12"/>
-    <ellipse cx="208" cy="168" rx="11" ry="9"/>
-    <ellipse cx="306" cy="172" rx="11" ry="9"/>
-  </g>
-  <ellipse cx="256" cy="288" rx="62" ry="46" fill="#FBE3AE"/>
-  <g fill="#3B2312">
-    <circle cx="224" cy="222" r="12"/>
-    <circle cx="288" cy="222" r="12"/>
-    <ellipse cx="238" cy="276" rx="7" ry="10"/>
-    <ellipse cx="274" cy="276" rx="7" ry="10"/>
-  </g>
-  <g fill="#FFFFFF">
-    <circle cx="228" cy="217" r="4"/>
-    <circle cx="292" cy="217" r="4"/>
-  </g>
-  <path d="M236 310 Q256 326 276 310" fill="none" stroke="#3B2312" stroke-width="7" stroke-linecap="round"/>
+  <path d="M256 176 L326 256 L256 336 L186 256 Z" fill="url(#g)"/>
+  <path d="M256 214 L288 256 L256 298 L224 256 Z" fill="#07070D"/>
+  <circle cx="256" cy="256" r="13" fill="#fff"/>
 </svg>
