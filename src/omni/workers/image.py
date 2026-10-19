@@ -1,7 +1,10 @@
 """Text to image: POST /v1/images/generations on Qwen-Image-2.1 through diffusers (MPS, bf16)."""
 import base64
 import io
+import json
+import os
 import time
+from pathlib import Path
 
 from fastapi import HTTPException
 
@@ -11,12 +14,38 @@ settings = config.load()
 model_name = settings["image"]["model"]
 default_steps = settings["image"]["steps"]
 
+_saved_sigmas: list[float] | None = None
+
+
+def _read_saved_sigmas() -> list[float] | None:
+    """The checkpoint's own denoising schedule, when it ships one (Turbo does as `sample_sigmas`)."""
+    try:
+        if os.path.isdir(model_name):
+            path = Path(model_name) / "model_index.json"
+        else:
+            from huggingface_hub import hf_hub_download
+
+            path = Path(hf_hub_download(model_name, "model_index.json"))
+        sigmas = json.loads(path.read_text()).get("sample_sigmas")
+        return [float(value) for value in sigmas] if sigmas else None
+    except Exception:  # noqa: BLE001 - a missing schedule must fall back to the pipeline default
+        return None
+
+
+def _sigmas_for(steps: int) -> list[float] | None:
+    if _saved_sigmas and len(_saved_sigmas) == steps:
+        return _saved_sigmas
+    return None
+
 
 def _load():
     import torch
     from diffusers import QwenImage21Pipeline
 
-    return QwenImage21Pipeline.from_pretrained(model_name, torch_dtype=torch.bfloat16).to("mps")
+    global _saved_sigmas
+    pipe = QwenImage21Pipeline.from_pretrained(model_name, torch_dtype=torch.bfloat16).to("mps")
+    _saved_sigmas = _read_saved_sigmas()
+    return pipe
 
 
 def _empty_cache() -> None:
@@ -36,7 +65,8 @@ def _generate(req: schemas.ImageRequest, width: int, height: int, steps: int) ->
     generator = None if req.seed is None else torch.Generator("mps").manual_seed(req.seed)
     with model.use() as pipe:
         images = pipe(prompt=req.prompt, negative_prompt=req.negative_prompt, width=width, height=height,
-                      num_inference_steps=steps, num_images_per_prompt=req.n, generator=generator).images
+                      num_inference_steps=steps, sigmas=_sigmas_for(steps),
+                      num_images_per_prompt=req.n, generator=generator).images
     encoded = []
     for image in images:
         buffer = io.BytesIO()

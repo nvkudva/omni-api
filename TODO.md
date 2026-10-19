@@ -9,7 +9,8 @@
 - [ ] Warm embed at worker start or show "loading model" in playground: cold first embed takes ~45 s (MPS warmup), warm 0.03 s
 - [x] Drop ollajev: decide via Ollama logprobs, Ollama on its configured address, `omni init` installs Ollama
 - [x] Ollama default runner: decide=OneJev 0.8B GGUF, embed=embeddinggemma-2; image role via Qwen-Image-2.1 diffusers worker; playground Image tab
-- [ ] Verify Qwen-Image-2.1 generation end to end through the gateway (load time, s/step at 1024²)
+- [x] Image default switched to Qwen-Image-2.1-Turbo at 8 steps, with the checkpoint's `sample_sigmas` passed explicitly (pinned diffusers ignores it)
+- [ ] Verify Qwen-Image-2.1-Turbo generation end to end through the gateway (load time, s/step at 1024²)
 - [x] Playground audio fix; chat image attach gated on Ollama vision capability
 - [x] Video role (LTX-2.5 distilled on MLX) with job API and playground Video tab
 - [x] Models admin: list/install/delete/set default per role, memory check and warnings; playground Models tab

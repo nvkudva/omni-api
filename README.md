@@ -114,7 +114,7 @@ omni brings all of that together:
 | **chat** | `POST /v1/chat/completions` (streaming) | `qwen2.5:3b` | Ollama |
 | **decide** | `POST /v1/systemone` | `hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0` | Ollama (option-letter logprobs) |
 | **embed** | `POST /v1/embeddings` | `embeddinggemma-2` (text) | Ollama |
-| **image** | `POST /v1/images/generations` | `Qwen/Qwen-Image-2.1` | diffusers (MPS, bf16) |
+| **image** | `POST /v1/images/generations` | `Qwen/Qwen-Image-2.1-Turbo` | diffusers (MPS, bf16) |
 | **video** | `POST /v1/videos`, `GET /v1/videos/{id}`, `GET /v1/videos/{id}/content` | `dgrauet/ltx-2.5-mlx-q4` | ltx-2-mlx (LTX-2.5 distilled, 4-bit) |
 | **stt** | `POST /v1/audio/transcriptions` | `mlx-community/parakeet-tdt-0.6b-v3` | parakeet-mlx |
 | **tts** | `POST /v1/audio/speech`, `GET /v1/audio/voices` | `prince-canuma/Kokoro-82M-4bit` (27 voices) | mlx-audio |
@@ -172,7 +172,7 @@ curl -N localhost:10000/v1/chat/completions -H 'content-type: application/json' 
 curl localhost:10000/v1/embeddings -H 'content-type: application/json' \
   -d '{"input":"how do I get a refund?","input_type":"query"}'
 
-# image → png (Qwen-Image-2.1; first call loads the model)
+# image → png (Qwen-Image-2.1-Turbo; first call loads the model)
 curl localhost:10000/v1/images/generations -H 'content-type: application/json' \
   -d '{"prompt":"a lighthouse at dawn","size":"1024x1024","steps":20}' | jq -r '.data[0].b64_json' | base64 -d > out.png
 
@@ -275,7 +275,7 @@ Ports:
 - **The first request to each role is slow.** It loads the model, and some roles download on first use.
   Pin the ones you use often (the card switch in the playground, or `POST /admin/pins`) and they stay
   loaded instead:
-  - **image:** loading Qwen-Image-2.1 takes about a minute; each 1024² image takes minutes at 40 steps.
+  - **image:** loading Qwen-Image-2.1-Turbo takes about a minute; each 1024² image takes under a minute at 8 steps.
   - **video:** the LTX-2.5 4-bit pack is about 51 GB plus its Gemma text encoder; loading takes minutes. Ollama can't run video models, so this runs on MLX. The pack lives in a gated Hugging Face repo (`dgrauet/ltx-2.5-mlx-q4`, as does the q8 one), so accept its terms before the first run.
   - **stt stays unquantized:** parakeet-mlx loads dense checkpoints only, so a 4-bit parakeet pack cannot load.
   - **tts:** the first call also downloads a spaCy model and voice weights.

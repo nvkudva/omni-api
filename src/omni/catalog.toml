@@ -23,8 +23,11 @@ model = "prince-canuma/Kokoro-82M-4bit"
 voice = "af_heart"
 
 [image]
-model = "Qwen/Qwen-Image-2.1"
-steps = 40
+# Turbo: same 7B pipeline distilled to 8 steps. It ships its own sampling
+# schedule in model_index.json (`sample_sigmas`), which the pinned diffusers
+# does not read yet, so the worker passes it explicitly (workers/image.py).
+model = "Qwen/Qwen-Image-2.1-Turbo"
+steps = 8
 
 [video]
 # 4-bit MLX: the same 28-file LTX-2.5 pack as q8, ~51 GB instead of ~75 GB.

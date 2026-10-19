@@ -19,7 +19,7 @@ class Supports(unittest.TestCase):
         defaults = {
             "stt": "mlx-community/parakeet-tdt-0.6b-v3",
             "tts": "prince-canuma/Kokoro-82M-4bit",
-            "image": "Qwen/Qwen-Image-2.1",
+            "image": "Qwen/Qwen-Image-2.1-Turbo",
             "video": "dgrauet/ltx-2.5-mlx-q4",
         }
         for role, repo in defaults.items():
@@ -28,6 +28,7 @@ class Supports(unittest.TestCase):
     def test_image_no_longer_accepts_any_repo_that_merely_says_qwen_image(self):
         self.assertFalse(roles.supports("image", "someone/Qwen-Image-XL"))
         self.assertTrue(roles.supports("image", "Qwen/Qwen-Image-2.1"))
+        self.assertTrue(roles.supports("image", "Qwen/Qwen-Image-2.1-Turbo"))
 
     def test_an_ollama_role_accepts_anything_the_search_already_filtered(self):
         self.assertTrue(roles.supports("chat", "qwen2.5:3b"))

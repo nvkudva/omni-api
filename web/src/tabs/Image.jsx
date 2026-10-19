@@ -33,7 +33,7 @@ export default function Image() {
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [negative, setNegative] = useState("");
   const [size, setSize] = useState("512x512");
-  const [steps, setSteps] = useState(40);
+  const [steps, setSteps] = useState(8);
   const [seed, setSeed] = useState("");
   const [turns, setTurns] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -110,7 +110,7 @@ export default function Image() {
   return (
     <Workbench
       title="Image"
-      subtitle="Text to image with a local diffusion model. First request loads it (~1 min); fewer steps and smaller sizes are faster."
+      subtitle="Text to image with Qwen-Image-2.1-Turbo (8 steps). First request loads it (~1 min); smaller sizes are faster."
       modelRole="image"
     >
       <Panel
