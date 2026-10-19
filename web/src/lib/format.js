@@ -1,5 +1,7 @@
 export const GB = 1024 ** 3;
 
+export const MB = 1024 ** 2;
+
 export const gb = (bytes) => `${(bytes / GB).toFixed(1)} GB`;
 
 export const since = (start) => Math.round(performance.now() - start);
@@ -23,4 +25,11 @@ export function clock(seconds) {
 export function wavSeconds(buffer) {
   const byteRate = new DataView(buffer).getUint32(28, true);
   return byteRate ? (buffer.byteLength - 44) / byteRate : 0;
+}
+
+export function size(bytes) {
+  if (bytes >= GB) return `${(bytes / GB).toFixed(1)} GB`;
+  if (bytes >= MB) return `${(bytes / MB).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
 }

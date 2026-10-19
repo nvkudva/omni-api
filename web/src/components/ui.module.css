@@ -114,6 +114,7 @@
 .dot_ok { background: var(--green); }
 .dot_busy { background: var(--orange); }
 .dot_bad { background: var(--red); }
+.dot_idle { background: var(--text-3); }
 
 .spinner {
   display: inline-block; width: 14px; height: 14px; border-radius: 50%;

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { ask, withForce } from "./Confirm.jsx";
-import { ROLE_META, install, installs, runtime, setPinned } from "../api/roles.js";
-import { deleteModel, loadRole, saveSetting, setRoleDefault, unloadRole } from "../api/endpoints.js";
+import { ROLE_META, WORKER_ROLES, install, installs, pollRuntime, runtime, setPinned } from "../api/roles.js";
+import { deleteModel, loadRole, saveSetting, setRoleDefault, unloadRole, workerAction } from "../api/endpoints.js";
 import { InstallProgress } from "./FindAndInstall.jsx";
 import { HealthCard } from "./HealthCard.jsx";
 import { LogsCard } from "./LogsCard.jsx";
@@ -12,15 +12,47 @@ import * as ui from "./ui.jsx";
 import styles from "./RoleModelCard.module.css";
 import tabStyles from "../tabs/tabs.module.css";
 
-const STATUS_WORD = {
-  ready: "running",
-  external: "running",
-  loaded: "running",
-  idle: "idle",
-  starting: "starting",
-  restarting: "restarting",
-  stopped: "stopped",
-  unknown: "checking…",
+/**
+ * One card, one status. A card is small enough that its light, its word and its button are read
+ * together, so all three come from here: the dot can never say "stopped" beside the word
+ * "running". Precedence runs from "can this run at all" to "is it being held for me":
+ * a card that needs setup, then a runtime that is down, then one starting up, then what the
+ * runtime holds, and last whether omni is keeping it there.
+ */
+function cardStatus(state, { checking, needsSetup, installing }) {
+  if (checking) return "checking";
+  if (needsSetup) return "blocked";
+  if (installing) return "installing";
+  const { status, loaded, pinned } = state;
+  if (status === "stopped" || status === "unavailable") return "stopped";
+  if (status === "failed") return "failed";
+  if (status === "starting" || status === "restarting") return "starting";
+  if (loaded) return pinned ? "warm" : "running";
+  return pinned ? "loading" : "idle";
+}
+
+/**
+ * What each status wears: a colour, the word on the card, and the tooltip that explains the word.
+ * `warm` and `running` are both "in memory now"; they differ in whether it stays there, which is
+ * exactly what the switch beside them decides.
+ */
+const CARD_STATUS = {
+  checking: { tone: "busy", word: "checking…", hint: () => "waiting for the gateway" },
+  blocked: { tone: "busy", word: "needs setup", hint: (state) => state.setupReason || "this role's default model cannot run on this machine" },
+  installing: { tone: "busy", word: "installing…", hint: (state, download) => download?.error || `downloading ${download?.model ?? state.model}` },
+  stopped: {
+    tone: "bad",
+    word: "stopped",
+    hint: (state) => state.engineUrl
+      ? `Ollama at ${state.engineUrl} is not answering, so this model cannot run`
+      : "the worker is not running",
+  },
+  failed: { tone: "bad", word: "failed", hint: () => "the worker keeps failing; its log has the reason" },
+  starting: { tone: "busy", word: "starting…", hint: () => "the worker is coming up" },
+  loading: { tone: "busy", word: "loading…", hint: (state) => `loading ${state.model} into memory` },
+  warm: { tone: "ok", word: "warm", hint: (state) => `${state.runningModel ?? state.model} is in memory and stays loaded` },
+  running: { tone: "ok", word: "running", hint: (state) => `${state.runningModel ?? state.model} is in memory; it unloads once it has been idle` },
+  idle: { tone: "idle", word: "not running", hint: (state) => `${state.model} is not in memory; the next request loads it` },
 };
 
 const UNKNOWN = {
@@ -82,6 +114,29 @@ function useWarmToggle(role, model, pinned, { onChanged, onProblem } = {}) {
     }
   };
   return [busy, flip];
+}
+
+/**
+ * The action a card offers when its runtime is down: start the worker omni supervises. The card
+ * reads the runtime signal, which polls on its own, but a person who just pressed a button should
+ * not wait for the next tick, so the start polls once more before it settles.
+ */
+function useStartWorker(role, onProblem) {
+  const [busy, setBusy] = useState(false);
+  const start = async (event) => {
+    event.stopPropagation();
+    setBusy(true);
+    onProblem?.("");
+    try {
+      await workerAction(role, "start");
+      await pollRuntime();
+    } catch (error) {
+      onProblem?.(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return [busy, start];
 }
 
 /** The keep-warm switch. Mini puts it in the card's footer and detail in the
@@ -275,13 +330,7 @@ export function DownloadedList({ role, installed, onChanged }) {
   );
 }
 
-function StatusDot({ status, loaded }) {
-  if (loaded) return <ui.Dot status="ready" />;
-  if (status === "starting" || status === "restarting" || status === "unknown") return <ui.Dot status="starting" />;
-  return <ui.Dot status="stopped" />;
-}
-
-function MiniCard({ role, active, onOpen, onSetup }) {
+function MiniCard({ role, active, onOpen, onSetup, onServer }) {
   const [problem, setProblem] = useState("");
   const state = runtime.value.roles[role] ?? { ...ROLE_META[role], role, ...UNKNOWN };
 
@@ -291,40 +340,50 @@ function MiniCard({ role, active, onOpen, onSetup }) {
   const setupState = state.setupState ?? "unknown";
   const needsSetup = !checking && (setupState === "missing" || setupState === "incompatible");
   const shownModel = state.runningModel ?? state.model ?? "—";
-  const word = pinned && !running ? "loading…" : STATUS_WORD[state.status] ?? state.status;
   const download = installs.value[role];
   const installing = Boolean(download?.busy);
   const trouble = problem || download?.error || "";
+  const status = cardStatus(state, { checking, needsSetup, installing });
+  const look = CARD_STATUS[status];
+  const word = installing ? download?.status ?? look.word : look.word;
   const [warmBusy, flipWarm] = useWarmToggle(role, state.model, pinned, { onProblem: setProblem });
+  const [startBusy, startWorker] = useStartWorker(role, setProblem);
+
+  // The one thing this card invites: set it up, bring it back up, or decide whether it stays warm.
+  // The footer does not change shape between those beyond swapping its button, so the eye keeps
+  // finding the light and the word in the same place on every card.
+  const action = needsSetup ? "setup"
+    : status === "stopped" || status === "failed"
+      ? (WORKER_ROLES.has(role) ? "start" : "server")
+      : "warm";
 
   const flip = (event) => {
     event.stopPropagation();
     flipWarm();
   };
 
+  const server = (event) => {
+    event.stopPropagation();
+    onServer?.();
+  };
+
   const explain = async (event) => {
     event.stopPropagation();
     const reason = trouble || state.setupReason;
-    if (state.setupState === "incompatible") {
-      const go = await ask({
-        title: `${state.label} can't run this model`,
-        message: reason,
-        confirmLabel: "Open setup",
-        cancelLabel: "Not now",
-      });
-      if (go) onSetup?.(role);
-      return;
-    }
+    // A model that is simply not on disk is the one case a click here can fix. Everything else —
+    // a model this machine cannot run, a runtime that will not come up, a download that failed —
+    // leads to the role's own card in Settings, where the log says what happened.
+    const installable = needsSetup && state.setupState === "missing";
     const go = await ask({
-      title: `${state.label} isn't ready`,
+      title: installable ? `${state.label} isn't ready` : `${state.label} needs attention`,
       message: reason,
-      confirmLabel: "Install now",
+      confirmLabel: installable ? "Install now" : "Open setup",
       cancelLabel: "Not now",
     });
-    if (go) {
-      setProblem("");
-      install(role, state.model);
-    }
+    if (!go) return;
+    setProblem("");
+    if (installable) install(role, state.model);
+    else onSetup?.(role);
   };
 
   const open = (event) => {
@@ -341,7 +400,6 @@ function MiniCard({ role, active, onOpen, onSetup }) {
       <span class={styles.top}>
         <span class={styles.badge} style={{ background: state.color }}><Icon name={role} /></span>
         <button type="button" class={styles.name} aria-label={`Open ${state.label}`} onClick={() => onOpen(role)}>{state.label}</button>
-        {pinned && <span class={styles.warm} title="kept warm: this model stays loaded">warm</span>}
         {(needsSetup || trouble) && (
           <button
             type="button"
@@ -361,32 +419,52 @@ function MiniCard({ role, active, onOpen, onSetup }) {
         {running && <span class={styles.memory}>{gb(state.memoryBytes)}</span>}
       </span>
       <span class={styles.foot}>
-        <span class={styles.status}>
-          <StatusDot status={state.status} loaded={running} />
-          {installing ? download.status : word}
+        <span class={styles.status} title={look.hint(state, download)}>
+          <ui.Dot tone={look.tone} />
+          <span class={styles.word}>{word}</span>
         </span>
-        {needsSetup
-          ? (
-            <button
-              type="button"
-              class={styles.setupButton}
-              disabled={installing}
-              onClick={explain}
-            >
-              Setup
-            </button>
-          )
-          : (
-            <WarmSwitch
-              pinned={pinned}
-              busy={warmBusy}
-              disabled={checking}
-              label={`${pinned ? "stop keeping warm" : "keep warm"} ${state.label}`}
-              title={checking ? "waiting for the gateway"
-                : pinned ? `Stop keeping ${shownModel} warm` : `Keep ${state.model} warm (loads it now and holds it)`}
-              onClick={flip}
-            />
-          )}
+        {action === "setup" && (
+          <button
+            type="button"
+            class={styles.setupButton}
+            disabled={installing}
+            onClick={explain}
+          >
+            Setup
+          </button>
+        )}
+        {action === "start" && (
+          <button
+            type="button"
+            class={styles.startButton}
+            disabled={startBusy}
+            title={`Start the ${state.label} worker`}
+            onClick={startWorker}
+          >
+            Start
+          </button>
+        )}
+        {action === "server" && (
+          <button
+            type="button"
+            class={styles.setupButton}
+            title="Open the server controls"
+            onClick={server}
+          >
+            Server
+          </button>
+        )}
+        {action === "warm" && (
+          <WarmSwitch
+            pinned={pinned}
+            busy={warmBusy}
+            disabled={checking}
+            label={`${pinned ? "stop keeping warm" : "keep warm"} ${state.label}`}
+            title={checking ? "waiting for the gateway"
+              : pinned ? `Stop keeping ${shownModel} warm` : `Keep ${state.model} warm (loads it now and holds it)`}
+            onClick={flip}
+          />
+        )}
       </span>
     </div>
   );
@@ -459,17 +537,18 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
 
 /**
  * One role, two densities. Mini: top-strip navigation card, opens the role's
- * tab, keep-warm switch, Setup prompt when the default cannot run. Detail:
- * Settings card with current model, downloads, health and per-role tunables.
- * Both share keep-warm, install progress and setup state through this module.
- * Detail-only data (`entry`, `tunables`) comes from the Settings page fetch;
- * mini reads the shared `runtime` signal. Mini never mounts detail children.
+ * tab, one status and the action that follows from it (Setup, Start, Server or
+ * keep-warm). Detail: Settings card with current model, downloads, health and
+ * per-role tunables. Both share keep-warm, install progress and setup state
+ * through this module. Detail-only data (`entry`, `tunables`) comes from the
+ * Settings page fetch; mini reads the shared `runtime` signal. Mini never mounts
+ * detail children.
  */
-export function RoleModelCard({ role, density = "mini", active, onOpen, onSetup, entry, pinned, tunables, onChanged, onSaved, onAdd }) {
+export function RoleModelCard({ role, density = "mini", active, onOpen, onSetup, onServer, entry, pinned, tunables, onChanged, onSaved, onAdd }) {
   if (density === "detail") {
     return <DetailCard role={role} entry={entry} pinned={pinned} tunables={tunables} onChanged={onChanged} onSaved={onSaved} onAdd={onAdd} />;
   }
-  return <MiniCard role={role} active={active} onOpen={onOpen} onSetup={onSetup} />;
+  return <MiniCard role={role} active={active} onOpen={onOpen} onSetup={onSetup} onServer={onServer} />;
 }
 
 export function roleMeta(role) {

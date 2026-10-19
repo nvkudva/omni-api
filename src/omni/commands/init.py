@@ -38,7 +38,7 @@ def install_ollama() -> bool:
         print("ollama is not installed and there is no brew, curl or sh here to install it with",
               file=sys.stderr)
         return False
-    print(f"ollama not found; installing: {' '.join(argv)}")
+    print(f"ollama not found; installing: {' '.join(argv)}", flush=True)
     try:
         return subprocess.run(argv, check=False).returncode == 0
     except OSError as failure:
@@ -91,7 +91,8 @@ def model_url(model: str) -> str:
 
 def pull(model: str) -> bool:
     """Download one model, explaining what to do when the download fails."""
-    print(f"pulling {model}")
+    # flush so this lands before ollama's own progress, which it writes to the same fd
+    print(f"pulling {model}", flush=True)
     try:
         done = subprocess.run(["ollama", "pull", model], check=False).returncode == 0
     except OSError as failure:

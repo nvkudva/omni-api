@@ -10,7 +10,7 @@ The first client is Hyperlight.
 
 ![Playground — Chat tab, dark theme](docs/screenshots/playground-chat.png)
 
-The playground at `/playground`: every role is a card on top (runner, endpoint, warm switch), and each tab is a workbench with a UI / JSON / cURL view of the same request.
+The playground at `/playground`: every role is a card on top (runner, endpoint, one status that says what its runtime is doing, and the single action that follows from it), and each tab is a workbench with a UI / JSON / cURL view of the same request.
 
 ---
 
@@ -221,6 +221,20 @@ is a *pin*: turning it on loads the model now and holds it — a worker is re-lo
 idle out, and an Ollama model is held with `keep_alive = -1`. Pins persist in
 `~/.omni-api/pins.json` and are re-applied at startup, so a pinned role is warm again within a minute
 of `omni up` without anyone sending a request.
+
+The card says which of those is true right now, in one word, and the wording is the only status on
+the card, so it can never disagree with the switch beside it:
+
+| the card reads | what is true | what it offers |
+| --- | --- | --- |
+| `warm` | in memory, and held there | switch on — turn it off to let it unload |
+| `running` | in memory now, but it unloads once idle | switch off — turn it on to hold it |
+| `loading…` | held, and on its way into memory | switch on — turn it off to stop holding it |
+| `not running` | not in memory; the next request loads it | switch off |
+| `starting…` | the worker is coming up | — |
+| `stopped` | the worker is down; for chat, decide and embed, Ollama itself is not answering | Start, or Server for the Ollama cases |
+| `failed` | the worker keeps failing | Start — its log in Settings has the reason |
+| `needs setup` | this role's default model cannot run here | Setup |
 
 ---
 

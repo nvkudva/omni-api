@@ -3,8 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { errorText, readDataUrl, record, sseEvents } from "../api/client.js";
 import { chatStream } from "../api/endpoints.js";
 import { models } from "../api/models.js";
-import { runtime } from "../api/roles.js";
 import { curlJson } from "../lib/curl.js";
+import { cx } from "../lib/cx.js";
 import { shorten, since } from "../lib/format.js";
 import * as store from "../store.js";
 import * as ui from "../components/ui.jsx";
@@ -66,6 +66,18 @@ function textOf(message) {
   return "";
 }
 
+/** Turns flattened for the bubble view: a user bubble and/or an assistant bubble each. */
+function toBubbles(turns, streaming, streamingText) {
+  const bubbles = [];
+  turns.forEach((turn, index) => {
+    if (turn.user) bubbles.push({ id: `${turn.id}-user`, role: "user", content: turn.user.content, images: turn.user.images });
+    const isStreaming = streaming && index === turns.length - 1;
+    const body = turn.assistant?.content ?? (isStreaming ? streamingText : "");
+    if (body || isStreaming) bubbles.push({ id: `${turn.id}-assistant`, role: "assistant", content: body });
+  });
+  return bubbles;
+}
+
 function Attachments({ images }) {
   if (!images?.length) return null;
   return (
@@ -84,6 +96,7 @@ export default function Chat() {
   const [streaming, setStreaming] = useState(false);
   const [meta, setMeta] = useState("");
   const [view, setView] = useState("ui");
+  const [conversation, setConversation] = useState(() => store.get("omni.chat.conversation", "chat"));
   const abort = useRef(null);
   const fileInput = useRef(null);
   const stream = useMemo(() => signal(""), []);
@@ -93,7 +106,6 @@ export default function Chat() {
   const names = chatModels();
   const selected = names.includes(model) ? model : (names.includes(models.value.defaults.chat) ? models.value.defaults.chat : names[0] || "");
   const vision = hasVision(selected);
-  const chat = runtime.value.roles.chat;
 
   useEffect(() => () => abort.current?.abort(), []);
   useEffect(() => { if (!vision) setImages([]); }, [vision]);
@@ -107,6 +119,11 @@ export default function Chat() {
   const choose = (name) => {
     setModel(name);
     store.set("omni.chat.model", name);
+  };
+
+  const changeConversation = (next) => {
+    setConversation(next);
+    store.set("omni.chat.conversation", next);
   };
 
   const clear = () => {
@@ -190,28 +207,19 @@ export default function Chat() {
   const jsonHasUser = Boolean(json.body?.messages?.some?.((message) => message.role === "user"));
   const canSend = !streaming && (view === "json" ? Boolean(json.body) && !json.error && jsonHasUser : Boolean(input.trim()));
   const openId = turnState.open ?? turns[turns.length - 1]?.id;
-
-  const readout = [
-    {
-      label: "Model",
-      node: (
-        <select aria-label="chat model" value={selected} onChange={(event) => choose(event.currentTarget.value)}>
-          {names.length ? names.map((name) => <option key={name} value={name}>{name}</option>) : <option value="">no chat models</option>}
-        </select>
-      ),
-    },
-    { label: "Runtime", value: vision ? "ollama · vision" : "ollama" },
-    { label: "API", value: "/v1/chat/completions" },
-    { label: "Last run", value: chat?.loaded ? (meta || "idle") : "not loaded" },
-  ];
+  const bubbles = toBubbles(turns, streaming, stream.value);
 
   return (
-    <Workbench title="Chat" subtitle="Streaming completions from the chat role, OpenAI wire format." readout={readout} modelRole="chat">
+    <Workbench title="Chat" subtitle="Streaming completions from the chat role, OpenAI wire format." modelRole="chat">
       <Panel
         title="Request"
+        endpoint="/v1/chat/completions"
         tools={(
           <>
             {vision && <ui.IconButton icon="plus" label="Attach image" onClick={() => fileInput.current.click()} />}
+            <select aria-label="chat model" value={selected} onChange={(event) => choose(event.currentTarget.value)}>
+              {names.length ? names.map((name) => <option key={name} value={name}>{name}</option>) : <option value="">no chat models</option>}
+            </select>
             <UiJson view={view} onChange={setView} />
           </>
         )}
@@ -270,37 +278,60 @@ export default function Chat() {
       <Panel
         title="Conversation"
         meta={meta}
-        tools={<ui.IconButton icon="trash" label="Clear conversation" disabled={!messages.length || streaming} onClick={clear} />}
+        tools={(
+          <>
+            <ui.Segmented
+              label="conversation view"
+              options={[{ value: "chat", label: "Chat" }, { value: "requests", label: "Requests" }]}
+              value={conversation}
+              onChange={changeConversation}
+            />
+            <ui.IconButton icon="trash" label="Clear conversation" disabled={!messages.length || streaming} onClick={clear} />
+          </>
+        )}
       >
         {turns.length
-          ? (
-            <div class={styles.log}>
-              {turns.map((turn, index) => {
-                const isStreaming = streaming && index === turns.length - 1;
-                const body = turn.assistant?.content ?? (isStreaming ? stream.value : "");
-                return (
-                  <Turn
-                    key={turn.id}
-                    label={`Request #${index + 1}`}
-                    at={turn.user?.at ?? turn.assistant?.at}
-                    model={turn.assistant?.model}
-                    meta={turn.assistant?.meta}
-                    view={turnState.viewOf(turn.id)}
-                    onView={(next) => turnState.setViewOf(turn.id, next)}
-                    open={openId === turn.id}
-                    onToggle={() => turnState.toggle(turn.id)}
-                    summary={<>{turn.user?.content}<Attachments images={turn.user?.images} /></>}
-                    wire={turn.assistant?.request
-                      ? { request: turn.assistant.request, response: turn.assistant.response }
-                      : { request: preview }}
-                  >
-                    <div class={styles.text}>{body}</div>
-                    {isStreaming && !body && <div class={styles.thinking}>…</div>}
-                  </Turn>
-                );
-              })}
-            </div>
-          )
+          ? conversation === "chat"
+            ? (
+              <div class={styles.chat}>
+                {bubbles.map((bubble) => (
+                  <div key={bubble.id} class={cx(styles.bubble, styles[bubble.role])}>
+                    {bubble.content
+                      ? <div class={styles.bubbleText}>{bubble.content}</div>
+                      : <span class={styles.thinking}>…</span>}
+                    <Attachments images={bubble.images} />
+                  </div>
+                ))}
+              </div>
+            )
+            : (
+              <div class={styles.log}>
+                {turns.map((turn, index) => {
+                  const isStreaming = streaming && index === turns.length - 1;
+                  const body = turn.assistant?.content ?? (isStreaming ? stream.value : "");
+                  return (
+                    <Turn
+                      key={turn.id}
+                      label={`Request #${index + 1}`}
+                      at={turn.user?.at ?? turn.assistant?.at}
+                      model={turn.assistant?.model}
+                      meta={turn.assistant?.meta}
+                      view={turnState.viewOf(turn.id)}
+                      onView={(next) => turnState.setViewOf(turn.id, next)}
+                      open={openId === turn.id}
+                      onToggle={() => turnState.toggle(turn.id)}
+                      summary={<>{turn.user?.content}<Attachments images={turn.user?.images} /></>}
+                      wire={turn.assistant?.request
+                        ? { request: turn.assistant.request, response: turn.assistant.response }
+                        : { request: preview }}
+                    >
+                      <div class={styles.text}>{body}</div>
+                      {isStreaming && !body && <div class={styles.thinking}>…</div>}
+                    </Turn>
+                  );
+                })}
+              </div>
+            )
           : <ui.Empty>Build a request on the left and press Send. Replies stream token by token.</ui.Empty>}
       </Panel>
       <LogsCard role="chat" />

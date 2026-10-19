@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { errorText, record } from "../api/client.js";
 import { synthesize, transcribe, voices as fetchVoices } from "../api/endpoints.js";
-import { models } from "../api/models.js";
-import { runtime } from "../api/roles.js";
 import { curlJson } from "../lib/curl.js";
 import { since, wavSeconds } from "../lib/format.js";
 import { usePolling } from "../hooks/usePolling.js";
@@ -64,7 +62,7 @@ export default function Tts() {
 
   // Cap retained clips and revoke the blob URLs we drop.
   const commit = (next) => {
-    const kept = next.slice(0, MAX_CLIPS);
+    const kept = next.slice(-MAX_CLIPS);
     const keptIds = new Set(kept.map((clip) => clip.id));
     for (const dropped of clipsRef.current) {
       if (!keptIds.has(dropped.id) && dropped.url) URL.revokeObjectURL(dropped.url);
@@ -79,7 +77,6 @@ export default function Tts() {
   if (voice) body.voice = voice;
   const json = useJsonRequest(view, body);
   const curl = `${curlJson("/v1/audio/speech", view === "json" && !json.error ? json.body : body)} -o omni.wav`;
-  const role = runtime.value.roles.tts;
 
   const choose = (name) => {
     setChosen(name);
@@ -94,7 +91,7 @@ export default function Tts() {
     const controller = new AbortController();
     abort.current = controller;
     setBusy(true);
-    commit([{ id, at, request: payload, text: payload.input, pending: true }, ...clipsRef.current]);
+    commit([...clipsRef.current, { id, at, request: payload, text: payload.input, pending: true }]);
     setMeta("speaking…");
     const start = performance.now();
     try {
@@ -126,20 +123,14 @@ export default function Tts() {
     }
   };
 
-  const openId = turnState.open ?? clips[0]?.id;
+  const openId = turnState.open ?? clips[clips.length - 1]?.id;
   const canSpeak = !(view === "json" && json.error) && !(view === "ui" && !body.input.trim()) && !busy;
 
-  const readout = [
-    { label: "Model", value: models.value.defaults.tts ?? "—" },
-    { label: "Runtime", value: "mlx-audio · 4-bit" },
-    { label: "API", value: "/v1/audio/speech" },
-    { label: "Last run", value: role?.loaded ? (meta || "idle") : "not loaded" },
-  ];
-
   return (
-    <Workbench title="Text to speech" subtitle="Kokoro voices on MLX, returned as WAV. The first request loads the voice model." readout={readout} modelRole="tts">
+    <Workbench title="Text to speech" subtitle="Kokoro voices on MLX, returned as WAV. The first request loads the voice model." modelRole="tts">
       <Panel
         title="Request"
+        endpoint="/v1/audio/speech"
         tools={<UiJson view={view} onChange={setView} />}
         foot={(
           <>
@@ -179,7 +170,7 @@ export default function Tts() {
               {clips.map((clip, index) => (
                 <Turn
                   key={clip.id}
-                  label={`Clip #${clips.length - index}`}
+                  label={`Clip #${index + 1}`}
                   at={clip.at}
                   model={clip.request?.voice ?? voice}
                   meta={clip.caption}

@@ -6,6 +6,7 @@
 export const CHUNK_CHARS = 1500;
 export const CHUNK_OVERLAP = 150;
 export const MAX_TEXT_BYTES = 2 * 1024 * 1024;
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 const TEXT_EXTENSIONS = new Set([
   "txt", "md", "markdown", "rst", "csv", "tsv", "json", "jsonl", "yaml", "yml", "toml", "ini", "xml", "html", "htm", "css",
@@ -13,14 +14,17 @@ const TEXT_EXTENSIONS = new Set([
   "sh", "zsh", "sql", "log", "tex",
 ]);
 
+// Dropped files often arrive without a mime type, so images are also recognised by extension.
+const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "avif", "heic", "heif", "tif", "tiff"]);
+
 const SKIPPED_PATH = /(^|\/)(node_modules|\.git|__pycache__|dist|build)\//;
 
 /** "text", "image", "audio", or null when the file cannot be indexed. */
 export function kindOf(name, mimeType) {
-  if (mimeType?.startsWith("image/")) return "image";
+  const extension = name.includes(".") ? name.split(".").pop().toLowerCase() : "";
+  if (mimeType?.startsWith("image/") || IMAGE_EXTENSIONS.has(extension)) return "image";
   if (mimeType?.startsWith("audio/")) return "audio";
   if (mimeType?.startsWith("text/")) return "text";
-  const extension = name.includes(".") ? name.split(".").pop().toLowerCase() : "";
   return TEXT_EXTENSIONS.has(extension) ? "text" : null;
 }
 

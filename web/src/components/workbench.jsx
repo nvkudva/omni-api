@@ -6,7 +6,10 @@ import { ModelSettingsPopup } from "./ModelSettings.jsx";
 import styles from "./workbench.module.css";
 
 // The shared request/response workbench: everything the model pages need to lay a
-// request out on the left, a log of turns on the right, and a readout up top.
+// request out on the left and a log of turns on the right. Each role page's
+// endpoint rides in its request panel's header; the role's model and status live
+// on the role card above the page, so a role page does not repeat them. The
+// optional `readout` is for overview pages (Models) that have no role card.
 
 /**
  * Which turn is expanded and which view each turn is showing. `open` is null
@@ -72,13 +75,15 @@ export function Readout({ fields }) {
   );
 }
 
-export function Panel({ title, meta, tools, flush, foot, children }) {
+/** `endpoint` is the page's wire path, shown as a quiet chip beside the title. */
+export function Panel({ title, meta, endpoint, tools, flush, foot, children }) {
   return (
     <section class={styles.panel}>
       {(title || meta || tools) && (
         <header class={styles.panelHead}>
           <div class={styles.panelTitleGroup}>
             {title && <h2 class={styles.panelTitle}>{title}</h2>}
+            {endpoint && <code class={styles.panelEndpoint}>{endpoint}</code>}
             {meta && <span class={styles.panelMeta}>{meta}</span>}
           </div>
           {tools && <div class={styles.panelTools}>{tools}</div>}

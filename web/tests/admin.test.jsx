@@ -15,7 +15,7 @@ const { health } = await import("../src/api/health.js");
 const Models = ModelsModule.default;
 const { RoleModelCard, Tunable } = await import("../src/components/RoleModelCard.jsx");
 const { FindAndInstall, criteriaFor } = await import("../src/components/FindAndInstall.jsx");
-const { runtime } = await import("../src/api/roles.js");
+const { runtime, ROLE_META } = await import("../src/api/roles.js");
 const { WorkerRows, ModelRows } = ModelsModule;
 const { models } = await import("../src/api/models.js");
 const { gb } = await import("../src/lib/format.js");
@@ -266,61 +266,112 @@ describe("a tunable setting", () => {
 });
 
 describe("the sidebar card", () => {
-  const card = (setupState, setupReason = "") => {
+  // A card reads one status: what the runtime is doing, in the person's words, with the one action
+  // that follows from it. Each case here is a state a real gateway reports.
+  const BASE = {
+    model: MISSING_ENTRY.default,
+    loaded: false,
+    pinned: false,
+    runningModel: null,
+    memoryBytes: 0,
+    status: "idle",
+    setupState: "ready",
+    setupReason: "",
+  };
+
+  const sidebar = (role, state = {}, props = {}) => {
     runtime.value = {
       ready: true,
       error: "",
       warnings: [],
       pins: [],
-      roles: {
-        chat: {
-          label: "Chat",
-          endpoint: "/v1/chat/completions",
-          runner: "ollama",
-          color: "#0a84ff",
-          role: "chat",
-          model: MISSING_ENTRY.default,
-          loaded: false,
-          pinned: false,
-          runningModel: null,
-          memoryBytes: 0,
-          status: "idle",
-          setupState,
-          setupReason,
-        },
-      },
+      roles: { [role]: { ...ROLE_META[role], role, ...BASE, ...state } },
     };
-    return render(<RoleModelCard density="mini" role="chat" active={false} onOpen={noop} onSetup={noop} />);
+    return render(<RoleModelCard density="mini" role={role} active={false} onOpen={noop} onSetup={noop} {...props} />);
   };
 
+  const blocked = { setupState: "missing", setupReason: MISSING_ENTRY.reason };
+
   test("a role whose default cannot run shows Setup instead of the switch", () => {
-    const html = card("missing", MISSING_ENTRY.reason);
-    expect(html).toContain("Setup");
+    const html = sidebar("chat", blocked);
+    expect(html).toContain(">Setup<");
     expect(html).not.toContain('role="switch"');
   });
 
   test("the card marks the problem with a badge, never error text", () => {
-    const html = card("missing", MISSING_ENTRY.reason);
+    const html = sidebar("chat", blocked);
     // the badge flags it and carries the words for its tooltip; the card prints no error paragraph
     expect(html).toContain("needs attention");
     expect(html).not.toContain('role="alert"');
   });
 
+  test("a role that needs setup says so, not 'stopped'", () => {
+    expect(sidebar("chat", blocked)).toContain(">needs setup<");
+  });
+
   test("a ready role keeps its warm switch", () => {
-    const html = card("ready");
+    const html = sidebar("chat", { status: "ready" });
     expect(html).toContain('role="switch"');
     expect(html).not.toContain(">Setup<");
   });
 
+  test("a worker that is up but holding no model reads 'not running', never 'running'", () => {
+    // The old card took its word from the process and its light from memory, so a live tts worker
+    // with an unloaded model said "running" beside a red dot.
+    const html = sidebar("tts", { status: "ready" });
+    expect(html).toContain(">not running<");
+    expect(html).not.toContain(">running<");
+    expect(html).toContain('role="switch"');
+  });
+
+  test("a stopped worker offers Start, not a keep-warm switch", () => {
+    const html = sidebar("tts", { status: "stopped" });
+    expect(html).toContain(">stopped<");
+    expect(html).toContain(">Start<");
+    expect(html).not.toContain('role="switch"');
+  });
+
+  test("a failed worker offers Start too", () => {
+    const html = sidebar("image", { status: "failed" });
+    expect(html).toContain(">failed<");
+    expect(html).toContain(">Start<");
+  });
+
+  test("an unreachable Ollama reads stopped and points at the server controls", () => {
+    const html = sidebar("chat", { status: "unavailable", engineUrl: "127.0.0.1:11434" });
+    expect(html).toContain(">stopped<");
+    expect(html).toContain(">Server<");
+    expect(html).toContain("127.0.0.1:11434");
+    // nothing here can start an Ollama omni does not own, so no switch and no Start
+    expect(html).not.toContain('role="switch"');
+    expect(html).not.toContain(">Start<");
+  });
+
+  test("warm and running differ only in whether the model is held", () => {
+    const warm = sidebar("chat", { status: "loaded", loaded: true, pinned: true, memoryBytes: 2_000_000_000 });
+    expect(warm).toContain(">warm<");
+    expect(warm).toContain('aria-checked="true"');
+
+    const running = sidebar("chat", { status: "loaded", loaded: true, memoryBytes: 2_000_000_000 });
+    expect(running).toContain(">running<");
+    expect(running).toContain('aria-checked="false"');
+  });
+
+  test("a pinned role still loading says so", () => {
+    const html = sidebar("chat", { pinned: true, status: "idle" });
+    expect(html).toContain(">loading…<");
+    expect(html).not.toContain(">not running<");
+  });
+
   test("mini density shows no detail controls, detail header mirrors mini", () => {
-    const mini = card("ready");
+    const mini = sidebar("chat", { status: "ready" });
     expect(mini).toContain("/v1/chat/completions");
     expect(mini).not.toContain("Find &amp; install a model");
     expect(mini).not.toContain("Nothing downloaded for this role yet.");
     const detail = render(<RoleModelCard density="detail" role="chat" entry={READY_ENTRY} pinned onChanged={noop} />);
     expect(detail).toContain("Add model");
     expect(detail).not.toContain("Find &amp; install");
-    // same colourful header as mini: role colour badge, label, endpoint, warm pill
+    // same colourful header as mini: role colour badge, label, endpoint, warm switch
     expect(detail).toContain("#0a84ff");
     expect(detail).toContain("Chat");
     expect(detail).toContain("/v1/chat/completions");

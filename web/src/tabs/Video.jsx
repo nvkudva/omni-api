@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { ORIGIN, readDataUrl, record } from "../api/client.js";
 import { createVideo, videoJob } from "../api/endpoints.js";
 import { models } from "../api/models.js";
-import { runtime } from "../api/roles.js";
 import { curlJson } from "../lib/curl.js";
 import { shorten, since } from "../lib/format.js";
 import * as ui from "../components/ui.jsx";
@@ -46,7 +45,7 @@ function wait(milliseconds, abortSignal) {
 }
 
 export default function Video() {
-  const [form, setForm] = useState({ prompt: DEFAULT_PROMPT, negative: "", size: "704x480", seconds: 4, seed: "42", frame: null });
+  const [form, setForm] = useState({ prompt: DEFAULT_PROMPT, negative: "", size: "512x320", seconds: 4, seed: "42", frame: null });
   const [jobs, setJobs] = useState([]);
   const [busy, setBusy] = useState(false);
   const [meta, setMeta] = useState("");
@@ -63,7 +62,6 @@ export default function Video() {
   const body = requestBody(form);
   const json = useJsonRequest(view, requestBody(form, true));
   const curl = `${curlJson("/v1/videos", requestBody(form, true))} | jq -r .id\n# poll until "status": "completed", then\ncurl -s ${ORIGIN}/v1/videos/$ID/content -o omni.mp4`;
-  const role = runtime.value.roles.video;
 
   const chooseFrame = async (file) => {
     if (!file.type.startsWith("image/")) return;
@@ -113,7 +111,7 @@ export default function Video() {
     const controller = new AbortController();
     controllers.current.set(id, controller);
     setBusy(true);
-    setJobs((current) => [{ id, at, request: payload, prompt: payload.prompt, seed: payload.seed, status: "queued", caption: "submitting…" }, ...current]);
+    setJobs((current) => [...current, { id, at, request: payload, prompt: payload.prompt, seed: payload.seed, status: "queued", caption: "submitting…" }]);
     setMeta("submitting…");
     const start = performance.now();
     try {
@@ -135,20 +133,14 @@ export default function Video() {
   };
 
   const stop = (id) => controllers.current.get(id)?.abort();
-  const openId = turnState.open ?? jobs[0]?.id;
+  const openId = turnState.open ?? jobs[jobs.length - 1]?.id;
   const running = jobs.some((job) => RUNNING.has(job.status));
 
-  const readout = [
-    { label: "Model", value: models.value.defaults.video ?? "—" },
-    { label: "Runtime", value: "ltx-mlx · 4-bit" },
-    { label: "API", value: "/v1/videos" },
-    { label: "Last run", value: role?.loaded ? (meta || "idle") : "not loaded" },
-  ];
-
   return (
-    <Workbench title="Video" subtitle="Text or image to video, run as a background job you can stop and poll." readout={readout} modelRole="video">
+    <Workbench title="Video" subtitle="Text or image to video, run as a background job you can stop and poll." modelRole="video">
       <Panel
         title="Request"
+        endpoint="/v1/videos"
         tools={<UiJson view={view} onChange={setView} />}
         foot={(
           <>
@@ -199,7 +191,7 @@ export default function Video() {
               {jobs.map((job, index) => (
                 <Turn
                   key={job.id}
-                  label={`Job #${jobs.length - index}`}
+                  label={`Job #${index + 1}`}
                   at={job.at}
                   model={job.request?.size}
                   status={RUNNING.has(job.status) ? job.status : undefined}

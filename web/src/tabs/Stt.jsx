@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { transcribe } from "../api/endpoints.js";
 import { models } from "../api/models.js";
-import { runtime } from "../api/roles.js";
 import { ORIGIN } from "../api/client.js";
 import { clock } from "../lib/format.js";
 import * as ui from "../components/ui.jsx";
@@ -155,7 +154,7 @@ export default function Stt() {
     const url = URL.createObjectURL(blob);
     turnUrls.current.set(id, url);
     setBusy(true);
-    setTurns((current) => [{ id, at, url, request: { file: name, response_format: responseFormat }, pending: true }, ...current]);
+    setTurns((current) => [...current, { id, at, url, request: { file: name, response_format: responseFormat }, pending: true }]);
     setMeta("transcribing…");
     try {
       const { result, elapsed: ms } = await transcribe(blob, name, responseFormat, controller.signal);
@@ -249,19 +248,13 @@ export default function Stt() {
   const curl = `curl -s ${ORIGIN}/v1/audio/transcriptions \\\n  -F file=@${clip?.name ?? "speech.wav"} \\\n  -F response_format=${view === "json" && !json.error ? (json.body?.response_format ?? format) : format}`;
   const sendFormat = view === "json" ? (json.body?.response_format ?? format) : format;
   const canTranscribe = Boolean(clip) && !busy && !(view === "json" && json.error);
-  const openId = turnState.open ?? turns[0]?.id;
-
-  const readout = [
-    { label: "Model", value: models.value.defaults.stt ?? "—" },
-    { label: "Runtime", value: "parakeet-mlx" },
-    { label: "API", value: "/v1/audio/transcriptions" },
-    { label: "Last run", value: runtime.value.roles.stt?.loaded ? (meta || "idle") : "not loaded" },
-  ];
+  const openId = turnState.open ?? turns[turns.length - 1]?.id;
 
   return (
-    <Workbench title="Speech to text" subtitle="Record or upload audio, get a transcript with segment timings you can click to replay." readout={readout} modelRole="stt">
+    <Workbench title="Speech to text" subtitle="Record or upload audio, get a transcript with segment timings you can click to replay." modelRole="stt">
       <Panel
         title="Request"
+        endpoint="/v1/audio/transcriptions"
         meta={clip ? `${clip.name} · ${(clip.blob.size / 1024).toFixed(0)} KB` : "no clip"}
         tools={<UiJson view={view} onChange={setView} />}
         foot={(
@@ -301,7 +294,7 @@ export default function Stt() {
               {turns.map((turn, index) => (
                 <Turn
                   key={turn.id}
-                  label={`Transcript #${turns.length - index}`}
+                  label={`Transcript #${index + 1}`}
                   at={turn.at}
                   model={models.value.defaults.stt}
                   meta={turn.meta}

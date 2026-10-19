@@ -41,13 +41,15 @@ export function Button({ variant = "secondary", small, class: extra, ...props })
   return <button type="button" class={cx(styles.button, styles[variant], small && styles.small, extra)} {...props} />;
 }
 
-export function IconButton({ icon, label, danger, size = 15, ...props }) {
+export function IconButton({ icon, label, danger, size = 15, class: extra, ...props }) {
+  // `class` is merged, not spread: a caller's class must add to the icon styling
+  // (e.g. align-self), never replace it and leave a bare native button.
   return (
     <button
       type="button"
       title={label}
       aria-label={props["aria-label"] ?? label}
-      class={cx(styles.icon, danger && styles.iconDanger)}
+      class={cx(styles.icon, danger && styles.iconDanger, extra)}
       {...props}
     >
       <Icon name={icon} size={size} />
@@ -168,9 +170,21 @@ export function Meta({ children }) {
   return <span class={styles.meta}>{children}</span>;
 }
 
-export function Dot({ status }) {
-  const tone = status === "ready" || status === "external" ? "ok" : status === "starting" ? "busy" : "bad";
-  return <span class={cx(styles.dot, styles[`dot_${tone}`])} />;
+// A status word's colour. Anything unlisted reads as a problem, which is the safe default for a
+// light someone reads at a glance; `idle` is the neutral one — nothing wrong, nothing in memory.
+const DOT_TONE = {
+  ready: "ok",
+  external: "ok",
+  loaded: "ok",
+  starting: "busy",
+  restarting: "busy",
+  unknown: "busy",
+  idle: "idle",
+};
+
+export function Dot({ status, tone }) {
+  const key = tone ?? DOT_TONE[status] ?? "bad";
+  return <span class={cx(styles.dot, styles[`dot_${key}`])} />;
 }
 
 export function Spinner() {

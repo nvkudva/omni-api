@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { record } from "../api/client.js";
 import { generateImage } from "../api/endpoints.js";
-import { models } from "../api/models.js";
-import { runtime } from "../api/roles.js";
 import { curlJson } from "../lib/curl.js";
 import { since } from "../lib/format.js";
 import * as ui from "../components/ui.jsx";
@@ -34,7 +32,7 @@ function base64ToObjectUrl(base64, type = "image/png") {
 export default function Image() {
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [negative, setNegative] = useState("");
-  const [size, setSize] = useState("1024x1024");
+  const [size, setSize] = useState("512x512");
   const [steps, setSteps] = useState(40);
   const [seed, setSeed] = useState("");
   const [turns, setTurns] = useState([]);
@@ -52,7 +50,7 @@ export default function Image() {
 
   // Cap retained images and revoke the blob URLs we drop.
   const commit = (next) => {
-    const kept = next.slice(0, MAX_TURNS);
+    const kept = next.slice(-MAX_TURNS);
     const keptIds = new Set(kept.map((turn) => turn.id));
     for (const dropped of turnsRef.current) {
       if (!keptIds.has(dropped.id) && dropped.url) URL.revokeObjectURL(dropped.url);
@@ -65,7 +63,6 @@ export default function Image() {
   const body = requestBody(prompt, negative, size, steps, seed);
   const json = useJsonRequest(view, body);
   const curl = `${curlJson("/v1/images/generations", body)} \\\n  | jq -r '.data[0].b64_json' | base64 -d > omni.png`;
-  const role = runtime.value.roles.image;
 
   const generate = async () => {
     const payload = view === "json" ? json.body : body;
@@ -74,7 +71,7 @@ export default function Image() {
     abort.current = controller;
     const id = crypto.randomUUID();
     const at = Date.now();
-    commit([{ id, at, request: payload, prompt: payload.prompt, pending: true }, ...turnsRef.current]);
+    commit([...turnsRef.current, { id, at, request: payload, prompt: payload.prompt, pending: true }]);
     setBusy(true);
     setMeta("generating…");
     const start = performance.now();
@@ -108,24 +105,17 @@ export default function Image() {
     }
   };
 
-  const openId = turnState.open ?? turns[0]?.id;
-
-  const readout = [
-    { label: "Model", value: models.value.defaults.image ?? "—" },
-    { label: "Runtime", value: "diffusers · MPS bf16" },
-    { label: "API", value: "/v1/images/generations" },
-    { label: "Last run", value: role?.loaded ? (meta || "idle") : "not loaded" },
-  ];
+  const openId = turnState.open ?? turns[turns.length - 1]?.id;
 
   return (
     <Workbench
       title="Image"
       subtitle="Text to image with a local diffusion model. First request loads it (~1 min); fewer steps and smaller sizes are faster."
-      readout={readout}
       modelRole="image"
     >
       <Panel
         title="Request"
+        endpoint="/v1/images/generations"
         tools={<UiJson view={view} onChange={setView} />}
         foot={(
           <>
@@ -170,7 +160,7 @@ export default function Image() {
               {turns.map((turn, index) => (
                 <Turn
                   key={turn.id}
-                  label={`Image #${turns.length - index}`}
+                  label={`Image #${index + 1}`}
                   at={turn.at}
                   model={turn.request.size}
                   meta={turn.caption}

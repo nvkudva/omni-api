@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import * as corpus from "../src/lib/corpus.js";
+import { size } from "../src/lib/format.js";
+import * as storage from "../src/lib/storage.js";
 
 describe("chunking", () => {
   test("short text is one chunk", () => {
@@ -39,6 +41,8 @@ describe("file kinds", () => {
     expect(corpus.kindOf("a.png", "image/png")).toBe("image");
     expect(corpus.kindOf("a.wav", "audio/wav")).toBe("audio");
     expect(corpus.kindOf("a.md", "")).toBe("text");
+    expect(corpus.kindOf("photo.HEIC", "")).toBe("image");
+    expect(corpus.kindOf("scan.jpeg", "")).toBe("image");
     expect(corpus.kindOf("a.pdf", "application/pdf")).toBeNull();
     expect(corpus.kindOf("Makefile", "")).toBeNull();
   });
@@ -68,5 +72,35 @@ describe("search", () => {
   test("ignores chunks of another dimension", () => {
     const found = corpus.search([1, 0], chunks, 10);
     expect(found.map((hit) => hit.chunk.id)).not.toContain("d#0");
+  });
+});
+
+describe("storage footprint", () => {
+  const files = [{ name: "a.md", thumb: "x".repeat(10) }, { name: "b.md" }];
+  const chunks = [
+    { id: "a.md#0", file: "a.md", text: "hello", embedding: new Float32Array(8) },
+    { id: "a.md#1", file: "a.md", text: "world", embedding: new Float32Array(8) },
+    { id: "gone#0", file: "gone", text: "orphan", embedding: new Float32Array(8) },
+  ];
+
+  test("counts vectors, text, ids and thumbnails per file", () => {
+    const footprint = storage.footprints(files, chunks);
+    expect(footprint.get("a.md")).toBe(4 + 10 + 2 * (8 * 4 + 5 + 6));
+    expect(footprint.get("b.md")).toBe(4);
+    expect(footprint.has("gone")).toBe(false);
+    expect(storage.total(footprint)).toBe(footprint.get("a.md") + 4);
+  });
+
+  test("browser usage is null when the API is missing", async () => {
+    expect(await storage.browserUsage()).toBeNull();
+  });
+});
+
+describe("byte sizes", () => {
+  test("scale units", () => {
+    expect(size(512)).toBe("512 B");
+    expect(size(2048)).toBe("2 KB");
+    expect(size(5 * 1024 ** 2)).toBe("5.0 MB");
+    expect(size(3 * 1024 ** 3)).toBe("3.0 GB");
   });
 });

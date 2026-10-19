@@ -138,11 +138,12 @@ describe("pages render against a live-looking runtime", () => {
     expect(html).not.toContain("waiting for the gateway");
   });
 
-  test("every page renders with a loaded model and no leaks", () => {
+  test("every page renders against a live runtime and no leaks", () => {
     for (const [name, Page] of Object.entries(pages)) {
       const html = render(<Page active />);
-      // Models fetches its catalog in an effect, which never runs here
-      if (name !== "Models" && name !== "Settings") expect(html).toContain(MODEL);
+      // The role card above the page carries the live model; the page itself
+      // prints the endpoint it talks to, and nothing may leak into the markup.
+      if (name !== "Models" && name !== "Settings") expect(html).toContain(ENDPOINTS[name]);
       expect(html).not.toContain("undefined");
       expect(html).not.toContain("NaN");
       expect(html).not.toContain("[object Object]");

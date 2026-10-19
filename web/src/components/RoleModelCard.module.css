@@ -19,12 +19,6 @@
   box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12);
 }
 .name { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
-.warm {
-  flex: none; padding: 1px 6px; border-radius: 5px;
-  background: color-mix(in srgb, var(--green) 18%, transparent);
-  color: var(--text);
-  font: 600 10px var(--font); letter-spacing: 0.03em; text-transform: uppercase;
-}
 .runner { margin-left: auto; font: 500 10px var(--font); color: var(--text-3); text-transform: lowercase; white-space: nowrap; }
 
 .endpoint {
@@ -37,7 +31,9 @@
 .memory { flex: none; font: 500 11px var(--font); color: var(--text); font-variant-numeric: tabular-nums; }
 
 .foot { display: flex; align-items: center; gap: 6px; margin-top: 1px; }
-.status { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); min-width: 0; }
+/* A download's progress line can be long; the light and the button keep their place regardless. */
+.word { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .switch {
   margin-left: auto; position: relative; width: 40px; height: 24px; flex: none; padding: 0;
   border-radius: 999px; border: 1px solid var(--hairline-strong);
@@ -61,6 +57,16 @@
 }
 .setupButton:hover { border-color: var(--accent); color: var(--accent); }
 .setupButton:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+/* Starting a stopped worker is the card's only offered action, so it is the filled one. */
+.startButton {
+  margin-left: auto; flex: none; min-height: 28px; padding: 4px 12px;
+  border: 1px solid var(--accent); border-radius: 999px;
+  background: var(--accent); color: #fff;
+  font-size: 11px; font-weight: 600; cursor: pointer;
+}
+.startButton:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+.startButton:disabled { opacity: 0.5; cursor: default; }
+.startButton:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .warnBadge {
   flex: none; display: inline-flex; align-items: center; justify-content: center;
   width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%;
@@ -82,6 +88,10 @@
 .setupHead {
   flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
   padding: 7px 8px; border-bottom: 1px solid var(--hairline);
+  /* The header is the card's first child and can carry a tint, so its own top corners have to
+     follow the card's curve (inset by the card's 1px border) instead of squaring off over it. */
+  border-top-left-radius: calc(var(--radius) - 1px);
+  border-top-right-radius: calc(var(--radius) - 1px);
 }
 .setupTitleGroup { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; }
 .setupHeadColor { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 4px; }

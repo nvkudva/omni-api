@@ -20,6 +20,8 @@ export const ROLE_META = {
 
 export const ROLE_ORDER = Object.keys(ROLE_META);
 export const OLLAMA_ROLES = new Set(["chat", "decide", "embed"]);
+// The roles omni runs and supervises itself: only these can be started and stopped from a card.
+export const WORKER_ROLES = new Set(ROLE_ORDER.filter((role) => !OLLAMA_ROLES.has(role)));
 
 export const runtime = signal({ ready: false, error: "", roles: {}, warnings: [], memory: null, pins: [] });
 
@@ -44,15 +46,21 @@ function roleState(role, defaults, health, memory, setup) {
   if (OLLAMA_ROLES.has(role)) {
     // Ollama's models outlive the role: remember what it pulled, then match it.
     const running = memory?.loaded?.[role] ?? resident(memory?.ollama, model);
+    // chat, decide and embed share the machine's Ollama, so when it is not answering none of them
+    // can run: say that rather than leaving a card on a stale "not running" the person can only
+    // fix from the server controls.
+    const engine = health?.workers?.chat;
+    const down = engine?.status === "unavailable";
     return {
       ...meta,
       role,
       model,
-      loaded: Boolean(running),
+      loaded: !down && Boolean(running),
       pinned,
-      runningModel: running?.name ?? null,
-      memoryBytes: running?.size_bytes ?? 0,
-      status: running ? "loaded" : "idle",
+      runningModel: down ? null : running?.name ?? null,
+      memoryBytes: down ? 0 : running?.size_bytes ?? 0,
+      status: down ? "unavailable" : running ? "loaded" : "idle",
+      engineUrl: down ? engine?.url ?? "" : "",
       cpuPercent: 0,
       held: false,
       setupState,

@@ -1,17 +1,43 @@
 .builder { display: flex; flex-direction: column; gap: 10px; }
 
 .question {
-  display: flex; flex-direction: column; gap: 6px;
-  padding: 8px; border: 1px solid var(--hairline); border-radius: var(--radius-sm);
-  background: var(--surface-2);
+  display: flex; flex-direction: column;
+  border: 1px solid var(--hairline); border-radius: var(--radius-sm);
+  background: var(--surface-2); overflow: hidden;
 }
-.head { display: flex; align-items: center; gap: 6px; }
-.type { font-family: var(--font); font-size: 11px; color: var(--text-2); }
+/* A bar, not a field: the type names the card, flush to the card's edges. */
+.head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 4px 0 10px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--hairline);
+}
+.title { flex: 1; font-size: 12px; font-weight: 600; color: var(--text); }
+.body { display: flex; flex-direction: column; gap: 6px; padding: 8px; }
 .question textarea { min-height: 40px; }
 
 .label { font-size: 11px; font-weight: 600; color: var(--text-2); }
-.criterion { display: flex; gap: 6px; }
-.key { flex: 0 0 34%; }
+
+/* Every editable input is the full width of the card. The row's action floats over
+   the field's trailing edge, so it never narrows the input or breaks the alignment. */
+.criterion { position: relative; display: flex; align-items: center; min-width: 0; }
+.criterion input { padding-right: 38px; }
+.criterion > button {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: 28px; height: 28px; border-radius: 6px;
+}
+
+/* A choice option reads as its name over its description — both full width. */
+.option { display: flex; flex-direction: column; gap: 4px; }
+
+/* The noul branch rides inside the field as a tag, keeping the input full width. */
+.tag {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--text-3); pointer-events: none;
+}
+.tagged input { padding-left: 54px; }
+
 .add { align-self: flex-start; }
 
 .remove {

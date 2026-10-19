@@ -2,7 +2,6 @@ import { useState } from "preact/hooks";
 import { record } from "../api/client.js";
 import { decide } from "../api/endpoints.js";
 import { models } from "../api/models.js";
-import { runtime } from "../api/roles.js";
 import { curlJson } from "../lib/curl.js";
 import { since } from "../lib/format.js";
 import * as questionSet from "../lib/questions.js";
@@ -119,7 +118,6 @@ export default function Decide() {
   const decideModels = models.value.data.filter((entry) => entry.role === "decide").map((entry) => entry.id);
   const effectiveModel = decideModels.includes(model) ? model : "";
   const rowsError = validationError(rows);
-  const role = runtime.value.roles.decide;
 
   const body = {
     state,
@@ -204,35 +202,24 @@ export default function Decide() {
 
   const openId = turnState.open ?? turns[turns.length - 1]?.id;
 
-  const readout = [
-    {
-      label: "Model",
-      node: (
-        <select aria-label="decide model" value={effectiveModel} onChange={(event) => choose(event.currentTarget.value)}>
-          <option value="">default</option>
-          {decideModels.map((name) => <option key={name} value={name}>{name}</option>)}
-        </select>
-      ),
-    },
-    { label: "Runtime", value: "ollama" },
-    { label: "API", value: "/v1/systemone" },
-    { label: "Last run", value: role?.loaded ? (turns.at(-1)?.meta ?? "idle") : "not loaded" },
-  ];
-
   return (
     <Workbench
       title="Decide"
       subtitle="Yes/no, choice and score questions answered as probability distributions in one forward pass."
-      readout={readout}
       modelRole="decide"
     >
       <Panel
         title="Request"
+        endpoint="/v1/systemone"
         tools={(
           <>
             <select aria-label="load an example" value="" onChange={(event) => loadExample(event.currentTarget.value)}>
               <option value="">Examples…</option>
               {Object.entries(questionSet.EXAMPLES).map(([key, example]) => <option key={key} value={key}>{example.label}</option>)}
+            </select>
+            <select aria-label="decide model" value={effectiveModel} onChange={(event) => choose(event.currentTarget.value)}>
+              <option value="">default</option>
+              {decideModels.map((name) => <option key={name} value={name}>{name}</option>)}
             </select>
             <UiJson view={view} onChange={changeView} />
           </>

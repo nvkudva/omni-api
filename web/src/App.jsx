@@ -59,6 +59,12 @@ export default function App() {
     choose("settings");
   };
 
+  // A card whose runtime is down: the fix lives in the server controls, not in the card.
+  const openServer = () => {
+    store.set("omni.settings", "server");
+    choose("settings");
+  };
+
   const nextTheme = THEME_ORDER[(THEME_ORDER.indexOf(theme) + 1) % THEME_ORDER.length];
   const settingsOpen = tab === "settings";
 
@@ -95,7 +101,7 @@ export default function App() {
       </header>
       <nav ref={cardsRef} class={styles.cards} aria-label="Models">
         {ROLE_ORDER.map((role) => (
-          <RoleModelCard key={role} density="mini" role={role} active={role === tab} onOpen={choose} onSetup={openSetup} />
+          <RoleModelCard key={role} density="mini" role={role} active={role === tab} onOpen={choose} onSetup={openSetup} onServer={openServer} />
         ))}
       </nav>
       <main class={styles.main}>
