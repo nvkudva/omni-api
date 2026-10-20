@@ -11,15 +11,16 @@ OLLAMA_ROLES = ("chat", "decide", "embed")
 HF_ROLES = ("stt", "tts", "image", "video")
 PYTHON_WORKERS = HF_ROLES
 
-# What each Python worker must be able to import to run at all. MLX has no Linux or Windows
-# build, and the image worker renders on Metal through torch's MPS backend, so outside macOS
-# on Apple Silicon these roles are unavailable rather than broken.
+# What each Python worker must be able to import to run at all. MLX ships macOS, Linux
+# (CUDA or CPU) and Windows wheels, so only the image worker is platform-bound: it renders
+# on Metal through torch's MPS backend.
 MEDIA_DEPS = {
     "stt": ("mlx", "parakeet_mlx"),
     "tts": ("mlx", "mlx_audio"),
     "video": ("mlx", "ltx_pipelines_mlx"),
     "image": ("torch", "diffusers"),
 }
+MPS_ROLES = ("image",)
 
 
 def unavailable_reason(role: str) -> str | None:
@@ -27,11 +28,11 @@ def unavailable_reason(role: str) -> str | None:
     deps = MEDIA_DEPS.get(role)
     if deps is None:
         return None
-    if sys.platform != "darwin":
-        return f"{role} needs macOS on Apple Silicon (MLX and Metal); this is {sys.platform}"
     missing = [dep for dep in deps if importlib.util.find_spec(dep) is None]
     if missing:
         return f"{role} is not installed here: {', '.join(missing)} missing (install the media extra)"
+    if role in MPS_ROLES and sys.platform != "darwin":
+        return f"{role} renders on Metal (MPS), which this {sys.platform} machine does not have"
     return None
 
 # A repo id must contain the role's family marker to be loadable by that role's runtime; the marker

@@ -132,7 +132,7 @@ Measured on Apple Silicon:
 
 ## Install
 
-On macOS (Apple Silicon) this installs every role. On Linux it installs chat, decide and embed; the stt, tts, image and video workers need MLX and Metal, so they are left out there. [Ollama](https://ollama.com) comes with `omni init` if missing, and Python plus [uv](https://docs.astral.sh/uv/) come with the script:
+On macOS (Apple Silicon) this installs every role. On Linux the default install serves chat, decide and embed through Ollama; add `--media` for the stt, tts and video workers (MLX runs on CUDA or CPU there and needs glibc 2.35+, so Ubuntu 22.04, Debian 12 or later). The image worker renders on Metal, so it stays macOS-only. [Ollama](https://ollama.com) comes with `omni init` if missing, and Python plus [uv](https://docs.astral.sh/uv/) come with the script:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/nvkudva/omni-api/main/install.sh | sh
@@ -149,8 +149,8 @@ brew install omni
 From a clone, for development (`-e` makes edits take effect immediately):
 
 ```sh
-uv tool install -e ".[media]"    # macOS: every role
-uv tool install -e .             # Linux: chat, decide, embed
+uv tool install -e ".[media]"    # every role this machine supports
+uv tool install -e .             # chat, decide and embed only
 # or run it without installing
 uv run omni serve
 ```

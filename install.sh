@@ -16,6 +16,7 @@ SOURCE=""
 VERSION=""
 RUN_INIT=0
 MODIFY_PATH=0
+MEDIA=0
 BIN_DIR="${OMNI_BIN_DIR:-${UV_TOOL_BIN_DIR:-$HOME/.local/bin}}"
 
 say() { printf '%s\n' "$*"; }
@@ -42,13 +43,16 @@ Options:
   --version TAG    Install the release tag TAG (v0.2.0 counts as 0.2.0).
   --init           Run `omni init` afterwards: install Ollama and pull the
                    chat, decide and embed models (a few GB).
+  --media          Also install the speech and video workers. Already the
+                   default on macOS; on Linux it is opt-in and needs glibc
+                   2.35 or newer (Ubuntu 22.04, Debian 12 and later).
   --bin-dir DIR    Where the `omni` command lands (default ~/.local/bin).
   --modify-path    Append that directory to your shell's startup file when it
                    is missing from PATH.
   -h, --help       Show this text.
 
-On Linux this installs chat, decide and embed. The stt, tts, image and video
-workers need macOS on Apple Silicon.
+Without --media on Linux you get chat, decide and embed through Ollama. The
+image worker renders on Metal, so it runs on macOS only.
 EOF
 }
 
@@ -71,6 +75,7 @@ while [ $# -gt 0 ]; do
       shift 2
       ;;
     --init) RUN_INIT=1; shift ;;
+    --media) MEDIA=1; shift ;;
     --modify-path) MODIFY_PATH=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) die "unknown option: $1" "run with --help to see the options" ;;
@@ -111,9 +116,35 @@ case "$os" in
     minimum_kb=2097152
     ;;
   Linux)
-    say "Linux: installing chat, decide and embed. The stt, tts, image and video workers"
-    say "       need macOS on Apple Silicon (MLX and Metal), so they are left out."
-    minimum_kb=524288
+    case "$arch" in
+      x86_64|aarch64) ;;
+      *)
+        [ "$MEDIA" -eq 0 ] || die "MLX has no wheel for $arch, so --media cannot install here" \
+          "drop --media to install chat, decide and embed only"
+        ;;
+    esac
+    if [ "$MEDIA" -eq 1 ]; then
+      glibc="$(getconf GNU_LIBC_VERSION 2>/dev/null | awk '{print $2}')"
+      if [ -z "${glibc:-}" ]; then
+        die "this Linux has no glibc (musl, as in Alpine), and the MLX wheels need it" \
+          "drop --media to install chat, decide and embed only" \
+          "or run a glibc distribution in a container"
+      fi
+      if [ "$(printf '%s\n2.35\n' "$glibc" | sort -V | head -1)" != "2.35" ]; then
+        die "MLX needs glibc 2.35 or newer; this is $glibc" \
+          "upgrade to Ubuntu 22.04, Debian 12 or newer, then rerun" \
+          "or drop --media to install chat, decide and embed only"
+      fi
+      EXTRAS="[media]"
+      minimum_kb=2097152
+      say "Linux + media: installing every role except image, which renders on Metal."
+      say "                MLX starts on CPU; an NVIDIA GPU needs its CUDA build"
+      say "                (the command is printed when the install finishes)."
+    else
+      say "Linux: installing chat, decide and embed. Add --media for the speech"
+      say "       and video workers (MLX; needs glibc 2.35 or newer)."
+      minimum_kb=524288
+    fi
     ;;
   *)
     die "omni does not support $os" \
@@ -252,6 +283,12 @@ if ! installed_version="$("$BIN_DIR/omni" --version 2>&1)"; then
     "reinstall cleanly: uv tool uninstall omni-api, then rerun this script"
 fi
 say "installed: $installed_version"
+
+if [ "$os" = "Linux" ] && [ "$MEDIA" -eq 1 ]; then
+  say ""
+  say "NVIDIA GPU? add MLX's CUDA backend (skip on a CPU-only machine):"
+  say "  uv pip install --python \"$(uv tool dir)/omni-api/bin/python\" \"mlx[cuda12]\""
+fi
 
 # --- PATH -------------------------------------------------------------------
 on_path=0
