@@ -1,6 +1,6 @@
 [project]
 name = "omni-api"
-version = "0.3.0"
+version = "0.4.0"
 description = "One local gateway for chat, decide, embeddings, speech-to-text and text-to-speech"
 readme = "README.md"
 license = "MIT"
@@ -28,7 +28,9 @@ media = [
   "misaki[en]>=0.7",
   "torchvision>=0.29.1",
   "diffusers",
+  "accelerate>=0.26",
   "en-core-web-sm",
+  "gguf>=0.10",
   "ltx-core-mlx",
   "ltx-pipelines-mlx",
 ]

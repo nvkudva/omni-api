@@ -34,6 +34,13 @@ _SCHEMA: dict[str, dict[str, type]] = {
     "video": {"model": str, "frames": int, "fps": int},
 }
 
+# Keys a section may carry without needing them. `image.file` names a GGUF transformer
+# inside `image.model`, and `image.base` is the checkpoint that supplies the text encoder
+# and VAE for it.
+_OPTIONAL: dict[str, dict[str, type]] = {
+    "image": {"base": str, "file": str},
+}
+
 
 class ConfigError(ValueError):
     """The catalog or the user's config.toml is unusable."""
@@ -64,9 +71,12 @@ def validate(settings: dict) -> None:
         values = settings.get(section)
         if not isinstance(values, dict):
             raise ConfigError(f"[{section}] is missing from {CATALOG.name}")
-        extra = set(values) - set(keys)
+        extra = set(values) - set(keys) - set(_OPTIONAL.get(section, {}))
         if extra:
             raise ConfigError(f"[{section}] has unknown keys: {', '.join(sorted(extra))}")
+        for key, kind in _OPTIONAL.get(section, {}).items():
+            if key in values and not _is_type(values[key], kind):
+                raise ConfigError(f"{section}.{key} must be {kind.__name__}")
         for key, kind in keys.items():
             if key not in values:
                 raise ConfigError(f"[{section}] is missing {key}")
@@ -114,7 +124,7 @@ def save_override(section: str, key: str, value) -> None:
 
     Written to a sibling temp file and renamed, so a crash cannot truncate the file.
     """
-    if section not in _SCHEMA or key not in _SCHEMA[section]:
+    if section not in _SCHEMA or (key not in _SCHEMA[section] and key not in _OPTIONAL.get(section, {})):
         raise ConfigError(f"unknown setting {section}.{key}")
     overrides = _read(USER_CONFIG) if USER_CONFIG.exists() else {}
     overrides.setdefault(section, {})[key] = value

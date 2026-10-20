@@ -23,6 +23,19 @@ class Validate(unittest.TestCase):
         with self.assertRaises(config.ConfigError):
             config.validate(settings)
 
+    def test_an_image_gguf_names_its_file_and_base(self):
+        settings = config.load()
+        settings["image"].update({"model": "unsloth/Qwen-Image-2.1-Turbo-GGUF",
+                                  "file": "qwen-image-2.1-turbo-Q8_0.gguf",
+                                  "base": "Qwen/Qwen-Image-2.1-Turbo"})
+        config.validate(settings)
+
+    def test_an_optional_image_key_still_has_to_be_a_string(self):
+        settings = config.load()
+        settings["image"]["file"] = 8
+        with self.assertRaises(config.ConfigError):
+            config.validate(settings)
+
     def test_port_range(self):
         settings = config.load()
         settings["gateway"]["port"] = 0

@@ -4,33 +4,34 @@ port = 10000
 idle_unload_minutes = 10
 
 [chat]
-model = "qwen2.5:3b"
+model = "qwen2.5:0.5b"
 
 [decide]
 model = "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0"
 
 [embed]
-model = "embeddinggemma-2"
+model = "embeddinggemma-2:270m"
 
 [stt]
 # parakeet-mlx builds a dense model from config.json and loads it strictly, so a
 # 4-bit pack cannot work: animaslabs/parakeet-tdt-0.6b-v3-mlx-4bit fails with
 # "442 parameters not in model" (its .scales/.biases have nowhere to go).
-model = "mlx-community/parakeet-tdt-0.6b-v3"
+model = "moondream/parakeet-redux"
 
 [tts]
-model = "prince-canuma/Kokoro-82M-4bit"
+model = "mlx-community/Kokoro-82M-8bit"
 voice = "af_heart"
 
 [image]
-# Turbo: same 7B pipeline distilled to 8 steps. It ships its own sampling
-# schedule in model_index.json (`sample_sigmas`), which the pinned diffusers
-# does not read yet, so the worker passes it explicitly (workers/image.py).
-model = "Qwen/Qwen-Image-2.1-Turbo"
+# Turbo: the 7B pipeline distilled to 8 steps, as a Q8_0 GGUF transformer: 7.6 GB instead of
+# 32.5 GB. The worker finds the GGUF file and the base checkpoint (text encoder, VAE and the
+# `sample_sigmas` schedule in model_index.json) from the repo itself; `file` and `base` pin
+# them by hand instead.
+model = "unsloth/Qwen-Image-2.1-Turbo-GGUF"
 steps = 8
 
 [video]
-# 4-bit MLX: the same 28-file LTX-2.5 pack as q8, ~51 GB instead of ~75 GB.
-model = "dgrauet/ltx-2.5-mlx-q4"
+# 4-bit MLX, 22B: fits the 34 GB cap. The 2.5 q4 default is better, and 51 GB.
+model = "baa-ai/LTX-2.3-22B-RAM-12GB-MLX"
 frames = 97
 fps = 24

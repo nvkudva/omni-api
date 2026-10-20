@@ -223,10 +223,10 @@ class WorkerValidation(unittest.TestCase):
     def test_video_gated_model_fails_with_accept_terms_not_raw_trace(self):
         error = video.job_error(OSError(
             "403 Client Error. Cannot access gated repo for url "
-            "https://huggingface.co/dgrauet/ltx-2.5-mlx-q4/resolve/main/.gitattributes. "
-            "Access to model dgrauet/ltx-2.5-mlx-q4 is restricted and you are not in the authorized list."))
+            "https://huggingface.co/baa-ai/LTX-2.3-22B-RAM-12GB-MLX/resolve/main/.gitattributes. "
+            "Access to model baa-ai/LTX-2.3-22B-RAM-12GB-MLX is restricted and you are not in the authorized list."))
         self.assertEqual(error["code"], "gated")
-        self.assertEqual(error["accept_url"], "https://huggingface.co/dgrauet/ltx-2.5-mlx-q4")
+        self.assertEqual(error["accept_url"], "https://huggingface.co/baa-ai/LTX-2.3-22B-RAM-12GB-MLX")
         self.assertIn("terms accepted", error["message"])
         self.assertNotIn("403 Client Error", error["message"])
 

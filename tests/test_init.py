@@ -56,7 +56,7 @@ def ok_run(argv, check=False):  # mirrors subprocess.run's signature
 
 
 def run_init(*, which, get=None, run=None, settings=SETTINGS, url="http://127.0.0.1:11434",
-             load_error=None, url_error=None, small=False, save_override=None):
+             load_error=None, url_error=None):
     def load():
         if load_error is not None:
             raise load_error
@@ -73,9 +73,8 @@ def run_init(*, which, get=None, run=None, settings=SETTINGS, url="http://127.0.
          patch.object(init.httpx, "get", side_effect=get or serve_api([])), \
          patch.object(init.config, "load", side_effect=load), \
          patch.object(init.config, "ollama_url", side_effect=ollama_url), \
-         patch.object(init.config, "save_override", side_effect=save_override or (lambda *a: None)), \
          contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-        code = init.run(small=small)
+        code = init.run()
     return code, out.getvalue(), err.getvalue()
 
 
@@ -175,32 +174,6 @@ class Pulling(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertIn("ready: embeddinggemma-2, llama3.2", out)
         self.assertIn("http://127.0.0.1:10000/", out)
-
-    def test_small_pulls_the_small_set_and_makes_it_the_default(self):
-        pulled, written = [], []
-
-        def run(argv, check=False):
-            pulled.append(argv[-1])
-            return SimpleNamespace(returncode=0)
-
-        code, out, err = run_init(
-            which=which_from("ollama"), run=run,
-            get=serve_api(["qwen2.5:0.5b", "laya", "embeddinggemma-2:270m"]),
-            small=True, save_override=lambda role, key, value: written.append((role, key, value)))
-
-        self.assertEqual(code, 0, err)
-        self.assertEqual(pulled, sorted(["qwen2.5:0.5b", "laya", "embeddinggemma-2:270m"]))
-        self.assertEqual({role: value for role, key, value in written}, init.SMALL)
-        self.assertEqual({key for role, key, value in written}, {"model"})
-        self.assertIn("small defaults written", out)
-
-    def test_small_leaves_the_defaults_alone_when_a_pull_fails(self):
-        written = []
-        code, _, _ = run_init(which=which_from("ollama"),
-                              run=lambda argv, check=False: SimpleNamespace(returncode=1),
-                              small=True, save_override=lambda *a: written.append(a))
-        self.assertEqual(code, 1)
-        self.assertEqual(written, [])
 
 
 class ModelUrls(unittest.TestCase):

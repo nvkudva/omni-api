@@ -114,7 +114,7 @@ omni brings all of that together:
 | **chat** | `POST /v1/chat/completions` (streaming) | `qwen2.5:3b` | Ollama |
 | **decide** | `POST /v1/systemone` | `hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0` | Ollama (option-letter logprobs) |
 | **embed** | `POST /v1/embeddings` | `embeddinggemma-2` (text) | Ollama |
-| **image** | `POST /v1/images/generations` | `Qwen/Qwen-Image-2.1-Turbo` | diffusers (MPS, bf16) |
+| **image** | `POST /v1/images/generations` | `unsloth/Qwen-Image-2.1-Turbo-GGUF` | diffusers (MPS, Q8_0) |
 | **video** | `POST /v1/videos`, `GET /v1/videos/{id}`, `GET /v1/videos/{id}/content` | `dgrauet/ltx-2.5-mlx-q4` | ltx-2-mlx (LTX-2.5 distilled, 4-bit) |
 | **stt** | `POST /v1/audio/transcriptions` | `mlx-community/parakeet-tdt-0.6b-v3` | parakeet-mlx |
 | **tts** | `POST /v1/audio/speech`, `GET /v1/audio/voices` | `prince-canuma/Kokoro-82M-4bit` (27 voices) | mlx-audio |
@@ -164,7 +164,7 @@ omni up       # gateway and workers in the background
 
 `omni init` validates `~/.omni-api/config.toml`, installs Ollama when the binary is missing, waits for the server to answer, pulls the chat/decide/embed models and confirms they landed; every failure prints the command to fix it and a link. The stt, tts, image and video models download on first use. Release and packaging notes live in [`docs/publishing.md`](docs/publishing.md).
 
-`omni init --small` makes the smallest model of each role the default instead: `qwen2.5:0.5b` (chat), `laya` (decide), `embeddinggemma-2:270m` (embed), `moondream/parakeet-redux` (stt), `mlx-community/Kokoro-82M-8bit` (tts) and `baa-ai/LTX-2.3-22B-RAM-12GB-MLX` (video). The image role has no smaller option: this build runs Qwen-Image, and Turbo is already its cheapest checkpoint. A failed pull writes nothing to the config.
+The shipped defaults are the small profile: `qwen2.5:0.5b` (chat), `OneJev1.5-0.8B` (decide), `embeddinggemma-2:270m` (embed), `moondream/parakeet-redux` (stt), `Kokoro-82M-8bit` (tts), `Qwen-Image-2.1-Turbo` at Q8_0 (image, 7.6 GB) and `LTX-2.3-22B-RAM-12GB-MLX` (video). Any role can be changed in the playground (add a model, set it as default) or in `~/.omni-api/config.toml`; each role's list keeps the bigger models one click away.
 
 ---
 
