@@ -1,16 +1,21 @@
 """The streaming reverse proxy: one httpx client per role, capped bodies, and upstream errors
-rewritten into the same OpenAI shape the rest of omni uses."""
+rewritten into the same OpenAI shape the rest of omni uses. A request naming an execution id
+(`X-Omni-Exec`) is retained: the upstream is read to the end in its own task even when the
+client goes away, and the full response stays retrievable under /admin/requests."""
+import asyncio
 import json
 import logging
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 import httpx
 from fastapi import HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from starlette.background import BackgroundTask
 
 from omni import config
 from omni.errors import error_response
+from omni.gateway import executions
 from omni.supervisor.worker import Worker
 
 if TYPE_CHECKING:
@@ -24,6 +29,7 @@ FORWARDED_RESPONSE_HEADERS = (
     "content-range", "accept-ranges", "content-length", "content-disposition", "cache-control",
 )
 DEFAULT_MAX_BYTES = 8 * 1024 * 1024
+ERROR_BODY_MAX_BYTES = 1024 * 1024
 
 
 def timeout() -> httpx.Timeout:
@@ -72,33 +78,132 @@ class Proxy:
         return b"".join(chunks)
 
     async def forward(self, request: Request, role: str, path: str, body: bytes | None = None,
-                      max_bytes: int = DEFAULT_MAX_BYTES) -> StreamingResponse | JSONResponse:
+                      max_bytes: int = DEFAULT_MAX_BYTES,
+                      ready: Callable[[], Awaitable[str | None]] | None = None) -> Response:
+        """Proxy one request. `ready` (downloading or waking the model) runs only when the request
+        will actually run, never for a replay; a refusal it returns becomes a 502."""
         content = await self.read_body(request, max_bytes) if body is None else body
         if len(content) > max_bytes:
             raise HTTPException(413, f"body: larger than {max_bytes // 1024 // 1024} MB")
+        exec_id = executions.valid_id(request.headers.get(executions.EXEC_HEADER))
+        if exec_id is not None:
+            answered = executions.claim(exec_id, role, path, executions.fingerprint(content))
+            if answered is not None:
+                return answered
+        refused = await self._prepare(exec_id, role, path, ready)
+        if refused is not None:
+            return refused
         headers = {name: value for name, value in request.headers.items() if name in FORWARDED_REQUEST_HEADERS}
         upstream_request = self.clients[role].build_request(request.method, path, content=content, headers=headers)
+        # a non-streaming upstream does all its work before the headers, so Stop cancels this task
+        sending = asyncio.create_task(self.clients[role].send(upstream_request, stream=True))
+        if exec_id is not None:
+            executions.TASKS[exec_id] = sending
         try:
-            upstream = await self.clients[role].send(upstream_request, stream=True)
+            upstream = await sending
+        except asyncio.CancelledError:
+            if exec_id is None:
+                raise
+            entry = executions.cancelled(exec_id, role, path)
+            if asyncio.current_task().cancelling():
+                raise
+            return executions.http_response(entry)
         except httpx.TransportError:
             if self.pool is not None:
                 self.pool.note_unreachable(role)
-            return error_response(503, self.unavailable(role), "unavailable")
+            return self._settle(exec_id, role, path,
+                                error_response(503, self.unavailable(role), "unavailable"))
+        except Exception as failure:
+            if exec_id is not None:
+                self._settle(exec_id, role, path,
+                             error_response(502, f"{role}: {failure}", "upstream_error"))
+            raise
         if upstream.status_code >= 400:
-            capped = bytearray()
-            async for chunk in upstream.aiter_raw():
-                capped.extend(chunk[: max(0, 1024 * 1024 - len(capped))])
-                if len(capped) >= 1024 * 1024:
-                    break
-            await upstream.aclose()
-            return self._upstream_error(role, upstream, bytes(capped))
+            return self._settle(exec_id, role, path, await self._read_error(role, upstream))
         response_headers = {name: value for name, value in upstream.headers.items()
                            if name in FORWARDED_RESPONSE_HEADERS}
+        if exec_id is None:
+            return StreamingResponse(
+                upstream.aiter_raw(),
+                status_code=upstream.status_code,
+                headers=response_headers,
+                background=BackgroundTask(upstream.aclose),
+            )
+        return self._forward_retained(exec_id, role, path, upstream, response_headers)
+
+    async def _prepare(self, exec_id: str | None, role: str, path: str,
+                       ready: Callable[[], Awaitable[str | None]] | None) -> Response | None:
+        """Run `ready` for a request about to run; its refusal, recorded under the id, or None."""
+        if ready is None:
+            return None
+        try:
+            refused = await ready()
+        except BaseException:
+            if exec_id is not None:
+                executions.cancelled(exec_id, role, path)
+            raise
+        if refused is None:
+            return None
+        return self._settle(exec_id, role, path, error_response(502, refused, "upstream_error"))
+
+    @staticmethod
+    def _settle(exec_id: str | None, role: str, path: str, response: Response) -> Response:
+        """Answer a request that ended before streaming, remembering it under its id."""
+        if exec_id is not None:
+            executions.record_response(exec_id, role, path, response)
+        return response
+
+    async def _read_error(self, role: str, upstream: httpx.Response) -> JSONResponse:
+        """An upstream error body (capped) in the OpenAI shape; a broken read is a 502."""
+        capped = bytearray()
+        try:
+            async for chunk in upstream.aiter_raw():
+                capped.extend(chunk[: max(0, ERROR_BODY_MAX_BYTES - len(capped))])
+                if len(capped) >= ERROR_BODY_MAX_BYTES:
+                    break
+        except httpx.HTTPError as failure:
+            return error_response(502, f"{role} failed while answering {upstream.status_code}: {failure}",
+                                  "upstream_error")
+        finally:
+            await upstream.aclose()
+        return self._upstream_error(role, upstream, bytes(capped))
+
+    def _forward_retained(self, exec_id: str, role: str, path: str, upstream,
+                          response_headers: dict) -> StreamingResponse:
+        """Stream live while retaining: the pump owns the upstream, the client only watches.
+
+        Closing the tab, navigating away or closing the browser cancels the live generator
+        below, never the pump: it reads the upstream to the end and remembers the response.
+        """
+        content_type = upstream.headers.get("content-type", "application/octet-stream")
+        sink = executions.begin(exec_id, role, path, upstream.status_code, content_type, upstream,
+                                response_headers)
+        # the pump may stop short (hard cap, upstream error), so a declared length could be a lie
+        response_headers = {name: value for name, value in response_headers.items()
+                            if name != "content-length"}
+
+        async def finish_upstream() -> None:
+            task = executions.TASKS.get(exec_id)
+            if task is not None:
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    raise
+                except Exception:  # noqa: BLE001, S110 - the pump already recorded its own outcome
+                    pass
+
+        async def live():
+            try:
+                async for chunk in sink.live_chunks():
+                    yield chunk
+            finally:
+                sink.detach()
+
         return StreamingResponse(
-            upstream.aiter_raw(),
+            live(),
             status_code=upstream.status_code,
             headers=response_headers,
-            background=BackgroundTask(upstream.aclose),
+            background=BackgroundTask(finish_upstream),
         )
 
     def _upstream_error(self, role: str, upstream: httpx.Response, raw: bytes | None = None) -> JSONResponse:

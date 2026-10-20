@@ -1,81 +1,117 @@
-/* OMNI API theme — palette from Nexus Core logo:
-   cyan #22D3EE -> indigo #818CF8 -> fuchsia #E879F9 on navy #0B1026.
-   Structure follows shadcn/ui: neutral surfaces, one primary, hairline
-   borders, ring focus, small radii, flat shadows. Gradient reserved for
-   brand + progress only; primary actions stay solid. */
+/* shadcn/ui zinc theme (new-york, radius 0.625rem).
+   Light/dark values mirror https://ui.shadcn.com/docs/theming tokens:
+   background, foreground, card, primary, secondary, muted, border, input,
+   ring. Legacy --accent/--surface names stay as aliases so existing
+   modules keep working. Primary actions are solid zinc-900 / zinc-50;
+   no brand gradient on surfaces. */
 :root {
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
 
-  /* Logo hues */
-  --cyan: #22d3ee;
-  --indigo: #818cf8;
-  --fuchsia: #e879f9;
-  --brand: linear-gradient(120deg, var(--cyan), var(--indigo) 55%, var(--fuchsia));
+  --radius: 0.625rem;
 
-  --accent: #4f46e5;
-  --accent-hover: #4338ca;
-  --accent-soft: rgba(79, 70, 229, 0.09);
-  --accent-fg: #ffffff;
+  --background: #ffffff;
+  --foreground: #09090b;
+  --card: #ffffff;
+  --card-foreground: #09090b;
+  --popover: #ffffff;
+  --popover-foreground: #09090b;
+  --primary: #18181b;
+  --primary-foreground: #fafafa;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --accent: #18181b;
+  --accent-hover: #27272a;
+  --accent-soft: #f4f4f5;
+  --accent-fg: #fafafa;
+  --accent-foreground: #18181b;
+  --destructive: #e7000b;
+  --destructive-fg: #ffffff;
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #a1a1aa;
   --green: #16a34a;
   --orange: #d97706;
-  --red: #dc2626;
+  --red: #e7000b;
 
-  --bg: #f6f7fb;
-  --sidebar: rgba(255, 255, 255, 0.85);
-  --surface: #ffffff;
-  --surface-2: #eef0f6;
-  --field: #ffffff;
-  --text: #0b1026;
-  --text-2: #565b73;
-  --text-3: #7d8199;
-  --hairline: rgba(11, 16, 38, 0.09);
-  --hairline-strong: rgba(11, 16, 38, 0.17);
-  --shadow: 0 1px 2px rgba(11, 16, 38, 0.05);
-  --shadow-pop: 0 12px 32px rgba(11, 16, 38, 0.14), 0 2px 8px rgba(11, 16, 38, 0.08);
-  --code-bg: #eef0f6;
-  --signal: #0284c7;
-  --bubble-user: #4f46e5;
-  --bubble-user-text: #ffffff;
-  --bubble-bot: #eef0f6;
+  /* Legacy aliases used across modules. */
+  --bg: var(--background);
+  --sidebar: var(--background);
+  --surface: var(--card);
+  --surface-2: var(--muted);
+  --field: var(--background);
+  --text: var(--foreground);
+  --text-2: var(--muted-foreground);
+  --text-3: #636369;
+  --hairline: var(--border);
+  --hairline-strong: var(--input);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --code-bg: var(--muted);
+  --signal: var(--muted-foreground);
+  --bubble-user: var(--primary);
+  --bubble-user-text: var(--primary-foreground);
+  --bubble-bot: var(--muted);
 
-  --radius-sm: 6px;
-  --radius: 10px;
-  --radius-lg: 14px;
+  --brand: var(--primary);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-lg: var(--radius);
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px;
-  --control-h: 36px; --control-h-sm: 30px;
-  --ring: rgba(79, 70, 229, 0.55);
-  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--ring);
+  --control-h: 36px; --control-h-sm: 32px;
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
   color-scheme: light;
 }
 
 :root[data-theme="dark"] {
-  --accent: #818cf8;
-  --accent-hover: #a5b4fc;
-  --accent-soft: rgba(129, 140, 248, 0.14);
-  --accent-fg: #0b1026;
+  --background: #09090b;
+  --foreground: #fafafa;
+  --card: #18181b;
+  --card-foreground: #fafafa;
+  --popover: #18181b;
+  --popover-foreground: #fafafa;
+  --primary: #e4e4e7;
+  --primary-foreground: #18181b;
+  --secondary: #27272a;
+  --secondary-foreground: #fafafa;
+  --muted: #27272a;
+  --muted-foreground: #a1a1aa;
+  --accent: #e4e4e7;
+  --accent-hover: #fafafa;
+  --accent-soft: #27272a;
+  --accent-fg: #18181b;
+  --accent-foreground: #fafafa;
+  --destructive: #ff6467;
+  --destructive-fg: #ffffff;
+  --border: rgba(255, 255, 255, 0.1);
+  --input: rgba(255, 255, 255, 0.15);
+  --ring: #71717a;
   --green: #34d399;
   --orange: #fbbf24;
-  --red: #f87171;
+  --red: #ff6467;
 
-  --bg: #07070d;
-  --sidebar: rgba(11, 16, 38, 0.82);
-  --surface: #0e1226;
-  --surface-2: #171c36;
-  --field: #121830;
-  --text: #f2f4ff;
-  --text-2: #a3a8c3;
-  --text-3: #7d8199;
-  --hairline: rgba(163, 168, 195, 0.14);
-  --hairline-strong: rgba(163, 168, 195, 0.26);
+  --bg: var(--background);
+  --sidebar: var(--background);
+  --surface: var(--card);
+  --surface-2: var(--muted);
+  --field: var(--card);
+  --text: var(--foreground);
+  --text-2: var(--muted-foreground);
+  --text-3: #9d9da6;
+  --hairline: var(--border);
+  --hairline-strong: var(--input);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.4);
-  --code-bg: #171c36;
-  --signal: #22d3ee;
-  --bubble-user: #6366f1;
-  --bubble-bot: #171c36;
-  --ring: rgba(129, 140, 248, 0.6);
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
+  --code-bg: var(--muted);
+  --signal: var(--muted-foreground);
+  --bubble-user: var(--primary);
+  --bubble-user-text: var(--primary-foreground);
+  --bubble-bot: var(--muted);
+
+  --brand: var(--primary);
   color-scheme: dark;
 }
 
@@ -102,8 +138,9 @@ input[type="text"], input[type="number"], input:not([type]), select, textarea {
   width: 100%;
   min-height: var(--control-h); padding: 8px 12px;
   background: var(--field);
-  border: 1px solid var(--hairline-strong);
+  border: 1px solid var(--input);
   border-radius: var(--radius-sm);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
@@ -113,27 +150,27 @@ textarea { resize: vertical; line-height: 1.5; }
 select {
   appearance: none;
   padding-right: 30px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%237d8199' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2371717a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 11px center;
 }
 
 input:focus, select:focus, textarea:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: var(--ring);
+  box-shadow: var(--focus-ring);
 }
 
-input[type="range"] { accent-color: var(--accent); width: 100%; }
-input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; margin: 0; }
+input[type="range"] { accent-color: var(--primary); width: 100%; }
+input[type="checkbox"] { accent-color: var(--primary); width: 15px; height: 15px; margin: 0; }
 
-::placeholder { color: var(--text-3); }
+::placeholder { color: var(--muted-foreground); }
 
-a { color: var(--accent); text-decoration: none; }
-a:hover { text-decoration: underline; }
+a { color: var(--foreground); text-decoration: underline; text-underline-offset: 4px; }
+a:hover { color: var(--foreground); }
 
-::selection { background: var(--accent); color: var(--accent-fg); }
+::selection { background: var(--primary); color: var(--primary-foreground); }
 a:focus-visible, summary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
-* { scrollbar-width: thin; scrollbar-color: var(--hairline-strong) transparent; }
+* { scrollbar-width: thin; scrollbar-color: var(--input) transparent; }
 
 /* Separate borders so the frame can be rounded: only bottom hairlines are used,
    so collapsing them made no visual difference. */
@@ -141,24 +178,24 @@ table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  border: 1px solid var(--hairline);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   overflow: hidden;
-  background: var(--surface);
+  background: var(--card);
 }
 th {
   text-align: left;
   font-weight: 500;
   font-size: 12px;
-  color: var(--text-2);
-  background: var(--surface-2);
+  color: var(--muted-foreground);
+  background: var(--muted);
   padding: 8px 12px;
-  border-bottom: 1px solid var(--hairline);
+  border-bottom: 1px solid var(--border);
 }
-td { padding: 8px 12px; border-bottom: 1px solid var(--hairline); vertical-align: middle; }
+td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
 tbody tr { transition: background-color 0.12s; }
-tbody tr:hover { background: var(--surface-2); }
+tbody tr:hover { background: var(--muted); }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }

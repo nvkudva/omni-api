@@ -14,8 +14,8 @@ const { HealthCard } = await import("../src/components/HealthCard.jsx");
 const { health } = await import("../src/api/health.js");
 const Models = ModelsModule.default;
 const { RoleModelCard, Tunable } = await import("../src/components/RoleModelCard.jsx");
-const { FindAndInstall, criteriaFor } = await import("../src/components/FindAndInstall.jsx");
-const { runtime, ROLE_META } = await import("../src/api/roles.js");
+const { FindAndInstall, InstallProgress, criteriaFor } = await import("../src/components/FindAndInstall.jsx");
+const { runtime, ROLE_META, downloads, installs, downloadFor, pollDownloads } = await import("../src/api/roles.js");
 const { WorkerRows, ModelRows } = ModelsModule;
 const { models } = await import("../src/api/models.js");
 const { gb } = await import("../src/lib/format.js");
@@ -319,14 +319,14 @@ describe("the sidebar card", () => {
     // The old card took its word from the process and its light from memory, so a live tts worker
     // with an unloaded model said "running" beside a red dot.
     const html = sidebar("tts", { status: "ready" });
-    expect(html).toContain(">not running<");
-    expect(html).not.toContain(">running<");
+    expect(html).toContain(">idle · not loaded<");
+    expect(html).not.toContain(">loaded<");
     expect(html).toContain('role="switch"');
   });
 
   test("a stopped worker offers Start, not a keep-warm switch", () => {
     const html = sidebar("tts", { status: "stopped" });
-    expect(html).toContain(">stopped<");
+    expect(html).toContain(">off<");
     expect(html).toContain(">Start<");
     expect(html).not.toContain('role="switch"');
   });
@@ -339,7 +339,7 @@ describe("the sidebar card", () => {
 
   test("an unreachable Ollama reads stopped and points at the server controls", () => {
     const html = sidebar("chat", { status: "unavailable", engineUrl: "127.0.0.1:11434" });
-    expect(html).toContain(">stopped<");
+    expect(html).toContain(">off<");
     expect(html).toContain(">Server<");
     expect(html).toContain("127.0.0.1:11434");
     // nothing here can start an Ollama omni does not own, so no switch and no Start
@@ -349,18 +349,18 @@ describe("the sidebar card", () => {
 
   test("warm and running differ only in whether the model is held", () => {
     const warm = sidebar("chat", { status: "loaded", loaded: true, pinned: true, memoryBytes: 2_000_000_000 });
-    expect(warm).toContain(">warm<");
+    expect(warm).toContain(">loaded · kept<");
     expect(warm).toContain('aria-checked="true"');
 
     const running = sidebar("chat", { status: "loaded", loaded: true, memoryBytes: 2_000_000_000 });
-    expect(running).toContain(">running<");
+    expect(running).toContain(">loaded<");
     expect(running).toContain('aria-checked="false"');
   });
 
   test("a pinned role still loading says so", () => {
     const html = sidebar("chat", { pinned: true, status: "idle" });
-    expect(html).toContain(">loading…<");
-    expect(html).not.toContain(">not running<");
+    expect(html).toContain(">loading model…<");
+    expect(html).not.toContain(">idle · not loaded<");
   });
 
   test("mini density shows no detail controls, detail header mirrors mini", () => {
@@ -430,5 +430,72 @@ describe("the health tables", () => {
 
   beforeEach(() => {
     models.value = { data: [], defaults: {} };
+  });
+});
+
+describe("download progress from any source", () => {
+  beforeEach(() => {
+    installs.value = {};
+    downloads.value = {};
+  });
+
+  test("a gateway-reported download shows a progress bar with no local install", () => {
+    downloads.value = {
+      stt: { model: "mlx-community/parakeet-tdt-0.6b-v3", busy: true, status: "downloading", fraction: 0.25, warnings: [], error: "" },
+    };
+    const html = render(<InstallProgress role="stt" />);
+    expect(html).toContain('role="progressbar"');
+    expect(html).toContain("downloading");
+  });
+
+  test("a busy local install wins over the gateway report", () => {
+    installs.value = {
+      stt: { model: "mlx-community/parakeet-tdt-0.6b-v3", busy: true, status: "working…", fraction: 0, warnings: [], error: "" },
+    };
+    downloads.value = {
+      stt: { model: "mlx-community/parakeet-tdt-0.6b-v3", busy: true, status: "downloading", fraction: 0.5, warnings: [], error: "" },
+    };
+    expect(downloadFor("stt").status).toBe("working…");
+  });
+
+  test("nothing renders when nothing is downloading", () => {
+    expect(render(<InstallProgress role="stt" />)).toBe("");
+  });
+
+  test("a download that failed while the browser was closed surfaces on reopen", async () => {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({
+        downloads: [],
+        recent: [{ role: "stt", model: "mlx-community/parakeet-tdt-0.6b-v3", error: "boom", finished_at: 1 }],
+      }),
+    });
+    try {
+      await pollDownloads();
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+    expect(installs.value.stt?.error).toBe("boom");
+    expect(render(<InstallProgress role="stt" />)).toContain("boom");
+  });
+
+  test("an old failure never overwrites a later successful install", async () => {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({
+        downloads: [],
+        recent: [{ role: "image", model: "old/model", error: "old failure", finished_at: 2 }],
+      }),
+    });
+    try {
+      await pollDownloads();
+      installs.value = { ...installs.value, image: { model: "new/model", busy: false, status: "installed new/model", error: "" } };
+      await pollDownloads();
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+    expect(installs.value.image.error).toBe("");
   });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useState } from "preact/hooks";
 import { record } from "../api/client.js";
 import { generateImage } from "../api/endpoints.js";
 import { curlJson } from "../lib/curl.js";
@@ -7,11 +7,14 @@ import * as ui from "../components/ui.jsx";
 import { Panel, Pending, RequestBody, Turn, TurnError, UiJson, Workbench, useTurnState } from "../components/workbench.jsx";
 import { LogsCard } from "../components/LogsCard.jsx";
 import { useJsonRequest } from "../hooks/useJsonRequest.js";
+import { useRunHistory } from "../hooks/useRunHistory.js";
 import styles from "./Image.module.css";
 
 const DEFAULT_PROMPT = "A cozy reading nook by a rain-streaked window at dusk, warm lamp light, a cat asleep on a stack of books, film photograph.";
 const SIZES = ["512x512", "768x768", "1024x1024", "1328x1328", "1024x768", "768x1024", "1664x928", "928x1664"];
-const MAX_TURNS = 20;
+const STEPS_MIN = 1;
+const STEPS_MAX = 60;
+const SEED_MAX = 2 ** 31 - 1;
 
 function requestBody(prompt, negative, size, steps, seed) {
   const body = { prompt: prompt.trim(), size, steps };
@@ -35,30 +38,10 @@ export default function Image() {
   const [size, setSize] = useState("512x512");
   const [steps, setSteps] = useState(8);
   const [seed, setSeed] = useState("");
-  const [turns, setTurns] = useState([]);
-  const [busy, setBusy] = useState(false);
   const [meta, setMeta] = useState("");
   const [view, setView] = useState("ui");
-  const turnsRef = useRef([]);
-  const abort = useRef(null);
+  const { entries: turns, busy, start: startRun, stop, finish, add, update, clear } = useRunHistory();
   const turnState = useTurnState();
-
-  useEffect(() => () => {
-    abort.current?.abort();
-    turnsRef.current.forEach((turn) => turn.url && URL.revokeObjectURL(turn.url));
-  }, []);
-
-  // Cap retained images and revoke the blob URLs we drop.
-  const commit = (next) => {
-    const kept = next.slice(-MAX_TURNS);
-    const keptIds = new Set(kept.map((turn) => turn.id));
-    for (const dropped of turnsRef.current) {
-      if (!keptIds.has(dropped.id) && dropped.url) URL.revokeObjectURL(dropped.url);
-    }
-    turnsRef.current = kept;
-    setTurns(kept);
-  };
-  const update = (id, changes) => commit(turnsRef.current.map((turn) => (turn.id === id ? { ...turn, ...changes } : turn)));
 
   const body = requestBody(prompt, negative, size, steps, seed);
   const json = useJsonRequest(view, body);
@@ -67,16 +50,14 @@ export default function Image() {
   const generate = async () => {
     const payload = view === "json" ? json.body : body;
     if (!payload?.prompt) return;
-    const controller = new AbortController();
-    abort.current = controller;
-    const id = crypto.randomUUID();
-    const at = Date.now();
-    commit([...turnsRef.current, { id, at, request: payload, prompt: payload.prompt, pending: true }]);
-    setBusy(true);
+    const run = startRun();
+    if (!run) return;
+    const { signal, execId: id } = run;
+    add({ id, at: Date.now(), request: payload, prompt: payload.prompt, pending: true });
     setMeta("generating…");
     const start = performance.now();
     try {
-      const { status, data: result } = await generateImage(payload, controller.signal);
+      const { status, data: result } = await generateImage(payload, signal, id);
       const elapsed = since(start);
       record("image", status, elapsed);
       const seedText = payload.seed != null ? ` · seed ${payload.seed}` : "";
@@ -100,12 +81,12 @@ export default function Image() {
         setMeta("");
       }
     } finally {
-      abort.current = null;
-      setBusy(false);
+      finish();
     }
   };
 
   const openId = turnState.open ?? turns[turns.length - 1]?.id;
+  const randomSeed = () => setSeed(String(Math.floor(Math.random() * (SEED_MAX + 1))));
 
   return (
     <Workbench
@@ -119,10 +100,9 @@ export default function Image() {
         tools={<UiJson view={view} onChange={setView} />}
         foot={(
           <>
-            <span style={{ marginRight: "auto", color: "var(--text-3)", fontSize: "12px" }}>{steps} steps · {size}</span>
             {busy
-              ? <ui.Button variant="stop" onClick={() => abort.current?.abort()}>Stop</ui.Button>
-              : <ui.Button variant="primary" disabled={view === "ui" && !body.prompt} onClick={generate}>Generate</ui.Button>}
+              ? <ui.Button variant="stop" class={styles.action} onClick={stop}>Stop</ui.Button>
+              : <ui.Button variant="primary" class={styles.action} disabled={view === "json" ? Boolean(json.error) || !json.body?.prompt : !body.prompt} onClick={generate}>Generate</ui.Button>}
           </>
         )}
       >
@@ -140,11 +120,18 @@ export default function Image() {
               </select>
             </ui.Field>
             <ui.Field label="Seed">
-              <input type="number" step={1} placeholder="blank = random" value={seed} onInput={(event) => setSeed(event.currentTarget.value)} />
+              <div class={styles.seedRow}>
+                <input type="number" step={1} aria-label="Seed" placeholder="blank = random" value={seed} onInput={(event) => setSeed(event.currentTarget.value)} />
+                <ui.IconButton icon="dice" label="Random seed" onClick={randomSeed} />
+              </div>
             </ui.Field>
           </ui.Grid>
-          <ui.Field label="Steps" trailing={<ui.Meta>{steps}</ui.Meta>}>
-            <input type="range" min={1} max={60} value={steps} onInput={(event) => setSteps(Number(event.currentTarget.value))} />
+          <ui.Field
+            label="Steps"
+            trailing={<ui.Meta>{steps}</ui.Meta>}
+            hint={<span class={styles.scale}><span>{STEPS_MIN}</span><span>{STEPS_MAX}</span></span>}
+          >
+            <input type="range" min={STEPS_MIN} max={STEPS_MAX} value={steps} onInput={(event) => setSteps(Number(event.currentTarget.value))} />
           </ui.Field>
         </RequestBody>
       </Panel>
@@ -152,7 +139,7 @@ export default function Image() {
       <Panel
         title="Images"
         meta={meta}
-        tools={<ui.IconButton icon="trash" label="Clear history" disabled={!turns.length || busy} onClick={() => { commit([]); setMeta(""); }} />}
+        tools={<ui.IconButton icon="trash" label="Clear history" disabled={!turns.length || busy} onClick={() => { clear(); setMeta(""); }} />}
       >
         {turns.length
           ? (

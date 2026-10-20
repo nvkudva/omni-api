@@ -84,6 +84,7 @@ def spawn(worker: "Worker") -> None:
     _publish_link(worker)
     _write_pidfile(worker)
     worker.status, worker.failed_probes = "starting", 0
+    worker.started_at = time.monotonic()
     log.info("started %s (pid %s)", worker.name, worker.process.pid)
 
 
@@ -130,7 +131,7 @@ def _unpublish_link(worker: "Worker") -> None:
 def _write_pidfile(worker: "Worker") -> None:
     assert worker.process is not None
     # the argv the process was really started with, so a recycled pid is never signalled
-    payload = {"pid": worker.process.pid, "argv": worker.command or worker.argv}
+    payload = {"pid": worker.process.pid, "argv": worker.command or worker.argv, "owner": os.getpid()}
     try:
         worker.pidfile.write_text(json.dumps(payload))
     except OSError:
@@ -177,26 +178,39 @@ def command_line(pid: int) -> str:
     return result.stdout if result.returncode == 0 else ""
 
 
-def is_ours(pid: int, argv: list[str]) -> bool:
-    """True only when the process's command line still matches the argv we recorded at spawn."""
-    command = command_line(pid)
-    if not command:
-        return False
+def _matches(command: str, argv: list[str]) -> bool:
     parts = [part for part in argv if part]
     return bool(parts) and all(part in command for part in parts)
 
 
-def _read_pidfile(path: Path) -> tuple[int, list[str]] | None:
+def is_ours(pid: int, argv: list[str]) -> bool:
+    """True only when the process's command line still matches the argv we recorded at spawn."""
+    command = command_line(pid)
+    return bool(command) and _matches(command, argv)
+
+
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _read_pidfile(path: Path) -> tuple[int, list[str], int | None] | None:
     try:
         raw = path.read_text()
     except OSError:
         return None
     try:
         record = json.loads(raw)
-        return int(record["pid"]), list(record.get("argv", []))
+        owner = record.get("owner")
+        return int(record["pid"]), list(record.get("argv", [])), owner if isinstance(owner, int) else None
     except (ValueError, KeyError, TypeError):
         with contextlib.suppress(ValueError):
-            return int(raw), []  # a pidfile from an older version, with no argv to check
+            return int(raw), [], None  # a pidfile from an older version, with no argv to check
     return None
 
 
@@ -213,19 +227,22 @@ def kill_leftovers() -> list[str]:
             pidfile.unlink(missing_ok=True)
             touched.append(pidfile.stem)  # nothing is left to protect
             continue
-        pid, argv = record
+        pid, argv, owner = record
+        if owner is not None and _pid_alive(owner):
+            continue  # a running gateway still owns this worker
         if not _group_alive(pid):
             pidfile.unlink(missing_ok=True)
             touched.append(pidfile.stem)  # the worker is already gone; its socket is stale
             continue
-        if argv and not is_ours(pid, argv):
+        command = command_line(pid)
+        if command and not _matches(command, argv):
             log.warning("pid %s recorded in %s is not our worker any more; leaving it alone", pid, pidfile.name)
             continue
-        if not argv:
+        if command and not argv:
             log.warning("cannot verify pid %s from %s; leaving it alone", pid, pidfile.name)
             continue
+        _kill_group(pid)  # with no command line the leader is gone but forked helpers keep the group alive
         pidfile.unlink(missing_ok=True)
-        _kill_group(pid)
         stopped.append(pidfile.stem)
         touched.append(pidfile.stem)
     _clean_sockets(touched)

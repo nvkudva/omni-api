@@ -1,7 +1,6 @@
 """Memory, swap, disk, CPU and load, plus the warnings that say whether another model fits."""
 import os
 import shutil
-from pathlib import Path
 
 import httpx
 import psutil
@@ -77,7 +76,7 @@ async def memory(client: httpx.AsyncClient, workers: dict[str, dict]) -> dict:
         "total_bytes": ram.total,
         "available_bytes": ram.available,
         "swap_used_bytes": swap.used,
-        "disk_free_bytes": shutil.disk_usage(Path.home()).free,
+        "disk_free_bytes": shutil.disk_usage(disk_usage_root()).free,
         "ollama": ollama,
         "cpu_percent": cpu,
         "cpu_count": os.cpu_count(),

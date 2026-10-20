@@ -1,9 +1,10 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { getJson } from "../api/client.js";
 import { modelStatus, serverInfo } from "../api/endpoints.js";
 import { loadModels } from "../api/models.js";
 import { pollRuntime } from "../api/roles.js";
 import { pollHealth } from "../api/health.js";
+import { useModal } from "../hooks/useModal.js";
 import * as ui from "./ui.jsx";
 import { RoleModelCard } from "./RoleModelCard.jsx";
 import { FindAndInstall } from "./FindAndInstall.jsx";
@@ -21,6 +22,8 @@ export function ModelSettingsPopup({ role, onClose }) {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [addRole, setAddRole] = useState(null);
+  const dialogRef = useRef(null);
+  useModal(dialogRef, onClose);
 
   const refresh = async () => {
     try {
@@ -43,15 +46,7 @@ export function ModelSettingsPopup({ role, onClose }) {
   useEffect(() => {
     if (!role) return undefined;
     refresh();
-    const opener = document.activeElement;
-    const onKey = (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose?.();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("keydown", onKey); opener?.focus?.(); };
+    return undefined;
   }, [role]);
 
   if (!role) return null;
@@ -69,7 +64,7 @@ export function ModelSettingsPopup({ role, onClose }) {
       class={styles.backdrop}
       onClick={(event) => { if (event.target === event.currentTarget) onClose?.(); }}
     >
-      <div class={styles.dialog} role="dialog" aria-modal="true" aria-label={`${role} model settings`}>
+      <div ref={dialogRef} class={styles.dialog} role="dialog" aria-modal="true" aria-label={`${role} model settings`}>
         <div class={styles.body}>
           {error && <ui.ErrorText>{error}</ui.ErrorText>}
           {notice && <ui.Notice>{notice}</ui.Notice>}

@@ -1,14 +1,17 @@
 """Process supervision helpers: verifying a pid before signalling, and leftover cleanup."""
 import asyncio
+import json
 import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import httpx
 
 from omni import config, supervisor
+from omni.supervisor import pool as pool_module
 from omni.supervisor import process
 from omni.supervisor.worker import Worker
 
@@ -199,6 +202,76 @@ class StaleSockets(unittest.TestCase):
                 supervisor.kill_leftovers()
             self.assertFalse(link.is_symlink())
             self.assertFalse((run / "stt.1.1.sock").exists())
+
+
+class LeftoverOwnership(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.run_dir = Path(self.directory.name)
+        patcher = patch.object(config, "RUN_DIR", self.run_dir)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def pidfile(self, record):
+        path = self.run_dir / "stt.pid"
+        path.write_text(json.dumps(record))
+        return path
+
+    def test_a_live_gateways_workers_are_left_alone(self):
+        path = self.pidfile({"pid": 4242, "argv": ["uvicorn"], "owner": os.getpid()})
+        with patch.object(process, "_kill_group") as kill:
+            self.assertEqual(supervisor.kill_leftovers(), [])
+        kill.assert_not_called()
+        self.assertTrue(path.exists())
+
+    def test_a_dead_gateways_workers_are_killed(self):
+        path = self.pidfile({"pid": 4242, "argv": ["uvicorn"], "owner": 999999})
+        with patch.object(process, "_group_alive", return_value=True), \
+                patch.object(process, "command_line", return_value="uvicorn --uds x"), \
+                patch.object(process, "_kill_group") as kill:
+            self.assertEqual(supervisor.kill_leftovers(), ["stt"])
+        kill.assert_called_once_with(4242)
+        self.assertFalse(path.exists())
+
+    def test_a_group_with_a_dead_leader_is_killed_and_its_pidfile_removed(self):
+        path = self.pidfile({"pid": 4242, "argv": ["uvicorn"], "owner": 999999})
+        with patch.object(process, "_group_alive", return_value=True), \
+                patch.object(process, "command_line", return_value=""), \
+                patch.object(process, "_kill_group") as kill:
+            self.assertEqual(supervisor.kill_leftovers(), ["stt"])
+        kill.assert_called_once_with(4242)
+        self.assertFalse(path.exists())
+
+    def test_spawn_records_the_owning_gateway(self):
+        worker = Worker(name="stt", argv=["x"], client=None, health_path="/health")
+        with patch.object(config, "LOG_DIR", self.run_dir), patch.object(process.subprocess, "Popen") as popen:
+            popen.return_value.pid = 4242
+            process.spawn(worker)
+        self.assertEqual(json.loads(worker.pidfile.read_text())["owner"], os.getpid())
+
+
+class StartupDeadline(unittest.TestCase):
+    def check(self, age):
+        worker = Worker(name="stt", argv=["x"], client=StubClient(httpx.Response(503)), health_path="/health")
+        worker.process = Mock()
+        worker.process.poll.return_value = None
+        worker.status = "starting"
+        worker.started_at = time.monotonic() - age
+        pool = supervisor.Supervisor([worker])
+        with patch.object(pool_module.process, "terminate") as terminate:
+            asyncio.run(pool._check(worker))
+        return worker, terminate
+
+    def test_a_worker_silent_past_the_deadline_is_terminated_and_rescheduled(self):
+        worker, terminate = self.check(pool_module.STARTUP_DEADLINE_SECONDS + 1)
+        terminate.assert_called_once_with(worker)
+        self.assertEqual(worker.status, "restarting")
+
+    def test_a_worker_still_within_the_deadline_keeps_starting(self):
+        worker, terminate = self.check(1)
+        terminate.assert_not_called()
+        self.assertEqual(worker.status, "starting")
 
 
 class UnreachableRequests(unittest.TestCase):

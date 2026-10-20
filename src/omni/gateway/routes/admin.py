@@ -4,20 +4,30 @@ import json
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from huggingface_hub.errors import GatedRepoError, HfHubHTTPError
 
 from omni import config, registry
 from omni.errors import error_response
-from omni.gateway import residency
+from omni.gateway import executions, residency
 from omni.gateway.context import Context
 from omni.gateway.http import json_object
+from omni.registry import pulling
 
 HF_ERRORS = (HfHubHTTPError, OSError)
 
 
 def _bad_role() -> HTTPException:
     return HTTPException(400, f"role: one of {', '.join(registry.ROLES)}")
+
+
+def _unsupported(role: str, name: str) -> str | None:
+    """Why this role's runtime cannot run `name`, or None when it can."""
+    if registry.supports(role, name):
+        return None
+    marker = registry.family(role)
+    hint = f" (it loads only repos with '{marker}' in the name)" if marker else ""
+    return f"the {role} runtime cannot run {name}{hint}"
 
 
 def register(app: FastAPI, ctx: Context) -> None:
@@ -58,15 +68,33 @@ def register(app: FastAPI, ctx: Context) -> None:
                              "installed_by_role": installed_by_role})
 
     @app.post("/admin/models/pull")
-    async def admin_pull(request: Request) -> StreamingResponse:
+    async def admin_pull(request: Request) -> Response:
         role, model = await model_request(request)
         model = registry.normalize_repo_id(model)
         if registry.runner(role) != "ollama":
             model = registry.bare_repo_id(model)
+        reason = _unsupported(role, model)
+        if reason:
+            return error_response(400, reason, "invalid_request_error")
+        # the download belongs to the server from here on: this stream only watches it, so
+        # closing the tab, navigating away or closing the browser never cancels the download
+        task = registry.ensure_started(role, model, clients["chat"])
 
         async def events():
-            async for event in registry.pull(clients["chat"], role, model):
-                yield json.dumps(event) + "\n"
+            warned = 0
+            while not task.done():
+                sample = registry.progress(model) or {"status": f"downloading {model}"}
+                for warning in sample.get("warnings", [])[warned:]:
+                    yield json.dumps({"warning": warning}) + "\n"
+                    warned += 1
+                yield json.dumps({key: value for key, value in sample.items() if key != "warnings"}) + "\n"
+                await asyncio.sleep(1.0)
+            terminal = registry.outcome(model) or {"error": "download interrupted"}
+            for warning in terminal.get("warnings", [])[warned:]:
+                yield json.dumps({"warning": warning}) + "\n"
+            terminal = {key: value for key, value in terminal.items()
+                        if key not in ("finished_at", "warnings")}
+            yield json.dumps(terminal) + "\n"
 
         return StreamingResponse(events(), media_type="application/x-ndjson")
 
@@ -79,6 +107,8 @@ def register(app: FastAPI, ctx: Context) -> None:
         users = [name for name in registry.ROLES if registry.matches(settings[name]["model"], model)]
         if users:
             return error_response(409, f"{model} is the default for {', '.join(users)}; switch that first", "conflict")
+        if registry.progress(model) or model in pulling.TASKS:
+            return error_response(409, f"{model} is still downloading; wait for it to finish", "conflict")
         try:
             if registry.runner(role) == "ollama":
                 await registry.ollama_delete(clients["chat"], model)
@@ -155,6 +185,41 @@ def register(app: FastAPI, ctx: Context) -> None:
                            "installed": available, **state}
         return JSONResponse({"roles": roles})
 
+    @app.get("/admin/models/downloads")
+    async def admin_downloads() -> JSONResponse:
+        """Every model download in flight, whatever started it, for progress bars."""
+        return JSONResponse({"downloads": registry.snapshot(), "recent": registry.recent()})
+
+    @app.get("/admin/requests")
+    async def admin_requests() -> JSONResponse:
+        """Retained inference executions: what is running now and what finished lately."""
+        return JSONResponse({"running": executions.running(), "recent": executions.recent()})
+
+    @app.get("/admin/requests/{exec_id}")
+    async def admin_request(exec_id: str) -> JSONResponse:
+        """One retained execution: live byte counts while it runs, the outcome when done."""
+        entry = executions.get(exec_id)
+        if entry is None:
+            return error_response(404, f"no retained request {exec_id}", "not_found")
+        return JSONResponse({key: value for key, value in entry.items() if key != "body"})
+
+    @app.delete("/admin/requests/{exec_id}")
+    async def admin_cancel_request(exec_id: str) -> JSONResponse:
+        """Stop a running execution for good: the Stop button, not a closed tab."""
+        if not executions.cancel(exec_id):
+            return error_response(404, f"no running request {exec_id}", "not_found")
+        return JSONResponse({"id": exec_id, "cancelled": True})
+
+    @app.get("/admin/requests/{exec_id}/result")
+    async def admin_request_result(exec_id: str) -> Response:
+        """The retained response itself, exactly as it answered the first time."""
+        entry = executions.get(exec_id)
+        if entry is None:
+            return error_response(404, f"no retained request {exec_id}", "not_found")
+        if entry["status"] == "running":
+            return error_response(409, f"request {exec_id} is still running", "conflict")
+        return executions.result_response(entry)
+
     @app.get("/admin/models/check")
     async def admin_check(role: str, model: str = Query(..., min_length=1)) -> JSONResponse:
         """Can this role run this model id or page URL, before downloading anything?"""
@@ -163,11 +228,9 @@ def register(app: FastAPI, ctx: Context) -> None:
         name = registry.normalize_repo_id(model.strip())
         if registry.runner(role) != "ollama":
             name = registry.bare_repo_id(name)
-        if not registry.supports(role, name):
-            marker = registry.family(role)
-            hint = f" (it loads only repos with '{marker}' in the name)" if marker else ""
-            return JSONResponse({"role": role, "model": name, "supported": False,
-                                 "reason": f"the {role} runtime cannot run {name}{hint}",
+        reason = _unsupported(role, name)
+        if reason:
+            return JSONResponse({"role": role, "model": name, "supported": False, "reason": reason,
                                  "installed": False, "size_bytes": None, "blockers": []})
         try:
             available = await installed_for(role)
@@ -237,6 +300,8 @@ def register(app: FastAPI, ctx: Context) -> None:
             return error_response(503, ctx.proxy.unavailable(role), "unavailable")
         except httpx.HTTPStatusError as error:
             return error_response(502, f"{role}: {error.response.text}", "upstream_error")
+        except OSError as error:
+            return error_response(502, f"{role}: {error}", "upstream_error")
         # report what the runtime actually holds, falling back to the request when it does not say
         return JSONResponse({"role": role, "model": model, "loaded": load if loaded is None else loaded,
                              "advisories": plan.advisories, "blockers": plan.blockers})
@@ -297,6 +362,9 @@ def register(app: FastAPI, ctx: Context) -> None:
             if pinned:
                 return error_response(502, f"{role}: {error.response.text}", "upstream_error")
             loaded = False  # unpin must succeed even when the model is already gone
+        except OSError as error:
+            # the model could not be downloaded before loading it
+            return error_response(502, f"{role}: {error}", "upstream_error")
         current = config.load_pins()
         stored = config.save_pins([*current, role] if pinned else [name for name in current if name != role])
         return JSONResponse({"role": role, "model": model, "pinned": role in stored,
@@ -320,12 +388,13 @@ def register(app: FastAPI, ctx: Context) -> None:
             return error_response(404, f"no worker named {name}", "not_found")
         if action not in ("start", "stop", "restart"):
             return error_response(400, "action: start, stop or restart", "invalid_request_error")
+        worker = pool.workers[name]
         if action == "stop":
             await pool.hold(name)
-        else:
+        elif action == "restart" or worker.held or worker.status in ("stopped", "failed"):
             await pool.restart(name)
         return JSONResponse({"worker": name, "status": pool.workers[name].status})
 
     @app.get("/admin/memory")
     async def admin_memory() -> dict:
-        return await registry.memory(clients["chat"], pool.status())
+        return await registry.memory(clients["chat"], await asyncio.to_thread(pool.status))

@@ -1,12 +1,13 @@
 import { errorText, getJson, postJson, record } from "./client.js";
+import { execHeaders } from "./execs.js";
 import { since } from "../lib/format.js";
 
 // --- chat ------------------------------------------------------------------
 
-export function chatStream(body, abortSignal) {
+export function chatStream(body, abortSignal, execId) {
   return fetch("/v1/chat/completions", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...execHeaders(execId) },
     body: JSON.stringify(body),
     signal: abortSignal,
   });
@@ -14,17 +15,17 @@ export function chatStream(body, abortSignal) {
 
 // --- language --------------------------------------------------------------
 
-export async function decide(body, abortSignal) {
-  const response = await postJson("/v1/systemone", body, { signal: abortSignal });
+export async function decide(body, abortSignal, execId) {
+  const response = await postJson("/v1/systemone", body, { signal: abortSignal, headers: execHeaders(execId) });
   return { status: response.status, data: await response.json() };
 }
 
-export async function embed(body, abortSignal) {
-  const response = await postJson("/v1/embeddings", body, { signal: abortSignal });
+export async function embed(body, abortSignal, execId) {
+  const response = await postJson("/v1/embeddings", body, { signal: abortSignal, headers: execHeaders(execId) });
   return { status: response.status, data: await response.json() };
 }
 
-export async function describeImage(dataUrl, model, abortSignal) {
+export async function describeImage(dataUrl, model, abortSignal, execId) {
   const response = await postJson("/v1/chat/completions", {
     model,
     stream: false,
@@ -35,20 +36,20 @@ export async function describeImage(dataUrl, model, abortSignal) {
         { type: "image_url", image_url: { url: dataUrl } },
       ],
     }],
-  }, { signal: abortSignal });
+  }, { signal: abortSignal, headers: execHeaders(execId) });
   const data = await response.json();
   return data.choices?.[0]?.message?.content ?? "";
 }
 
 // --- media -----------------------------------------------------------------
 
-export async function generateImage(body, abortSignal) {
-  const response = await postJson("/v1/images/generations", body, { signal: abortSignal });
+export async function generateImage(body, abortSignal, execId) {
+  const response = await postJson("/v1/images/generations", body, { signal: abortSignal, headers: execHeaders(execId) });
   return { status: response.status, data: await response.json() };
 }
 
-export async function createVideo(body, abortSignal) {
-  const response = await postJson("/v1/videos", body, { signal: abortSignal });
+export async function createVideo(body, abortSignal, execId) {
+  const response = await postJson("/v1/videos", body, { signal: abortSignal, headers: execHeaders(execId) });
   return { status: response.status, data: await response.json() };
 }
 
@@ -58,12 +59,12 @@ export function videoJob(id, abortSignal) {
 
 // --- speech ----------------------------------------------------------------
 
-export async function transcribe(blob, name, responseFormat = "verbose_json", abortSignal) {
+export async function transcribe(blob, name, responseFormat = "verbose_json", abortSignal, execId) {
   const form = new FormData();
   form.append("file", blob, name);
   form.append("response_format", responseFormat);
   const started = performance.now();
-  const response = await fetch("/v1/audio/transcriptions", { method: "POST", body: form, signal: abortSignal });
+  const response = await fetch("/v1/audio/transcriptions", { method: "POST", body: form, signal: abortSignal, headers: execHeaders(execId) });
   const elapsed = since(started);
   record("stt", response.status, elapsed);
   if (!response.ok) {
@@ -75,10 +76,10 @@ export async function transcribe(blob, name, responseFormat = "verbose_json", ab
   return { result, elapsed, status: response.status };
 }
 
-export function synthesize(body, abortSignal) {
+export function synthesize(body, abortSignal, execId) {
   return fetch("/v1/audio/speech", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...execHeaders(execId) },
     body: JSON.stringify(body),
     signal: abortSignal,
   });

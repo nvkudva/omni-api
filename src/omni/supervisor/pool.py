@@ -16,6 +16,7 @@ CHECK_SECONDS = 2.0
 MAX_BACKOFF_SECONDS = 60.0
 STABLE_SECONDS = 60.0
 FAILED_PROBES_BEFORE_RESTART = 5
+STARTUP_DEADLINE_SECONDS = 120.0
 
 
 class Supervisor:
@@ -129,6 +130,10 @@ class Supervisor:
                     worker.restarts = 0
                 return
             if worker.status != "ready":
+                if worker.status == "starting" and now - worker.started_at > STARTUP_DEADLINE_SECONDS:
+                    log.warning("%s never answered a health check; restarting it", worker.name)
+                    await asyncio.to_thread(process.terminate, worker)
+                    self._schedule_restart(worker, now)
                 return
             worker.failed_probes += 1
             if worker.failed_probes >= FAILED_PROBES_BEFORE_RESTART:

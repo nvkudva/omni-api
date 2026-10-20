@@ -1,6 +1,14 @@
-"""Download progress as NDJSON events, for either runtime, ending in {"status": "success"} or {"error": ...}."""
+"""Server-owned downloads with progress any client can watch.
+
+A download runs in its own background task from the moment anything starts it — an explicit
+pull, a load that downloads first, or a first inference — so closing the tab, navigating away
+or closing the browser never cancels it. Progress lives in ACTIVE while it runs and its outcome
+in DONE afterwards; read them with snapshot() and recent(). Attaching to a download only
+watches it: dropping the watcher changes nothing about the download itself.
+"""
 import asyncio
 import json
+import time
 from collections.abc import AsyncIterator
 
 import httpx
@@ -34,16 +42,124 @@ def gated_event(repo_id: str) -> dict:
             "code": "gated", "model": repo_id, "accept_url": accept_url(repo_id)}
 
 
+ACTIVE: dict[str, dict] = {}
+"""Live downloads by repo id: each entry holds role, model, status, total, completed, started_at
+and warnings."""
+
+
+def snapshot() -> list[dict]:
+    """The downloads still in flight, oldest first."""
+    return sorted(ACTIVE.values(), key=lambda entry: entry["started_at"])
+
+
+def track(role: str, model: str, total: float | None, completed: float) -> None:
+    """Publish one progress sample for an in-flight download."""
+    previous = ACTIVE.get(model, {})
+    ACTIVE[model] = {"role": role, "model": model, "status": f"downloading {model}",
+                     "total": total, "completed": completed,
+                     "started_at": previous.get("started_at", time.monotonic()),
+                     "warnings": previous.get("warnings", [])}
+
+
+def warn(role: str, model: str, warning: str) -> None:
+    """Publish a fit warning (disk or memory) for an in-flight download, for any watcher."""
+    if model not in ACTIVE:
+        track(role, model, None, 0)
+    ACTIVE[model]["warnings"] = [*ACTIVE[model]["warnings"], warning]
+
+
+def finish(model: str) -> None:
+    """Drop a download from the live set once it lands or fails."""
+    ACTIVE.pop(model, None)
+
+
+TASKS: dict[str, asyncio.Task] = {}
+"""The background download per repo id. Owned by this module, never by a watching request."""
+
+DONE: dict[str, dict] = {}
+"""Terminal outcome per repo id: role, model, finished_at, plus success or the error event."""
+
+RECENT_TTL_SECONDS = 300.0
+MAX_DONE = 20
+
+
+def progress(model: str) -> dict | None:
+    """The latest sample for one in-flight download, if it is still running."""
+    return ACTIVE.get(model)
+
+
+def outcome(model: str) -> dict | None:
+    """The terminal outcome of a finished download, if one is remembered."""
+    return DONE.get(model)
+
+
+def recent() -> list[dict]:
+    """Finished downloads still worth reporting, newest first."""
+    now = time.monotonic()
+    for model in [name for name, entry in DONE.items()
+                  if now - entry.get("finished_at", 0) > RECENT_TTL_SECONDS]:
+        del DONE[model]
+    return sorted(DONE.values(), key=lambda entry: entry["finished_at"], reverse=True)[:MAX_DONE]
+
+
+async def _background(role: str, model: str, client: httpx.AsyncClient) -> None:
+    """Drain one download to completion, owned by nobody watching it."""
+    terminal: dict = {"error": "download interrupted"}
+    warnings: list[str] = []
+    try:
+        async for event in pull(client, role, model):
+            if event.get("warning"):
+                warnings.append(event["warning"])
+                warn(role, model, event["warning"])
+            if event.get("error") or event.get("status") == "success":
+                terminal = event
+    except Exception as error:  # noqa: BLE001 - the outcome must be recorded, not raised
+        terminal = {"error": f"download failed: {error}"}
+    finally:
+        TASKS.pop(model, None)
+    terminal.pop("started_at", None)
+    DONE[model] = {"role": role, "model": model, **terminal, "warnings": warnings,
+                   "finished_at": time.monotonic()}
+    while len(DONE) > MAX_DONE:
+        oldest = min(DONE, key=lambda name: DONE[name]["finished_at"])
+        del DONE[oldest]
+
+
+def ensure_started(role: str, model: str, client: httpx.AsyncClient) -> asyncio.Task:
+    """Start the download unless it is already running, and hand back its task.
+
+    Watching the task (or dropping it when a request goes away) never affects the download:
+    it completes on its own and records its outcome in DONE.
+    """
+    task = TASKS.get(model)
+    if task is None or task.done():
+        task = TASKS[model] = asyncio.create_task(_background(role, model, client),
+                                                  name=f"omni-download-{model}")
+    return task
+
+
+async def shutdown() -> None:
+    """Cancel every in-flight download and wait until its child process is gone."""
+    tasks = list(TASKS.values())
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+    TASKS.clear()
+
+
 async def pull(client: httpx.AsyncClient, role: str, model: str) -> AsyncIterator[dict]:
     """Progress events while `model` downloads."""
-    events = _ollama_pull(client, model) if runner(role) == "ollama" else _hf_pull(model)
-    async for event in events:
-        if "network is unreachable" in event.get("error", ""):
-            event = {"error": event["error"] + UNREACHABLE_HINT}
-        yield event
+    events = _ollama_pull(client, role, model) if runner(role) == "ollama" else _hf_pull(role, model)
+    try:
+        async for event in events:
+            if "network is unreachable" in event.get("error", ""):
+                event = {"error": event["error"] + UNREACHABLE_HINT}
+            yield event
+    finally:
+        finish(model)
 
 
-async def _ollama_pull(client: httpx.AsyncClient, model: str) -> AsyncIterator[dict]:
+async def _ollama_pull(client: httpx.AsyncClient, role: str, model: str) -> AsyncIterator[dict]:
     warned = False
     try:
         async with client.stream("POST", "/api/pull", json={"model": model}) as response:
@@ -63,12 +179,14 @@ async def _ollama_pull(client: httpx.AsyncClient, model: str) -> AsyncIterator[d
                     warned = True
                     for warning in fit_blockers(total):
                         yield {"warning": warning}
+                if isinstance(total, (int, float)):
+                    track(role, model, total, event.get("completed") or 0)
                 yield event
     except httpx.HTTPError as error:
         yield {"error": f"ollama: {error}"}
 
 
-async def _hf_pull(repo_id: str) -> AsyncIterator[dict]:
+async def _hf_pull(role: str, repo_id: str) -> AsyncIterator[dict]:
     try:
         total = await asyncio.to_thread(huggingface.size, repo_id)
     except (HfHubHTTPError, OSError) as error:
@@ -76,11 +194,13 @@ async def _hf_pull(repo_id: str) -> AsyncIterator[dict]:
         return
     for warning in fit_blockers(total):
         yield {"warning": warning}
-    download = asyncio.create_task(asyncio.to_thread(huggingface.download, repo_id))
+    track(role, repo_id, total, 0)
+    download = asyncio.create_task(huggingface.download(repo_id))
     folder = huggingface.cache_dir(repo_id)
     try:
         while not download.done():
             completed = await asyncio.to_thread(huggingface.folder_size, folder)
+            track(role, repo_id, total, completed)
             yield {"status": f"downloading {repo_id}", "total": total, "completed": completed}
             await asyncio.wait({download}, timeout=PROGRESS_SECONDS)
         download.result()
@@ -91,5 +211,6 @@ async def _hf_pull(repo_id: str) -> AsyncIterator[dict]:
         # a client that disconnects mid-download closes this generator; do not leave the task pending
         if not download.done():
             download.cancel()
+        await asyncio.gather(download, return_exceptions=True)
     huggingface.invalidate()
     yield {"status": "success"}

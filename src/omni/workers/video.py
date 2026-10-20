@@ -77,9 +77,14 @@ def _public(job_id: str) -> dict:
     return {key: value for key, value in list(jobs[job_id].items()) if key != "path"}
 
 
+def _live(job_id: str, job: dict) -> bool:
+    """False once the sweeper has expired the job or dropped it, so late results are discarded."""
+    return jobs.get(job_id) is job and job["status"] != "failed"
+
+
 def _generate(job_id: str, req: schemas.VideoRequest, width: int, height: int) -> None:
     job = jobs.get(job_id)
-    if job is None:
+    if job is None or not _live(job_id, job):
         return
     path = config.VIDEO_DIR / f"{job_id}.mp4"
     image_path = config.VIDEO_DIR / f"{job_id}.png" if req.image else None
@@ -87,12 +92,17 @@ def _generate(job_id: str, req: schemas.VideoRequest, width: int, height: int) -
         if image_path is not None:
             image_path.write_bytes(_decode_frame(req.image))
         with model.use() as pipe:
+            if not _live(job_id, job):
+                return
             job["status"] = "in_progress"
             pipe.generate_and_save(req.prompt, str(path), height=height, width=width,
                                    num_frames=_frames(req.seconds), frame_rate=fps, seed=req.seed,
                                    image=str(image_path) if image_path else None,
                                    negative_prompt=req.negative_prompt)
-        job.update(status="completed", completed_at=int(time.time()), path=str(path))
+        if _live(job_id, job):
+            job.update(status="completed", completed_at=int(time.time()), path=str(path))
+        else:
+            path.unlink(missing_ok=True)
     except Exception:
         path.unlink(missing_ok=True)
         raise
@@ -123,6 +133,18 @@ async def _run_jobs() -> None:
             queue.task_done()
 
 
+def _purge_stale_files() -> None:
+    """Jobs live in memory only, so files left by a previous run can never be fetched or swept."""
+    cutoff = time.time() - JOB_TTL_SECONDS
+    for pattern in ("*.mp4", "*.png"):
+        for file in config.VIDEO_DIR.glob(pattern):
+            try:
+                if file.stat().st_mtime < cutoff:
+                    file.unlink(missing_ok=True)
+            except OSError:
+                log.warning("could not remove stale %s", file)
+
+
 async def _sweep_jobs() -> None:
     """Forget finished jobs after a while and delete their mp4s."""
     while True:
@@ -144,6 +166,7 @@ async def _sweep_jobs() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    await asyncio.to_thread(_purge_stale_files)
     runner = asyncio.create_task(_run_jobs())
     sweeper = asyncio.create_task(_sweep_jobs())
     try:

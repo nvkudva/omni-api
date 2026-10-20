@@ -2,7 +2,7 @@
 
 /* The Chat view: the same turns as Requests, read as a transcript. */
 .chat { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.bubble { max-width: 82%; padding: 8px 12px; border-radius: 16px; font-size: 14px; line-height: 1.5; }
+.bubble { max-width: 82%; padding: 8px 12px; border-radius: var(--radius-lg); font-size: 14px; line-height: 1.5; border: 1px solid var(--border); }
 .bubbleText { white-space: pre-wrap; overflow-wrap: anywhere; }
 .user { align-self: flex-end; background: var(--bubble-user); color: var(--bubble-user-text); border-bottom-right-radius: 6px; }
 .assistant { align-self: flex-start; background: var(--bubble-bot); border-bottom-left-radius: 6px; }
@@ -20,10 +20,16 @@
 .thumbButton:hover { opacity: 0.6; }
 .thumbButton:focus-visible { outline: none; box-shadow: var(--focus-ring); opacity: 1; }
 
-.input { flex: 1; min-height: 44px; max-height: 200px; resize: none; field-sizing: content; }
+.input { flex: 1; min-height: 3lh; max-height: 10lh; resize: none; field-sizing: content; }
 .footHint { margin-right: auto; color: var(--text-3); font-size: 12px; }
 
-/* The system prompt fills the request panel; the message composer sits in the
-   foot beside Send, so the thread tail stays next to the action. */
-.system { flex: 1; min-height: 120px; }
-.system textarea { flex: 1; resize: none; }
+/* The system prompt is a closed disclosure; its text previews on one line when shut. */
+.system { min-width: 0; }
+.systemSummary { display: flex; align-items: center; gap: 8px; min-width: 0; cursor: pointer; list-style: none; font-size: 12px; font-weight: 500; color: var(--text-2); }
+.systemSummary::-webkit-details-marker { display: none; }
+.systemSummary::before { content: "▸"; flex: none; transition: transform 0.15s; }
+.system[open] > .systemSummary::before { transform: rotate(90deg); }
+.systemSummary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
+.systemLabel { flex: none; }
+.systemPreview { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; color: var(--text-3); }
+.systemText { display: block; width: 100%; min-height: 80px; margin-top: 8px; resize: vertical; }

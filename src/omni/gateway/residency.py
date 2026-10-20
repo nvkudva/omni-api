@@ -3,6 +3,7 @@
 The admin routes and the keep-warm loop both go through here, so a pinned model and a hand-loaded one
 take exactly the same path, and a refusal is described in one place.
 """
+import asyncio
 import logging
 from typing import NamedTuple
 
@@ -10,6 +11,7 @@ import httpx
 from huggingface_hub.errors import HfHubHTTPError
 
 from omni import registry
+from omni.registry import pulling
 
 log = logging.getLogger("omni.gateway")
 
@@ -51,6 +53,41 @@ async def plan(ctx, role: str, model: str) -> Plan:
     return Plan(advisories, [f"{model} is not downloaded yet; loading downloads it first"], None)
 
 
+async def ensure_downloaded(ctx, role: str, model: str) -> None:
+    """Download `model` with live progress when it is not on disk yet.
+
+    The download belongs to the server, not to this request: it is awaited behind a shield,
+    so a load whose browser tab closed still finishes downloading instead of dying with it.
+    """
+    available = await installed(ctx, role)
+    if any(registry.matches(entry["name"], model) for entry in available):
+        return
+    task = pulling.ensure_started(role, model, ctx.clients["chat"])
+    await asyncio.shield(task)
+    terminal = pulling.outcome(model) or {}
+    if terminal.get("error"):
+        raise OSError(terminal["error"])
+
+
+async def ensure_ready(ctx, role: str) -> str | None:
+    """Download the role's model with live progress when it is not on disk yet.
+
+    Inference used to trigger a silent download inside the worker: the first request sat for
+    minutes with no progress bar. Draining the download here publishes every sample to the
+    shared tracker first, so the progress shows while the request waits. Returns an error
+    message when the download fails, else None.
+    """
+    try:
+        await ensure_downloaded(ctx, role, ctx.settings[role]["model"])
+    except OSError as error:
+        model = ctx.settings[role]["model"]
+        if registry.runner(role) != "ollama" and (registry.cache_dir(model) / "snapshots").is_dir():
+            # already cached (the scan missed it, or the hub is unreachable): the worker loads it
+            return None
+        return f"{role}: {error}"
+    return None
+
+
 async def set_residency(ctx, role: str, model: str, load: bool, *, keep_warm: bool = False) -> bool | None:
     """Load or unload the role's model. Returns whether it now sits in memory, when the runtime says."""
     if registry.runner(role) == "ollama":
@@ -60,6 +97,8 @@ async def set_residency(ctx, role: str, model: str, load: bool, *, keep_warm: bo
         else:
             await registry.ollama_unload(ctx.clients["chat"], role, model)
         return None
+    if load:
+        await ensure_downloaded(ctx, role, model)
     response = await ctx.clients[role].post("/load" if load else "/unload", timeout=600.0)
     response.raise_for_status()
     try:

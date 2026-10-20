@@ -3,8 +3,13 @@
 The heavy runtimes (torch, mlx, parakeet) are imported lazily inside each worker, so importing the
 apps and calling their validation paths here does not load a model.
 """
+import asyncio
+import os
+import tempfile
+import threading
 import time
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from fastapi import FastAPI
@@ -46,6 +51,69 @@ class LazyModel(unittest.TestCase):
             lazy.load()
             time.sleep(0.2)
             self.assertFalse(lazy.loaded)
+
+    def test_idle_unload_runs_on_the_loading_thread(self):
+        executor = runtime.ModelExecutor("test-model")
+        threads = {}
+
+        def load():
+            threads["load"] = threading.current_thread()
+            return 42
+
+        with patch.object(runtime, "IDLE_CHECK_SECONDS", 0.01):
+            lazy = Lazy(load, idle_seconds=0.01, after_unload=lambda: threads.setdefault("drop", threading.current_thread()))
+            asyncio.run(executor.run(lazy.load))
+            time.sleep(0.3)
+        self.assertFalse(lazy.loaded)
+        self.assertIs(threads["drop"], threads["load"])
+
+
+class VideoExpiry(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.dir.cleanup)
+        patcher = patch.object(video.config, "VIDEO_DIR", Path(self.dir.name))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(video.jobs.clear)
+
+    def run_generate(self, expire):
+        class Pipe:
+            def generate_and_save(self, prompt, path, **kwargs):
+                Path(path).write_bytes(b"mp4")
+                expire()
+
+        job = {"id": "video_0", "status": "queued", "created_at": 0}
+        video.jobs["video_0"] = job
+        req = video.schemas.VideoRequest(prompt="x")
+        with patch.object(video, "model", Lazy(Pipe, idle_seconds=0)):
+            video._generate("video_0", req, 64, 64)
+        return job
+
+    def test_job_expired_mid_generation_keeps_failed_and_deletes_the_file(self):
+        job = self.run_generate(lambda: video.jobs["video_0"].update(status="failed"))
+        self.assertEqual(job["status"], "failed")
+        self.assertEqual(list(Path(self.dir.name).iterdir()), [])
+
+    def test_job_dropped_mid_generation_deletes_the_file(self):
+        job = self.run_generate(lambda: video.jobs.pop("video_0"))
+        self.assertNotIn("path", job)
+        self.assertEqual(list(Path(self.dir.name).iterdir()), [])
+
+    def test_live_job_completes_and_keeps_the_file(self):
+        job = self.run_generate(lambda: None)
+        self.assertEqual(job["status"], "completed")
+        self.assertTrue(Path(job["path"]).exists())
+
+    def test_startup_purges_only_stale_files(self):
+        old, fresh = Path(self.dir.name, "old.mp4"), Path(self.dir.name, "fresh.mp4")
+        old.write_bytes(b"x")
+        fresh.write_bytes(b"x")
+        stale = time.time() - video.JOB_TTL_SECONDS - 10
+        os.utime(old, (stale, stale))
+        video._purge_stale_files()
+        self.assertFalse(old.exists())
+        self.assertTrue(fresh.exists())
 
 
 class WorkerApps(unittest.TestCase):

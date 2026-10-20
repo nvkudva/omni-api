@@ -160,9 +160,12 @@ async def _ask(client: httpx.AsyncClient, model: str, text: str) -> dict:
     })
     response.raise_for_status()
     try:
-        return response.json()
+        reply = response.json()
     except ValueError as error:
         raise UpstreamError("ollama returned a non-JSON decision") from error
+    if not isinstance(reply, dict):
+        raise UpstreamError("ollama returned a decision that is not a JSON object")
+    return reply
 
 
 async def run(client: httpx.AsyncClient, model: str, payload: dict) -> dict:

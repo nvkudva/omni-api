@@ -4,20 +4,52 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlsplit
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from omni import config
 from omni.errors import error_response, install_error_handlers
-from omni.gateway import routes
+from omni.gateway import executions, routes
 from omni.gateway.context import build
+from omni.registry import pulling
 
 log = logging.getLogger("omni.gateway")
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 PLAYGROUND_INDEX = STATIC_DIR / "app" / "index.html"
+PLAYGROUND_PATHS = tuple(
+    f"/{tab}" for tab in ("chat", "decide", "embed", "image", "video", "stt", "tts", "settings", "settings/server", "settings/models")
+)
+LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
+SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+
+def _hostname(value: str) -> str:
+    """The host part of a Host header or an Origin URL, without port or brackets."""
+    netloc = urlsplit(value).netloc if "://" in value else value
+    return (urlsplit(f"//{netloc}").hostname or "").lower()
+
+
+def refusal(request: Request, allowed_hosts: set[str]) -> str | None:
+    """Why a request must not reach the gateway, or None.
+
+    Every route answers only loopback Host headers, so a DNS-rebound page cannot read anything.
+    Admin changes also need a same-host Origin when a browser sends one, so a page the user
+    happens to visit cannot stop the gateway or delete models with a simple cross-site POST.
+    """
+    host = request.headers.get("host", "")
+    if _hostname(host) not in allowed_hosts:
+        return f"host {host!r} is not a loopback address"
+    origin = request.headers.get("origin")
+    if (request.method in SAFE_METHODS or not request.url.path.startswith("/admin")
+            or origin is None):
+        return None
+    if urlsplit(origin).netloc.lower() != host.lower():
+        return f"origin {origin!r} may not change gateway state"
+    return None
 
 
 def create() -> FastAPI:
@@ -35,26 +67,41 @@ def create() -> FastAPI:
         finally:
             if ctx.keepwarm is not None:
                 await ctx.keepwarm.stop()
+            await executions.shutdown()
+            await pulling.shutdown()
             await ctx.pool.stop()
             await asyncio.gather(*(client.aclose() for client in ctx.clients.values()))
 
     app = FastAPI(title="omni", lifespan=lifespan)
     install_error_handlers(app)
+
+    allowed_hosts = LOOPBACK_HOSTS | {settings["gateway"]["host"].lower()}
+
+    @app.middleware("http")
+    async def loopback_only(request: Request, call_next):
+        refused = refusal(request, allowed_hosts)
+        if refused is not None:
+            return error_response(403, refused, "forbidden")
+        return await call_next(request)
+
     # the built playground ships inside the package; StaticFiles needs the directory to exist
     STATIC_DIR.mkdir(parents=True, exist_ok=True)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     for module in routes.MODULES:
         module.register(app, ctx)
 
-    @app.get("/", include_in_schema=False)
-    def root() -> RedirectResponse:
-        return RedirectResponse("/playground")
-
-    @app.get("/playground", include_in_schema=False)
     def playground() -> Response:
         if not PLAYGROUND_INDEX.is_file():
             return error_response(503, "the playground is not built; run `bun run build` in web/")
         return FileResponse(PLAYGROUND_INDEX)
+
+    # the playground routes its tabs client-side; only these exact paths serve the page
+    for path in ("/", *PLAYGROUND_PATHS, "/settings/models/{role}"):
+        app.add_api_route(path, playground, methods=["GET"], include_in_schema=False)
+
+    @app.get("/playground", include_in_schema=False)
+    def old_playground() -> RedirectResponse:
+        return RedirectResponse("/")
 
     log.info("gateway ready: %d roles, chat via %s", len(ctx.workers), ctx.chat_url)
     return app

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
-import { OLLAMA_ROLES, ROLE_META, install, installs } from "../api/roles.js";
+import { OLLAMA_ROLES, ROLE_META, downloadFor, install, installs } from "../api/roles.js";
 import { checkModel, searchModels } from "../api/endpoints.js";
 import { gb, size } from "../lib/format.js";
+import { useModal } from "../hooks/useModal.js";
 import * as ui from "./ui.jsx";
 import styles from "./FindAndInstall.module.css";
 import tabStyles from "../tabs/tabs.module.css";
@@ -53,8 +54,8 @@ export function GatedNotice({ model, acceptUrl, busy, onRetry, actionLabel = "Re
 
 /** Where a role's download stands: the same progress every view of that role shows. */
 export function InstallProgress({ role }) {
-  const progress = installs.value[role];
-  if (!progress) return null;
+  const progress = downloadFor(role);
+  if (!progress || (!progress.busy && !progress.error && progress.fraction !== 1)) return null;
   if (progress.code === "gated") {
     return (
       <>
@@ -214,22 +215,15 @@ export function Install({ role, runner, initial, onInstalled }) {
 export function FindAndInstall({ role, onClose, onInstalled }) {
   const [pick, setPick] = useState(null);
   const searchRef = useRef(null);
+  const dialogRef = useRef(null);
+  useModal(dialogRef, onClose, searchRef);
   const meta = role ? ROLE_META[role] : null;
   const criteria = role ? criteriaFor(role) : null;
 
   useEffect(() => {
     if (!role) return undefined;
-    const opener = document.activeElement;
     setPick(null);
-    searchRef.current?.focus();
-    const onKey = (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose?.();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("keydown", onKey); opener?.focus?.(); };
+    return undefined;
   }, [role]);
 
   if (!role || !meta || !criteria) return null;
@@ -239,7 +233,7 @@ export function FindAndInstall({ role, onClose, onInstalled }) {
       class={styles.backdrop}
       onClick={(event) => { if (event.target === event.currentTarget) onClose?.(); }}
     >
-      <div class={styles.dialog} role="dialog" aria-modal="true" aria-label={`Find and install a ${meta.label} model`}>
+      <div ref={dialogRef} class={styles.dialog} role="dialog" aria-modal="true" aria-label={`Find and install a ${meta.label} model`}>
         <header class={styles.head} style={{ background: `color-mix(in srgb, ${meta.color} 13%, var(--surface))` }}>
           <span class={styles.badge} style={{ background: meta.color }}><Icon name={role} /></span>
           <div class={styles.headText}>

@@ -2,6 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import { pollHealth } from "../api/health.js";
 import { serverAction, serverInfo, serverLogs, workerAction } from "../api/endpoints.js";
 import { pollRuntime, runtime } from "../api/roles.js";
+import { ask } from "../components/Confirm.jsx";
 import * as ui from "../components/ui.jsx";
 import { Panel, Workbench } from "../components/workbench.jsx";
 import { Memory } from "./Models.jsx";
@@ -61,8 +62,16 @@ function Gateway({ info, onReconnected }) {
   const [error, setError] = useState("");
 
   const run = async (action) => {
-    const verb = action === "restart" ? "Restart" : "Stop";
-    if (!window.confirm(`${verb} the gateway? In-flight requests will be dropped.`)) return;
+    const restart = action === "restart";
+    const confirmed = await ask({
+      title: restart ? "Restart the gateway?" : "Stop the gateway?",
+      message: restart
+        ? "In-flight requests will be dropped. This page reconnects on its own."
+        : "The playground will go offline and in-flight requests will be dropped. Run `omni up` in a terminal to start it again.",
+      confirmLabel: restart ? "Restart" : "Stop gateway",
+      tone: "danger",
+    });
+    if (!confirmed) return;
     setError("");
     try {
       await serverAction(action);
@@ -85,14 +94,26 @@ function Gateway({ info, onReconnected }) {
 
   const working = phase === "restarting" || phase === "stopping";
   const started = info ? duration(Date.now() / 1000 - info.gateway.started_at) : "";
+  const url = window.location.origin;
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setError("could not copy the URL");
+    }
+  };
   return (
     <Panel
       title="Gateway"
-      meta={info ? `pid ${info.gateway.pid}` : ""}
+      meta={info ? `pid ${info.gateway.pid} · port ${info.gateway.port}${info.gateway.version ? ` · v${info.gateway.version}` : ""} · up ${started}` : ""}
       tools={(
         <>
+          <ui.Button small onClick={copy}>{copied ? "Copied" : "Copy URL"}</ui.Button>
           <ui.Button small disabled={working || phase === "stopped"} onClick={() => run("restart")}>Restart</ui.Button>
-          <ui.Button small variant="danger" disabled={working || phase === "stopped"} onClick={() => run("stop")}>Stop</ui.Button>
+          <ui.Button small disabled={working || phase === "stopped"} onClick={() => run("stop")}>Stop</ui.Button>
         </>
       )}
     >
@@ -170,8 +191,18 @@ function Ollama({ info, onChanged }) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const { ollama } = info;
+  const reason = ollama.managed ? undefined : "Ollama runs outside omni — manage it with `ollama serve`";
 
   const control = async (action) => {
+    if (action !== "start") {
+      const confirmed = await ask({
+        title: `${action === "stop" ? "Stop" : "Restart"} Ollama?`,
+        message: "Chat, decide and embed requests, and any model loading or generating right now, will be interrupted.",
+        confirmLabel: action === "stop" ? "Stop Ollama" : "Restart Ollama",
+        tone: "danger",
+      });
+      if (!confirmed) return;
+    }
     setBusy(true);
     setError("");
     setMessage("");
@@ -192,9 +223,9 @@ function Ollama({ info, onChanged }) {
       meta={ollama.reachable ? `v${ollama.version}` : "unreachable"}
       tools={(
         <>
-          <ui.Button small disabled={busy || !ollama.managed || ollama.reachable} onClick={() => control("start")}>Start</ui.Button>
-          <ui.Button small variant="danger" disabled={busy || !ollama.managed || !ollama.reachable} onClick={() => control("stop")}>Stop</ui.Button>
-          <ui.Button small disabled={busy || !ollama.managed} onClick={() => control("restart")}>Restart</ui.Button>
+          <ui.Button small title={reason} disabled={busy || !ollama.managed || ollama.reachable} onClick={() => control("start")}>Start</ui.Button>
+          <ui.Button small title={reason} disabled={busy || !ollama.managed || !ollama.reachable} onClick={() => control("stop")}>Stop</ui.Button>
+          <ui.Button small title={reason} disabled={busy || !ollama.managed} onClick={() => control("restart")}>Restart</ui.Button>
         </>
       )}
     >
@@ -202,8 +233,9 @@ function Ollama({ info, onChanged }) {
       {message && <ui.Meta>{message}</ui.Meta>}
       {!ollama.managed && (
         <ui.Notice tone="info">
-          Ollama was already running when the gateway started, so omni does not own it. Restart it where it runs
-          (for example <code>brew services restart ollama</code>, or quit and reopen the Ollama app).
+          Ollama runs outside omni, so Start, Stop and Restart are disabled — manage it with <code>ollama serve</code>.
+          It was already running when the gateway started. To restart it
+          use, for example, <code>brew services restart ollama</code>, or quit and reopen the Ollama app.
         </ui.Notice>
       )}
       <Facts rows={[["URL", ollama.url], ["Status", ollama.reachable ? "reachable" : "unreachable"], ["Managed by omni", ollama.managed ? "yes" : "no"]]} />

@@ -85,6 +85,79 @@ class SetResidency(unittest.TestCase):
             asyncio.run(residency.set_residency(ctx, "chat", "qwen2.5:3b", True))
         self.assertEqual(load.call_args.kwargs["keep_alive"], residency.OLLAMA_KEEP_ALIVE)
 
+    def test_a_worker_load_downloads_first_when_nothing_is_on_disk(self):
+        ctx = FakeContext()
+
+        class Loaded:
+            def raise_for_status(self):
+                pass
+
+            def json(self):
+                return {"loaded": True}
+
+        class Client:
+            async def post(self, path, **kwargs):
+                return Loaded()
+
+        ctx.clients["stt"] = Client()
+        with patch.object(residency, "ensure_downloaded", AsyncMock()) as download:
+            result = asyncio.run(residency.set_residency(ctx, "stt", "mlx/parakeet", True))
+        download.assert_called_once()
+        self.assertTrue(result)
+
+    def test_ensure_downloaded_skips_the_download_when_already_on_disk(self):
+        ctx = FakeContext()
+        installed = [{"name": "mlx/parakeet", "size_bytes": 10}]
+        with patch.object(residency, "installed", AsyncMock(return_value=installed)), \
+                patch.object(residency.pulling, "ensure_started") as start:
+            asyncio.run(residency.ensure_downloaded(ctx, "stt", "mlx/parakeet"))
+        start.assert_not_called()
+
+    def test_a_failed_load_download_surfaces_as_an_error(self):
+        ctx = FakeContext()
+        with patch.object(residency, "ensure_downloaded", AsyncMock(side_effect=OSError("gated"))), \
+                self.assertRaises(OSError):
+            asyncio.run(residency.set_residency(ctx, "stt", "mlx/parakeet", True))
+
+    def test_ensure_ready_reports_a_failed_first_download(self):
+        ctx = FakeContext()
+        with patch.object(residency, "ensure_downloaded", AsyncMock(side_effect=OSError("gated"))):
+            result = asyncio.run(residency.ensure_ready(ctx, "stt"))
+        self.assertIn("stt", result)
+
+    def test_a_first_inference_download_is_visible_while_it_runs(self):
+        from omni.registry import pulling
+
+        pulling.ACTIVE.clear()
+        pulling.DONE.clear()
+        self.addCleanup(pulling.ACTIVE.clear)
+        self.addCleanup(pulling.DONE.clear)
+        ctx = FakeContext()
+        started = asyncio.Event()
+        release = asyncio.Event()
+
+        async def events(client, role, model):
+            pulling.track(role, model, 100, 10)
+            started.set()
+            await release.wait()
+            yield {"status": "downloading", "total": 100, "completed": 100}
+            yield {"status": "success"}
+
+        async def run():
+            task = asyncio.create_task(residency.ensure_downloaded(ctx, "stt", "mlx/parakeet"))
+            await asyncio.wait_for(started.wait(), timeout=5)
+            entries = pulling.snapshot()
+            release.set()
+            await task
+            return entries
+
+        with patch.object(residency, "installed", AsyncMock(return_value=[])), \
+                patch.object(residency.pulling, "pull", events):
+            entries = asyncio.run(run())
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["role"], "stt")
+        self.assertEqual(entries[0]["completed"], 10)
+
 
 class KeepWarmLoop(unittest.TestCase):
     def setUp(self):

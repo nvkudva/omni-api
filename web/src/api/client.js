@@ -28,7 +28,7 @@ export function record(route, status, elapsed) {
   lastRequest.value = { route, status, elapsed };
 }
 
-async function assertOk(response) {
+export async function assertOk(response) {
   if (response.ok) return response;
   const { message, code, blockers } = parseError(await response.text());
   const error = new Error(message);
@@ -38,10 +38,10 @@ async function assertOk(response) {
   throw error;
 }
 
-export async function postJson(path, body, { signal: abortSignal } = {}) {
+export async function postJson(path, body, { signal: abortSignal, headers = {} } = {}) {
   const response = await fetch(path, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...headers },
     body: JSON.stringify(body),
     signal: abortSignal,
   });

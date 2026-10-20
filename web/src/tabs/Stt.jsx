@@ -7,6 +7,7 @@ import * as ui from "../components/ui.jsx";
 import { Panel, Pending, RequestBody, Turn, TurnError, UiJson, Workbench, useTurnState } from "../components/workbench.jsx";
 import { LogsCard } from "../components/LogsCard.jsx";
 import { useJsonRequest } from "../hooks/useJsonRequest.js";
+import { useRunHistory } from "../hooks/useRunHistory.js";
 import styles from "./Stt.module.css";
 
 const SILENT_PEAK = 0.01;
@@ -52,6 +53,8 @@ export function Transcript({ turn }) {
   const text = transcriptText(turn);
   const audio = useRef(null);
   const [copied, setCopied] = useState(false);
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
 
   const seek = (segment) => {
     const element = audio.current;
@@ -63,7 +66,8 @@ export function Transcript({ turn }) {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
-      setTimeout(() => setCopied(false), 1200);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), 1200);
     } catch {
       // clipboard is best-effort
     }
@@ -109,8 +113,6 @@ export function Transcript({ turn }) {
 export default function Stt() {
   const [format, setFormat] = useState("verbose_json");
   const [clip, setClip] = useState(null);
-  const [turns, setTurns] = useState([]);
-  const [busy, setBusy] = useState(false);
   const [meta, setMeta] = useState("");
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -121,20 +123,16 @@ export default function Stt() {
   const clipRef = useRef(null);
   // Every turn owns its audio URL. Sharing the preview clip's URL broke older
   // turns: applying the next clip revoked it out from under them.
-  const turnUrls = useRef(new Map());
-  const dropTurnUrls = () => {
-    for (const url of turnUrls.current.values()) URL.revokeObjectURL(url);
-    turnUrls.current.clear();
-  };
-  const abort = useRef(null);
+  const { entries: turns, busy, start: startRun, stop, finish, add, update, clear } = useRunHistory();
+  const starting = useRef(false);
+  const formatRef = useRef(format);
+  formatRef.current = format;
   const alive = useRef(true);
   const turnState = useTurnState();
 
   useEffect(() => () => {
     alive.current = false;
     recorder.current?.stop();
-    abort.current?.abort();
-    dropTurnUrls();
     if (clipRef.current?.url) URL.revokeObjectURL(clipRef.current.url);
   }, []);
 
@@ -146,38 +144,39 @@ export default function Stt() {
   };
 
   const run = async (blob, name, responseFormat) => {
-    if (!blob || busy) return;
-    const controller = new AbortController();
-    abort.current = controller;
-    const id = crypto.randomUUID();
-    const at = Date.now();
-    const url = URL.createObjectURL(blob);
-    turnUrls.current.set(id, url);
-    setBusy(true);
-    setTurns((current) => [...current, { id, at, url, request: { file: name, response_format: responseFormat }, pending: true }]);
+    if (!blob) return;
+    const started = startRun();
+    if (!started) return;
+    const { signal, execId: id } = started;
+    add({ id, at: Date.now(), url: URL.createObjectURL(blob), request: { file: name, response_format: responseFormat }, pending: true });
     setMeta("transcribing…");
     try {
-      const { result, elapsed: ms } = await transcribe(blob, name, responseFormat, controller.signal);
+      const { result, elapsed: ms } = await transcribe(blob, name, responseFormat, signal, id);
       const duration = result?.duration;
       const caption = duration
         ? `${ms} ms · ${duration.toFixed(1)} s audio · ${(duration / (ms / 1000)).toFixed(1)}× realtime`
         : `${ms} ms`;
-      setTurns((current) => current.map((turn) => (turn.id === id
-        ? { ...turn, pending: false, result, format: responseFormat, meta: caption }
-        : turn)));
+      update(id, { pending: false, result, format: responseFormat, meta: caption });
       setMeta(caption);
     } catch (error) {
-      setTurns((current) => current.map((turn) => (turn.id === id
-        ? { ...turn, pending: false, error: error.name === "AbortError" ? "stopped" : error.message }
-        : turn)));
+      update(id, { pending: false, error: error.name === "AbortError" ? "stopped" : error.message });
       setMeta("");
     } finally {
-      abort.current = null;
-      setBusy(false);
+      finish();
     }
   };
 
   const start = async () => {
+    if (starting.current) return;
+    starting.current = true;
+    try {
+      await begin();
+    } finally {
+      starting.current = false;
+    }
+  };
+
+  const begin = async () => {
     setMicError("");
     if (!navigator.mediaDevices?.getUserMedia) {
       setMicError("microphone: not available in this browser or page (needs HTTPS or localhost)");
@@ -233,7 +232,7 @@ export default function Stt() {
         return;
       }
       applyClip(blob, name);
-      run(blob, name, format);
+      run(blob, name, formatRef.current);
     };
     media.start();
     recorder.current = media;
@@ -259,9 +258,9 @@ export default function Stt() {
         tools={<UiJson view={view} onChange={setView} />}
         foot={(
           <>
-            <span style={{ marginRight: "auto", color: "var(--text-3)", fontSize: "12px" }}>{recording ? clock(elapsed) : format}</span>
+            <span class={styles.foot}>{recording ? clock(elapsed) : format}</span>
             {busy
-              ? <ui.Button variant="stop" onClick={() => abort.current?.abort()}>Stop</ui.Button>
+              ? <ui.Button variant="stop" onClick={stop}>Stop</ui.Button>
               : <ui.Button variant="primary" disabled={!canTranscribe} onClick={() => run(clip.blob, clip.name, sendFormat)}>Transcribe</ui.Button>}
           </>
         )}
@@ -286,7 +285,7 @@ export default function Stt() {
       <Panel
         title="Transcripts"
         meta={meta}
-        tools={<ui.IconButton icon="trash" label="Clear history" disabled={!turns.length || busy} onClick={() => { dropTurnUrls(); setTurns([]); setMeta(""); }} />}
+        tools={<ui.IconButton icon="trash" label="Clear history" disabled={!turns.length || busy} onClick={() => { clear(); setMeta(""); }} />}
       >
         {turns.length
           ? (

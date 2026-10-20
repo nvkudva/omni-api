@@ -8,11 +8,13 @@ import gc
 import threading
 import time
 from collections.abc import Callable, Iterator
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
 from typing import Any
 
 IDLE_CHECK_SECONDS = 30.0
+
+_owner = threading.local()
 
 
 class ModelExecutor:
@@ -26,7 +28,13 @@ class ModelExecutor:
     """
 
     def __init__(self, name: str = "model") -> None:
-        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=name)
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=name, initializer=self._claim_thread)
+
+    def _claim_thread(self) -> None:
+        _owner.executor = self
+
+    def submit(self, fn: Callable[..., Any], *args: Any) -> Future:
+        return self._executor.submit(fn, *args)
 
     async def run(self, fn: Callable[..., Any], *args: Any) -> Any:
         loop = asyncio.get_running_loop()
@@ -40,6 +48,8 @@ class Lazy:
         self._idle_seconds = idle_seconds
         self._after_unload = after_unload
         self._model: Any = None
+        self._owner: ModelExecutor | None = None
+        self._unload_pending = False
         self._last_used = 0.0
         self._lock = threading.Lock()
         # idle_seconds 0 means never unload, so there is no timer to run.
@@ -74,14 +84,29 @@ class Lazy:
         with self._lock:
             if self._model is None:
                 self._model = self._load()
+                self._owner = getattr(_owner, "executor", None)
             try:
                 yield self._model
             finally:
                 self._last_used = time.monotonic()
 
+    def _is_idle(self) -> bool:
+        return self._model is not None and time.monotonic() - self._last_used >= self._idle_seconds
+
+    def _unload_if_idle(self) -> None:
+        try:
+            with self._lock:
+                if self._is_idle():
+                    self._drop()
+        finally:
+            self._unload_pending = False
+
     def _unload_when_idle(self) -> None:
         while True:
             time.sleep(IDLE_CHECK_SECONDS)
-            with self._lock:
-                if self._model is not None and time.monotonic() - self._last_used >= self._idle_seconds:
-                    self._drop()
+            owner = self._owner
+            if owner is None:
+                self._unload_if_idle()
+            elif not self._unload_pending and self._is_idle():
+                self._unload_pending = True
+                owner.submit(self._unload_if_idle)

@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "preact/hooks";
+import { cx } from "../lib/cx.js";
+import { Icon } from "./Icon.jsx";
 import { getText } from "../api/client.js";
 import { OLLAMA_ROLES } from "../api/roles.js";
+import { usePageActive } from "../hooks/usePageActive.js";
 import { usePolling } from "../hooks/usePolling.js";
 import styles from "./LogsCard.module.css";
 
@@ -16,6 +19,7 @@ export function LogsCard({ role, initialOpen = false }) {
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const viewRef = useRef(null);
+  const pageActive = usePageActive();
   const fileName = OLLAMA_ROLES.has(role) ? "Ollama server.log" : `${role}.log`;
 
   usePolling(async () => {
@@ -25,7 +29,7 @@ export function LogsCard({ role, initialOpen = false }) {
     } catch (failure) {
       setError(failure.message);
     }
-  }, LOG_POLL_MS, { active: open });
+  }, LOG_POLL_MS, { active: open && pageActive });
 
   useEffect(() => {
     const view = viewRef.current;
@@ -37,10 +41,10 @@ export function LogsCard({ role, initialOpen = false }) {
   return (
     <section class={styles.logsCard}>
       <button type="button" class={styles.logsHead} aria-expanded={open} onClick={() => setOpen(!open)}>
-        <span class={styles.logsCaret} aria-hidden="true">{open ? "▾" : "▸"}</span>
+        <span class={cx(styles.logsCaret, open && styles.logsCaretOpen)}><Icon name="caret" size={12} /></span>
         <span class={styles.logsTitle}>Logs</span>
         <span class={styles.logsMeta}>{fileName} · live tail</span>
-        <span class={styles.logsState}>{open ? (error ? "unavailable" : "tailing…") : "show"}</span>
+        {open && <span class={styles.logsState}>{error ? "unavailable" : "tailing…"}</span>}
       </button>
       {open && (
         <div class={styles.terminal}>

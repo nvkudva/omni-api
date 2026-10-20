@@ -3,15 +3,15 @@
 .header {
   flex: none; display: flex; align-items: center; gap: 16px;
   padding: 10px 16px;
-  background: var(--sidebar);
-  backdrop-filter: saturate(160%) blur(16px);
-  -webkit-backdrop-filter: saturate(160%) blur(16px);
-  border-bottom: 1px solid var(--hairline);
+  background: color-mix(in srgb, var(--background) 95%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
 }
 .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .brand img { border-radius: 8px; box-shadow: var(--shadow); }
-.brandName { font: 650 15px/1.2 var(--font-display); letter-spacing: -0.02em; }
-.status { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); white-space: nowrap; }
+.brandName { font: 650 15px/1.2 var(--font-display); letter-spacing: -0.02em; white-space: nowrap; }
+.status { display: inline-flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: var(--text-2); white-space: nowrap; }
 .status span:first-child { width: 7px; height: 7px; }
 .lastRequest { display: flex; gap: 8px; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; min-width: 0; }
 .route { font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -25,8 +25,8 @@
   color: var(--text-2); cursor: pointer;
 }
 .iconButton:hover { background: var(--hairline); color: var(--text); }
-.iconButton:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent); }
-.iconButtonOn, .iconButtonOn:hover { background: var(--accent-soft); color: var(--accent); }
+.iconButton:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.iconButtonOn, .iconButtonOn:hover { background: var(--muted); color: var(--foreground); }
 
 /* The seven model cards double as the page tabs. */
 .cards {
@@ -38,6 +38,38 @@
   border-bottom: 1px solid var(--hairline);
 }
 
+.cardsMore { mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent); }
+
+.downloads {
+  flex: none; display: flex; flex-direction: column; gap: 6px;
+  padding: 8px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--hairline);
+}
+.download { display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, 240px); gap: 4px 12px; align-items: center; }
+.downloadLabel {
+  font-size: 12px; color: var(--text-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.downloadLabel strong { color: var(--text); font-weight: 600; }
+.execButton {
+  justify-self: end;
+  font-size: 12px; line-height: 1;
+  padding: 5px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text);
+  cursor: pointer; white-space: nowrap;
+}
+.execButton:hover { background: var(--hairline); }
+.execText {
+  margin: 0; padding: 10px 12px;
+  max-height: 240px; overflow: auto;
+  font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word;
+  background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius-sm);
+}
+.execImage { max-width: 100%; max-height: 240px; border-radius: var(--radius-sm); }
+.execAudio { width: 100%; max-width: 420px; }
+
 .main { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 /* Inactive role pages stay mounted (requests keep running) but stay out of sight. */
 .page { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -48,3 +80,4 @@
   .lastRequest { display: none; }
   .cards { padding: 8px; }
 }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

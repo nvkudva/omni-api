@@ -102,7 +102,7 @@ describe("pages render before the first poll", () => {
 
   test("Settings lists its sections beside the server controls", () => {
     const html = render(<pages.Settings />);
-    for (const word of ["Server", "All models", "Memory", "Chat"]) expect(html).toContain(word);
+    for (const word of ["Server", "Models", "Back to Chat", "Memory"]) expect(html).toContain(word);
     for (const word of ["Runtime", "Appearance", ">Logs<", ">Health<"]) expect(html).not.toContain(word);
   });
 
@@ -134,7 +134,7 @@ describe("pages render against a live-looking runtime", () => {
     expect(html).toContain('title="org/model-4bit"');
     expect(html).toContain(">model-4bit<");
     expect(html).toContain(gb(BYTES));
-    expect(html).toContain("running");
+    expect(html).toContain("loaded");
     expect(html).not.toContain("waiting for the gateway");
   });
 
@@ -157,7 +157,7 @@ describe("keeping a model warm", () => {
   test("a pinned role reads as warm, with its switch on", () => {
     seed({ pinned: ["chat"] });
     const html = render(<App />);
-    expect(html).toContain(">warm<");
+    expect(html).toContain(">loaded · kept<");
     expect(html).toContain('aria-checked="true"');
     expect(html).toContain("stop keeping warm Chat");
   });
@@ -172,14 +172,14 @@ describe("keeping a model warm", () => {
     // pinned but not resident: on its way, not idle. Card statuses render in
     // spans; every page stays mounted now, and hidden pages may say "idle" in
     // their own readouts, so scope the check to the cards.
-    expect(html).toContain("loading…");
+    expect(html).toContain("loading model…");
     expect(html).not.toContain(">idle</span>");
   });
 
   test("an unpinned role is not claimed as warm", () => {
     seed();
     const html = render(<App />);
-    expect(html).not.toContain(">warm<");
+    expect(html).not.toContain(">loaded · kept<");
     expect(html).toContain("keep warm Chat");
   });
 });

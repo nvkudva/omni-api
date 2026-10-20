@@ -31,6 +31,7 @@ class Worker:
     failed_probes: int = 0
     ready_since: float = 0.0
     next_start: float = 0.0
+    started_at: float = 0.0
     held: bool = False
     # set when a request could not reach a worker that health checks still called ready
     restart_requested: bool = False

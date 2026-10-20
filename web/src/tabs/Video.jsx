@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { ORIGIN, readDataUrl, record } from "../api/client.js";
 import { createVideo, videoJob } from "../api/endpoints.js";
+import { cancelExec } from "../api/execs.js";
 import { models } from "../api/models.js";
 import { curlJson } from "../lib/curl.js";
+import { uid } from "../lib/uid.js";
 import { shorten, since } from "../lib/format.js";
 import * as ui from "../components/ui.jsx";
 import { Panel, Pending, RequestBody, Turn, TurnError, UiJson, Workbench, useTurnState } from "../components/workbench.jsx";
@@ -18,7 +20,10 @@ const MAX_JOB_MS = 60 * 60 * 1000;
 const RUNNING = new Set(["queued", "in_progress", "submitted"]);
 
 function requestBody({ prompt, negative, size, seconds, seed, frame }, shortenImage = false) {
-  const body = { prompt: prompt.trim(), size, seconds, seed: Number(seed || 42) };
+  const body = { prompt: prompt.trim(), size, seconds };
+  // Server rejects floats: round to an integer, or omit when not numeric.
+  const rounded = seed === "" ? NaN : Math.round(Number(seed));
+  if (Number.isFinite(rounded)) body.seed = rounded;
   if (negative.trim()) body.negative_prompt = negative.trim();
   if (frame) body.image = shortenImage ? shorten(frame.url) : frame.url;
   return body;
@@ -26,7 +31,8 @@ function requestBody({ prompt, negative, size, seconds, seed, frame }, shortenIm
 
 function caption(job, seed, start) {
   const elapsed = ((performance.now() - start) / 1000).toFixed(0);
-  return `${job.status} · ${job.size} · ${job.seconds} s · seed ${seed} · ${elapsed} s`;
+  const seedText = seed != null ? ` · seed ${seed}` : "";
+  return `${job.status} · ${job.size} · ${job.seconds} s${seedText} · ${elapsed} s`;
 }
 
 function wait(milliseconds, abortSignal) {
@@ -54,11 +60,14 @@ export default function Video() {
   const turnState = useTurnState();
 
   useEffect(() => () => {
-    controllers.current.forEach((controller) => controller.abort());
+    controllers.current.forEach((entry) => entry.controller.abort());
     controllers.current.clear();
   }, []);
 
-  const edit = (field) => (event) => setForm({ ...form, [field]: event.currentTarget.value });
+  const edit = (field) => (event) => {
+    const { value } = event.currentTarget;
+    setForm((current) => ({ ...current, [field]: value }));
+  };
   const body = requestBody(form);
   const json = useJsonRequest(view, requestBody(form, true));
   const curl = `${curlJson("/v1/videos", requestBody(form, true))} | jq -r .id\n# poll until "status": "completed", then\ncurl -s ${ORIGIN}/v1/videos/$ID/content -o omni.mp4`;
@@ -100,28 +109,34 @@ export default function Video() {
     updateJob(id, { remoteId: job.id, url: `/v1/videos/${job.id}/content` });
   };
 
-  const submit = async () => {
-    const payload = view === "json" ? { ...(json.body ?? {}) } : body;
+  const submit = async (retryPayload) => {
+    const payload = retryPayload ? { ...retryPayload } : view === "json" ? { ...(json.body ?? {}) } : body;
     if (!payload?.prompt) return;
     // The JSON pane shows a shortened data URL; send the real frame instead.
-    if (typeof payload.image === "string" && payload.image.endsWith("…") && form.frame) payload.image = form.frame.url;
+    if (!retryPayload && typeof payload.image === "string" && payload.image.endsWith("…") && form.frame) payload.image = form.frame.url;
 
-    const id = crypto.randomUUID();
+    const id = uid();
     const at = Date.now();
     const controller = new AbortController();
-    controllers.current.set(id, controller);
+    controllers.current.set(id, { controller, created: false });
     setBusy(true);
     setJobs((current) => [...current, { id, at, request: payload, prompt: payload.prompt, seed: payload.seed, status: "queued", caption: "submitting…" }]);
     setMeta("submitting…");
     const start = performance.now();
     try {
-      const { status, data: job } = await createVideo(payload, controller.signal);
+      const { status, data: job } = await createVideo(payload, controller.signal, id);
       record("video", status, since(start));
+      const entry = controllers.current.get(id);
+      if (entry) entry.created = true;
       setMeta(job.id);
       setBusy(false);
       await follow(job, id, start, controller.signal, payload.seed);
     } catch (error) {
-      if (error.name === "AbortError") updateJob(id, { status: "stopped", error: "stopped" });
+      if (error.name === "AbortError") {
+        // The worker has no video cancel: only a create still in flight is really stopped.
+        if (controllers.current.get(id)?.created) updateJob(id, { status: "unwatched", error: "no longer watching; the job may still be running on the server" });
+        else updateJob(id, { status: "stopped", error: "stopped" });
+      }
       else {
         record("video", error.status ?? 0, since(start));
         updateJob(id, { status: "failed", error: error.message });
@@ -132,7 +147,12 @@ export default function Video() {
     }
   };
 
-  const stop = (id) => controllers.current.get(id)?.abort();
+  const stop = (id) => {
+    const entry = controllers.current.get(id);
+    if (!entry) return;
+    if (entry.created) entry.controller.abort();
+    else cancelExec(entry.controller, id);
+  };
   const openId = turnState.open ?? jobs[jobs.length - 1]?.id;
   const running = jobs.some((job) => RUNNING.has(job.status));
 
@@ -144,8 +164,8 @@ export default function Video() {
         tools={<UiJson view={view} onChange={setView} />}
         foot={(
           <>
-            <span class={styles.foot}>{form.size} · {form.seconds} s · seed {form.seed || 42}</span>
-            <ui.Button variant="primary" disabled={busy} onClick={submit}>{busy ? "Submitting…" : "Generate"}</ui.Button>
+            <span class={styles.foot}>{form.size} · {form.seconds} s · seed {body.seed ?? "random"}</span>
+            <ui.Button variant="primary" disabled={busy || (view === "json" && (Boolean(json.error) || !json.body?.prompt))} onClick={() => submit()}>{busy ? "Submitting…" : "Generate"}</ui.Button>
           </>
         )}
       >
@@ -167,7 +187,10 @@ export default function Video() {
             </ui.Field>
           </ui.Grid>
           <ui.Field label="Length" trailing={<ui.Meta>{form.seconds} s</ui.Meta>}>
-            <input type="range" min={1} max={10} value={form.seconds} onInput={(event) => setForm({ ...form, seconds: Number(event.currentTarget.value) })} />
+            <input type="range" min={1} max={10} value={form.seconds} onInput={(event) => {
+              const seconds = Number(event.currentTarget.value);
+              setForm((current) => ({ ...current, seconds }));
+            }} />
           </ui.Field>
           <ui.DropZone accept="image/*" onFile={chooseFrame}>
             {form.frame
@@ -204,9 +227,9 @@ export default function Video() {
                   wire={{ request: job.request, response: { id: job.remoteId, status: job.status, error: job.error } }}
                 >
                   {RUNNING.has(job.status)
-                    ? <Pending label={job.status} note={job.caption}>{<ui.Button small variant="stop" onClick={() => stop(job.id)}>Stop</ui.Button>}</Pending>
+                    ? <Pending label={job.status} note={job.caption}>{<ui.Button small variant="stop" onClick={() => stop(job.id)}>{controllers.current.get(job.id)?.created ? "Stop watching" : "Stop"}</ui.Button>}</Pending>
                     : job.acceptUrl
-                      ? <GatedNotice model={job.gatedModel || models.value.defaults.video || "This model"} acceptUrl={job.acceptUrl} busy={busy} onRetry={submit} actionLabel="Retry generate" busyLabel="Submitting…" />
+                      ? <GatedNotice model={job.gatedModel || models.value.defaults.video || "This model"} acceptUrl={job.acceptUrl} busy={busy} onRetry={() => submit(job.request)} actionLabel="Retry generate" busyLabel="Submitting…" />
                       : job.error
                         ? <TurnError>{job.error}</TurnError>
                         : (

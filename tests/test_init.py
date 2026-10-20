@@ -173,7 +173,7 @@ class Pulling(unittest.TestCase):
                                   get=serve_api(["llama3.2", "embeddinggemma-2"]))
         self.assertEqual(code, 0, err)
         self.assertIn("ready: embeddinggemma-2, llama3.2", out)
-        self.assertIn("http://127.0.0.1:10000/playground", out)
+        self.assertIn("http://127.0.0.1:10000/", out)
 
 
 class ModelUrls(unittest.TestCase):
