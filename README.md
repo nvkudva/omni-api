@@ -164,6 +164,8 @@ omni up       # gateway and workers in the background
 
 `omni init` validates `~/.omni-api/config.toml`, installs Ollama when the binary is missing, waits for the server to answer, pulls the chat/decide/embed models and confirms they landed; every failure prints the command to fix it and a link. The stt, tts, image and video models download on first use. Release and packaging notes live in [`docs/publishing.md`](docs/publishing.md).
 
+`omni init --small` makes the smallest model of each role the default instead: `qwen2.5:0.5b` (chat), `laya` (decide), `embeddinggemma-2:270m` (embed), `moondream/parakeet-redux` (stt), `mlx-community/Kokoro-82M-8bit` (tts) and `baa-ai/LTX-2.3-22B-RAM-12GB-MLX` (video). The image role has no smaller option: this build runs Qwen-Image, and Turbo is already its cheapest checkpoint. A failed pull writes nothing to the config.
+
 ---
 
 ## API examples

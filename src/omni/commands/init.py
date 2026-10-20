@@ -108,6 +108,20 @@ def pull(model: str) -> bool:
     return False
 
 
+# A smaller default per role, for a small machine or a quick start. `omni init --small`
+# writes these to ~/.omni-api/config.toml; they stay the default until changed there or in
+# the playground. Image has no smaller option: this build runs Qwen-Image only, and the
+# Turbo checkpoint is already its cheapest form.
+SMALL = {
+    "chat": "qwen2.5:0.5b",
+    "decide": "laya",
+    "embed": "embeddinggemma-2:270m",
+    "stt": "moondream/parakeet-redux",
+    "tts": "mlx-community/Kokoro-82M-8bit",
+    "video": "baa-ai/LTX-2.3-22B-RAM-12GB-MLX",
+}
+
+
 def installed(url: str) -> set[str] | None:
     """Every model Ollama has on disk, or None when it stopped answering."""
     try:
@@ -119,8 +133,12 @@ def installed(url: str) -> set[str] | None:
     return {model["name"] for model in models if isinstance(model, dict) and model.get("name")}
 
 
-def run() -> int:
-    """Check the config, install Ollama if missing, then pull chat, decide and embed. Non-zero on failure."""
+def run(small: bool = False) -> int:
+    """Check the config, install Ollama if missing, then pull chat, decide and embed. Non-zero on failure.
+
+    With `small`, the smallest model per role becomes the default: the Ollama ones are pulled
+    here, the media ones are written to the config and download on first use.
+    """
     try:
         settings = config.load()
     except config.ConfigError as failure:
@@ -135,7 +153,10 @@ def run() -> int:
     if not require_ollama() or not check_ollama(url):
         return 1
 
-    models = sorted({settings[role]["model"] for role in OLLAMA_ROLES})
+    chosen = SMALL if small else {}
+    if small:
+        print("small profile: " + ", ".join(f"{role}={model}" for role, model in chosen.items()))
+    models = sorted({chosen.get(role, settings[role]["model"]) for role in OLLAMA_ROLES})
     for model in models:
         if not pull(model):
             return 1
@@ -150,6 +171,12 @@ def run() -> int:
         return error(f"ollama does not list {', '.join(missing)} after pulling.",
                      f"  check `ollama list`, then pull by hand: ollama pull {missing[0]}",
                      f"  the model's page: {model_url(missing[0])}")
+
+    if small:
+        # Only after every pull worked, so a failed run never leaves half a profile behind.
+        for role, model in chosen.items():
+            config.save_override(role, "model", model)
+        print(f"small defaults written to {config.USER_CONFIG}; restart to apply: `omni down` then `omni up`")
 
     host = settings["gateway"]["host"]
     if host in ("0.0.0.0", "::"):

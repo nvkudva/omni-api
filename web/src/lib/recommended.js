@@ -14,6 +14,7 @@ export const RECOMMENDED = {
     { model: "gpt-oss:20b", gb: 13.8, note: "strong reasoning" },
     { model: "qwen3-coder:30b", gb: 18.6, note: "code and tool calls" },
     { model: "gemma4:12b", gb: 8.0, note: "smallest of the fast ones" },
+    { model: "qwen2.5:0.5b", gb: 0.4, note: "smallest; for a quick start or a tiny machine" },
   ],
   decide: [
     { model: "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0", gb: 1.2, note: "shipped default" },

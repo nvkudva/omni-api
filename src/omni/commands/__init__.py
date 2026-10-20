@@ -49,6 +49,8 @@ def build_parser() -> argparse.ArgumentParser:
         # SUPPRESS keeps the top-level --host/--port when a subcommand does not pass its own
         command.add_argument("--host", default=argparse.SUPPRESS)
         command.add_argument("--port", type=int, default=argparse.SUPPRESS)
+    commands.choices["init"].add_argument(
+        "--small", action="store_true", help="make the smallest model of each role the default")
     return parser
 
 
@@ -56,7 +58,7 @@ def main() -> None:
     args = build_parser().parse_args()
     host, port = args.host, args.port
     if args.command == "init":
-        sys.exit(init.run())
+        sys.exit(init.run(small=args.small))
     if args.command == "serve":
         sys.exit(lifecycle.serve(host, port))
     if args.command == "up":
