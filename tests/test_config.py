@@ -95,7 +95,7 @@ class Overrides(unittest.TestCase):
 
     def test_toml_value_rejects_none(self):
         with self.assertRaises(config.ConfigError):
-            config._toml_value(None)
+            config.toml_value(None)
 
 
 class Pins(unittest.TestCase):

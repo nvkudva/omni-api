@@ -34,6 +34,8 @@ media = [
   "ltx-core-mlx",
   "ltx-pipelines-mlx",
 ]
+# Tab completion for `omni <TAB>`; needs `activate-global-python-argcomplete` in the shell once.
+completion = ["argcomplete>=3"]
 
 [project.scripts]
 omni = "omni.cli:main"

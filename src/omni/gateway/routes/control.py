@@ -1,20 +1,17 @@
 """The /admin controls for the process itself: server status, restart and stop, runtime settings, logs."""
 import copy
-import importlib.metadata
-from pathlib import Path
 
 import httpx
 import psutil
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from omni import config, registry, schemas
+from omni import config, logs, registry, schemas, version
 from omni.commands import lifecycle
 from omni.errors import error_response
 from omni.gateway.context import Context
 from omni.gateway.http import json_object
 
-LOG_TAIL_BYTES = 256 * 1024
 # the settings a user may change at runtime, and the workers that read each one only when they start
 TUNABLE = {
     ("gateway", "idle_unload_minutes"): registry.PYTHON_WORKERS,
@@ -23,28 +20,6 @@ TUNABLE = {
     ("video", "frames"): ("video",),
     ("video", "fps"): ("video",),
 }
-
-
-def _version() -> str:
-    try:
-        return importlib.metadata.version("omni-api")
-    except importlib.metadata.PackageNotFoundError:
-        return ""
-
-
-def _tail(lines: int, name: str = "omni") -> list[str]:
-    return _tail_file(config.LOG_DIR / f"{name}.log", lines)
-
-
-def _tail_file(path, lines: int) -> list[str]:
-    try:
-        with path.open("rb") as file:
-            file.seek(0, 2)
-            file.seek(max(0, file.tell() - LOG_TAIL_BYTES))
-            text = file.read().decode(errors="replace")
-    except OSError:
-        return []
-    return text.splitlines()[-lines:]
 
 
 def register(app: FastAPI, ctx: Context) -> None:
@@ -59,13 +34,13 @@ def register(app: FastAPI, ctx: Context) -> None:
 
     @app.get("/admin/server")
     async def admin_server() -> dict:
-        host, port = lifecycle.address(settings)
+        host, port = lifecycle.address(settings["gateway"])
         process = psutil.Process()
-        version = await ollama_version()
+        ollama = await ollama_version()
         return {
-            "gateway": {"pid": process.pid, "host": host, "port": port, "version": _version(),
+            "gateway": {"pid": process.pid, "host": host, "port": port, "version": version() or "",
                         "started_at": process.create_time()},
-            "ollama": {"url": ctx.chat_url, "version": version, "reachable": version is not None,
+            "ollama": {"url": ctx.chat_url, "version": ollama, "reachable": ollama is not None,
                        "managed": "chat" in pool.workers},
             "paths": {"home": str(config.HOME), "config": str(config.USER_CONFIG),
                       "log": str(config.LOG_DIR / "omni.log")},
@@ -76,7 +51,7 @@ def register(app: FastAPI, ctx: Context) -> None:
     async def admin_server_action(action: str) -> JSONResponse:
         if action not in ("restart", "stop"):
             return error_response(400, "action: restart or stop", "invalid_request_error")
-        host, port = lifecycle.address(settings)
+        host, port = lifecycle.address(settings["gateway"])
         lifecycle.relaunch(host, port, restart=action == "restart")
         return JSONResponse({"action": action}, status_code=202)
 
@@ -110,19 +85,15 @@ def register(app: FastAPI, ctx: Context) -> None:
 
     @app.get("/admin/logs")
     async def admin_logs(lines: int = Query(200, ge=1, le=1000)) -> dict:
-        return {"path": str(config.LOG_DIR / "omni.log"), "lines": _tail(lines)}
+        path = logs.path_for(None)
+        return {"path": str(path), "lines": logs.tail(path, lines)}
 
     @app.get("/admin/logs/{role}")
     async def admin_role_log(role: str, lines: int = Query(500, ge=1, le=5000)) -> PlainTextResponse:
         if role not in config.ROLES:
             return error_response(404, f"no role named {role}", "not_found")
-        if role in registry.OLLAMA_ROLES:
-            # Ollama serves these roles itself, so its own server log is the role's log.
-            path = Path.home() / ".ollama" / "logs" / "server.log"
-            if not path.exists():
-                return error_response(404, f"no log at {path} (Ollama has not written one)", "not_found")
-            return PlainTextResponse("\n".join(_tail_file(path, lines)) + "\n")
-        path = config.LOG_DIR / f"{role}.log"
+        path = logs.path_for(role)
         if not path.exists():
-            return error_response(404, f"no log at {path} (this runtime is not managed by omni)", "not_found")
-        return PlainTextResponse("\n".join(_tail(lines, role)) + "\n")
+            hint = "Ollama has not written one" if role in registry.OLLAMA_ROLES else "this runtime is not managed by omni"
+            return error_response(404, f"no log at {path} ({hint})", "not_found")
+        return PlainTextResponse("\n".join(logs.tail(path, lines)) + "\n")

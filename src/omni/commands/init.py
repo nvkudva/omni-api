@@ -6,6 +6,7 @@ and a link — so a fresh machine can go from clone to ``omni up`` without readi
 import shutil
 import subprocess
 import sys
+import time
 
 import httpx
 
@@ -13,6 +14,12 @@ from omni import config
 
 # chat, decide and embed run in the machine's Ollama; the MLX roles download on first use instead.
 OLLAMA_ROLES = ("chat", "decide", "embed")
+MEDIA_ROLES = ("stt", "tts", "image", "video")
+# a first load reads or downloads weights from Hugging Face, which is slow but not endless
+MEDIA_LOAD_TIMEOUT = httpx.Timeout(10.0, read=1800.0)
+# how long a freshly started server gets to answer, and how often it is asked
+SERVER_START_SECONDS = 20.0
+PROBE_SECONDS = 0.5
 
 OLLAMA_DOWNLOAD_URL = "https://ollama.com/download"
 OLLAMA_INSTALL_SCRIPT = "https://ollama.com/install.sh"
@@ -28,17 +35,23 @@ def error(*lines: str) -> int:
     return 1
 
 
+def install_command() -> list[str]:
+    """How this machine would install Ollama, or an empty list when there is no route to one."""
+    if shutil.which("brew"):
+        return ["brew", "install", "ollama"]
+    if shutil.which("curl") and shutil.which("sh"):
+        return ["sh", "-c", f"curl -fsSL {OLLAMA_INSTALL_SCRIPT} | sh"]
+    return []
+
+
 def install_ollama() -> bool:
     """Install Ollama with whatever this machine has, or False when there is no route to one."""
-    if shutil.which("brew"):
-        argv = ["brew", "install", "ollama"]
-    elif shutil.which("curl") and shutil.which("sh"):
-        argv = ["sh", "-c", f"curl -fsSL {OLLAMA_INSTALL_SCRIPT} | sh"]
-    else:
+    argv = install_command()
+    if not argv:
         print("ollama is not installed and there is no brew, curl or sh here to install it with",
               file=sys.stderr)
         return False
-    print(f"ollama not found; installing: {' '.join(argv)}", flush=True)
+    print(f"installing: {' '.join(argv)}", flush=True)
     try:
         return subprocess.run(argv, check=False).returncode == 0
     except OSError as failure:
@@ -46,17 +59,77 @@ def install_ollama() -> bool:
         return False
 
 
-def require_ollama() -> bool:
-    """Whether the ollama binary is on PATH, installing it first if it is missing."""
+def wants_install() -> bool:
+    """Ask before installing Ollama; a terminal that cannot answer keeps the unattended behaviour."""
+    argv = install_command()
+    if not argv:
+        return True  # nothing to ask about: install_ollama explains that there is no route
+    command = " ".join(argv)
+    if not sys.stdin.isatty():
+        print(f"ollama not found; installing it with `{command}`", flush=True)
+        return True
+    print("ollama is not installed; omni needs it for chat, decide and embed.", file=sys.stderr)
+    print(f"  it will run: {command}", file=sys.stderr)
+    try:
+        answer = input("install ollama now? [y/N] ")
+    except (EOFError, KeyboardInterrupt):
+        print(file=sys.stderr)
+        return False
+    return answer.strip().lower() in ("y", "yes")
+
+
+def require_ollama() -> tuple[bool, bool]:
+    """(whether ollama is on PATH, whether this run installed it), asking before installing."""
     if shutil.which("ollama"):
         print(f"ollama installed: {shutil.which('ollama')}")
-        return True
+        return True, False
+    if not wants_install():
+        error("ollama was not installed, so omni stops here: it serves chat, decide and embed.",
+              f"  install it when you are ready, then run `omni init` again: {OLLAMA_DOWNLOAD_URL}")
+        return False, False
     if install_ollama() and shutil.which("ollama"):
         print(f"ollama installed: {shutil.which('ollama')}")
-        return True
+        return True, True
     error("ollama install failed.",
           f"  install it by hand, then run `omni init` again: {OLLAMA_DOWNLOAD_URL}")
-    return False
+    return False, False
+
+
+def answering(url: str) -> bool:
+    """Whether the Ollama server answers at `url`, without printing anything."""
+    try:
+        httpx.get(f"{url}/api/version", timeout=2.0).raise_for_status()
+    except (httpx.HTTPError, ValueError):
+        return False
+    return True
+
+
+def start_ollama() -> None:
+    """Start the server the way this machine manages it; `check_ollama` explains it when that fails."""
+    if shutil.which("brew") and _brew_has_ollama():
+        subprocess.run(["brew", "services", "start", "ollama"], check=False)
+        return
+    if not shutil.which("ollama"):
+        return
+    config.ensure_dirs()
+    with (config.LOG_DIR / "ollama.log").open("ab") as logfile:
+        subprocess.Popen(["ollama", "serve"], stdin=subprocess.DEVNULL, stdout=logfile,
+                         stderr=subprocess.STDOUT, start_new_session=True)
+
+
+def _brew_has_ollama() -> bool:
+    """Whether Homebrew, not some other installer, owns the ollama binary on this machine."""
+    result = subprocess.run(["brew", "list", "--formula", "ollama"], check=False, capture_output=True)
+    return result.returncode == 0
+
+
+def wait_for_server(url: str) -> None:
+    """Give a server that was just started time to bind, then let `check_ollama` judge it."""
+    deadline = time.monotonic() + SERVER_START_SECONDS
+    while time.monotonic() < deadline:
+        if answering(url):
+            return
+        time.sleep(PROBE_SECONDS)
 
 
 def check_ollama(url: str) -> bool:
@@ -119,7 +192,45 @@ def installed(url: str) -> set[str] | None:
     return {model["name"] for model in models if isinstance(model, dict) and model.get("name")}
 
 
-def run() -> int:
+def warm_media(host: str, port: int) -> int:
+    """Load each media model the gateway serves, so the download is not paid by the first request.
+
+    The gateway is started when it is not running: a worker only downloads its weights once it loads
+    them, and nothing loads them without a request.
+    """
+    from omni.commands import lifecycle
+
+    if not lifecycle.gateway_pid():
+        code = lifecycle.up(host, port)
+        if code:
+            return code
+    try:
+        served = httpx.get(f"http://{host}:{port}/health", timeout=5.0).json().get("workers", {})
+    except (httpx.HTTPError, ValueError):
+        return error(f"omni is running but /health does not answer on {host}:{port}")
+    roles = [role for role in MEDIA_ROLES if role in served]
+    if not roles:
+        print("no media role is served by this install; nothing to warm")
+        return 0
+    failed = 0
+    for role in roles:
+        print(f"loading {role} (weights download on first use)", flush=True)
+        try:
+            response = httpx.post(f"http://{host}:{port}/admin/models/load", json={"role": role, "force": True},
+                                  timeout=MEDIA_LOAD_TIMEOUT)
+        except httpx.HTTPError as failure:
+            print(f"{role}: {failure}", file=sys.stderr)
+            failed += 1
+            continue
+        if response.status_code >= 400:
+            print(f"{role}: {response.text}", file=sys.stderr)
+            failed += 1
+            continue
+        print(f"{role}: loaded")
+    return 1 if failed else 0
+
+
+def run(warm: bool = False) -> int:
     """Check the config, install Ollama if missing, then pull chat, decide and embed. Non-zero on failure."""
     try:
         settings = config.load()
@@ -132,7 +243,15 @@ def run() -> int:
     except config.ConfigError as failure:
         return error(f"omni: {failure}", "  fix or unset OLLAMA_HOST and run `omni init` again")
 
-    if not require_ollama() or not check_ollama(url):
+    present, installed_now = require_ollama()
+    if not present:
+        return 1
+    # a fresh install is a fresh server: start it, so `omni init` can finish pulling in one go
+    if installed_now and not answering(url):
+        print(f"ollama is not answering at {url} yet; starting it", flush=True)
+        start_ollama()
+        wait_for_server(url)
+    if not check_ollama(url):
         return 1
 
     models = sorted({settings[role]["model"] for role in OLLAMA_ROLES})
@@ -154,7 +273,13 @@ def run() -> int:
     host = settings["gateway"]["host"]
     if host in ("0.0.0.0", "::"):
         host = "127.0.0.1"
+    port = settings["gateway"]["port"]
+    if warm:
+        code = warm_media(host, port)
+        if code:
+            return code
+        print("media models warmed")
     print(f"ready: {', '.join(models)}")
-    print(f"next: `omni up`, then open http://{host}:{settings['gateway']['port']}/")
-    print("  (the stt, tts, image and video models download on first use)")
+    print(f"next: `omni up`, then open http://{host}:{port}/")
+    print("  (the stt, tts, image and video models download on first use; `omni init --media` warms them now)")
     return 0

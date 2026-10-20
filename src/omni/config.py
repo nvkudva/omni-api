@@ -124,14 +124,14 @@ def save_override(section: str, key: str, value) -> None:
 
     Written to a sibling temp file and renamed, so a crash cannot truncate the file.
     """
-    if section not in _SCHEMA or (key not in _SCHEMA[section] and key not in _OPTIONAL.get(section, {})):
+    if not _known(section, key):
         raise ConfigError(f"unknown setting {section}.{key}")
     overrides = _read(USER_CONFIG) if USER_CONFIG.exists() else {}
     overrides.setdefault(section, {})[key] = value
     lines = []
     for name, values in overrides.items():
         lines.append(f"[{name}]")
-        lines.extend(f"{option} = {_toml_value(setting)}" for option, setting in values.items())
+        lines.extend(f"{option} = {toml_value(setting)}" for option, setting in values.items())
         lines.append("")
     USER_CONFIG.parent.mkdir(parents=True, exist_ok=True)
     temporary = USER_CONFIG.with_name(f".{USER_CONFIG.name}.tmp")
@@ -139,7 +139,51 @@ def save_override(section: str, key: str, value) -> None:
     os.replace(temporary, USER_CONFIG)
 
 
-def _toml_value(value) -> str:
+def _known(section: str, key: str) -> bool:
+    """Whether `section.key` is a setting the schema allows."""
+    return section in _SCHEMA and (key in _SCHEMA[section] or key in _OPTIONAL.get(section, {}))
+
+
+def set_setting(section: str, key: str, raw: str):
+    """Store one setting from its command-line text, and return the value that was stored.
+
+    The whole file is validated before it is written, so `omni config set` cannot leave a config
+    behind that `omni up` would refuse to start with.
+    """
+    if section not in _SCHEMA:
+        raise ConfigError(f"unknown section [{section}]")
+    if not _known(section, key):
+        raise ConfigError(f"unknown setting {section}.{key}")
+    kind = _SCHEMA[section].get(key) or _OPTIONAL.get(section, {}).get(key)
+    value = _coerce(raw, kind, f"{section}.{key}")
+    settings = load()
+    settings[section][key] = value
+    validate(settings)
+    save_override(section, key, value)
+    return value
+
+
+def _coerce(raw: str, kind: type, name: str):
+    """`raw` as the type the schema expects, or a ConfigError naming the setting."""
+    if kind is str:
+        return raw
+    try:
+        return float(raw) if kind is float else int(raw)
+    except ValueError as error:
+        raise ConfigError(f"{name} must be {kind.__name__}, got {raw!r}") from error
+
+
+def dump(settings: dict) -> str:
+    """The effective settings as TOML, in schema order, so the output can be saved as a config."""
+    lines = []
+    for section in _SCHEMA:
+        lines.append(f"[{section}]")
+        lines.extend(f"{key} = {toml_value(value)}" for key, value in settings[section].items())
+        lines.append("")
+    return "\n".join(lines)
+
+
+def toml_value(value) -> str:
     if value is None:
         raise ConfigError("cannot store a null value")
     if isinstance(value, str):

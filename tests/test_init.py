@@ -69,6 +69,7 @@ def run_init(*, which, get=None, run=None, settings=SETTINGS, url="http://127.0.
 
     out, err = io.StringIO(), io.StringIO()
     with patch.object(init.shutil, "which", side_effect=which), \
+         patch.object(init.sys.stdin, "isatty", return_value=False), \
          patch.object(init.subprocess, "run", side_effect=run or ok_run), \
          patch.object(init.httpx, "get", side_effect=get or serve_api([])), \
          patch.object(init.config, "load", side_effect=load), \

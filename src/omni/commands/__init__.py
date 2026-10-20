@@ -1,32 +1,55 @@
-"""The ``omni`` command line: install Ollama, then run and stop the gateway.
+"""The ``omni`` command line: install Ollama, then run, inspect and stop the gateway.
 
-``main`` is the entry point wired in ``pyproject.toml``. The work lives in ``lifecycle`` and ``init``;
-this module only parses arguments and dispatches.
+``main`` is the entry point wired in ``pyproject.toml``. The work lives in ``doctor``, ``init``,
+``lifecycle`` and ``settings``; this module only parses arguments and dispatches.
 """
 import argparse
 import sys
-from importlib.metadata import PackageNotFoundError, version
 
-from omni import config
-from omni.commands import init, lifecycle
+from omni import config, version
+from omni.commands import doctor, init, lifecycle, settings
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 10000
 
 COMMANDS = (
-    ("init", "install ollama if missing and pull the chat, decide and embed models"),
+    ("init", "ask before installing ollama, then pull the chat, decide and embed models"),
+    ("doctor", "report what works and what to fix, without changing anything"),
     ("serve", "run the gateway and its workers in the foreground"),
     ("up", "start omni in the background"),
+    ("restart", "restart a running omni on the address it already bound"),
     ("down", "stop omni and every worker"),
-    ("status", "show worker health"),
+    ("status", "show worker health as a table, or as JSON"),
+    ("logs", "print the gateway log, or one worker's"),
+    ("config", "show, check or change ~/.omni-api/config.toml"),
 )
 
+# what `omni` on its own prints: the same commands as --help, but grouped by what you are doing
+GUIDE = """\
+omni - local models behind one gateway port
 
-def _version() -> str:
-    try:
-        return version("omni-api")
-    except PackageNotFoundError:
-        return "0.0.0+unknown"
+getting started
+  omni init                  ask before installing ollama, pull the chat/decide/embed models
+  omni init --media          also load the stt, tts, image and video models now
+  omni doctor                check the install read-only and say what to fix
+  omni config                show the effective settings
+  omni config set SECTION.KEY VALUE
+  omni config check          validate the config file without starting anything
+
+running
+  omni up                    start in the background; prints the pid and the log path
+  omni up --foreground       run in this terminal instead
+  omni serve                 the same as `omni up --foreground`
+  omni restart               stop and start again, rereading the config
+  omni down                  stop the gateway and every worker
+
+watching
+  omni status                worker health as a table; --json for the raw report
+  omni logs                  the gateway log; `omni logs stt` one worker's, -f follows
+
+  --host/--port belong to serve and up alone; the other commands use the address the
+  gateway recorded. `omni <command> --help` lists that command's flags.
+"""
 
 
 def _gateway_defaults() -> dict:
@@ -37,30 +60,79 @@ def _gateway_defaults() -> dict:
         return {"host": DEFAULT_HOST, "port": DEFAULT_PORT}
 
 
-def build_parser() -> argparse.ArgumentParser:
-    settings = _gateway_defaults()
+def _add_gateway_address(command: argparse.ArgumentParser, gateway: dict) -> None:
+    command.add_argument("--host", default=gateway["host"], help=f"default {gateway['host']}")
+    command.add_argument("--port", type=int, default=gateway["port"], help=f"default {gateway['port']}")
+
+
+def _add_config_actions(command: argparse.ArgumentParser) -> None:
+    command.set_defaults(action="show")
+    actions = command.add_subparsers(dest="action")
+    actions.add_parser("show", help="print the effective settings as TOML")
+    actions.add_parser("check", help="fail when the config does not load")
+    setter = actions.add_parser("set", help="change one value, e.g. gateway.port 10001")
+    setter.add_argument("target", metavar="SECTION.KEY")
+    setter.add_argument("value")
+
+
+def build_parser(gateway: dict | None = None) -> argparse.ArgumentParser:
+    gateway = _gateway_defaults() if gateway is None else gateway
     parser = argparse.ArgumentParser(prog="omni", description="local models behind one gateway port")
-    parser.add_argument("--version", action="version", version=f"omni {_version()}")
-    parser.add_argument("--host", default=settings["host"])
-    parser.add_argument("--port", type=int, default=settings["port"])
-    commands = parser.add_subparsers(dest="command", required=True)
+    parser.add_argument("--version", action="version", version=f"omni {version() or 'unknown'}")
+    commands = parser.add_subparsers(dest="command")
     for name, help_text in COMMANDS:
         command = commands.add_parser(name, help=help_text)
-        # SUPPRESS keeps the top-level --host/--port when a subcommand does not pass its own
-        command.add_argument("--host", default=argparse.SUPPRESS)
-        command.add_argument("--port", type=int, default=argparse.SUPPRESS)
+        if name in ("serve", "up"):
+            _add_gateway_address(command, gateway)
+        if name == "up":
+            command.add_argument("--foreground", action="store_true",
+                                 help="run in this terminal instead of the background")
+        if name == "init":
+            command.add_argument("--media", action="store_true",
+                                 help="also load the stt, tts, image and video models now")
+        if name == "status":
+            command.add_argument("--json", action="store_true", help="print the raw health report")
+        if name == "logs":
+            command.add_argument("role", nargs="?", choices=config.ROLES,
+                                 help="a worker's log instead of the gateway's")
+            command.add_argument("--lines", type=int, default=200, help="default 200")
+            command.add_argument("-f", "--follow", action="store_true", help="keep printing as it grows")
+        if name == "config":
+            _add_config_actions(command)
     return parser
 
 
+def _enable_completion(parser: argparse.ArgumentParser) -> None:
+    """Tab completion, when the optional `completion` extra is installed."""
+    try:
+        import argcomplete
+    except ImportError:
+        return
+    argcomplete.autocomplete(parser)
+
+
 def main() -> None:
-    args = build_parser().parse_args()
-    host, port = args.host, args.port
+    gateway = _gateway_defaults()
+    parser = build_parser(gateway)
+    _enable_completion(parser)
+    args = parser.parse_args()
+    if args.command is None:
+        print(GUIDE, end="")
+        sys.exit(0)
     if args.command == "init":
-        sys.exit(init.run())
+        sys.exit(init.run(warm=args.media))
+    if args.command == "doctor":
+        sys.exit(doctor.run())
     if args.command == "serve":
-        sys.exit(lifecycle.serve(host, port))
+        sys.exit(lifecycle.serve(args.host, args.port))
     if args.command == "up":
-        sys.exit(lifecycle.up(host, port))
+        sys.exit(lifecycle.serve(args.host, args.port) if args.foreground else lifecycle.up(args.host, args.port))
+    if args.command == "restart":
+        sys.exit(lifecycle.restart(*lifecycle.address(gateway)))
     if args.command == "down":
         sys.exit(lifecycle.down())
-    sys.exit(lifecycle.status(host, port))
+    if args.command == "status":
+        sys.exit(lifecycle.status(gateway, json_output=args.json))
+    if args.command == "logs":
+        sys.exit(lifecycle.print_logs(args.role, args.lines, args.follow))
+    sys.exit(settings.run(args.action, getattr(args, "target", None), getattr(args, "value", None)))

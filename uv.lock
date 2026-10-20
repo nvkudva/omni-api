@@ -61,6 +61,15 @@ wheels = [
 ]
 
 [[package]]
+name = "argcomplete"
+version = "3.7.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/87/6f/5a73f04007ca950701765949209f068da628bd11f9c2da287278ce91e0ee/argcomplete-3.7.2.tar.gz", hash = "sha256:aad8b69a0b9969edb62db0d1752354c0d50717b10e0cbb00e2a958381b9fc6b9", size = 74473, upload-time = "2026-08-06T04:53:21.662Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/46/bd/551ee6af426af84ca33e02622be722925c196608e9127d731ef17c47f06e/argcomplete-3.7.2-py3-none-any.whl", hash = "sha256:6029205678bdd9c1c728a155f5f9ecf5812393f969eef58807641a2bc2aa5b19", size = 43294, upload-time = "2026-08-06T04:53:20.246Z" },
+]
+
+[[package]]
 name = "attrs"
 version = "26.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1343,6 +1352,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+completion = [
+    { name = "argcomplete" },
+]
 media = [
     { name = "accelerate" },
     { name = "diffusers" },
@@ -1361,6 +1373,7 @@ media = [
 [package.metadata]
 requires-dist = [
     { name = "accelerate", marker = "extra == 'media'", specifier = ">=0.26" },
+    { name = "argcomplete", marker = "extra == 'completion'", specifier = ">=3" },
     { name = "diffusers", marker = "extra == 'media'", git = "https://github.com/huggingface/diffusers?rev=4295ee3ec58efa6577bc459e9b84ca3f63aa9a96" },
     { name = "en-core-web-sm", marker = "extra == 'media'", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },
     { name = "fastapi", specifier = ">=0.115" },
@@ -1381,7 +1394,7 @@ requires-dist = [
     { name = "transformers", marker = "extra == 'media'", specifier = "==5.19.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
 ]
-provides-extras = ["media"]
+provides-extras = ["media", "completion"]
 
 [[package]]
 name = "opentelemetry-api"
