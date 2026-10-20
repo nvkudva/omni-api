@@ -6,18 +6,28 @@
 # It puts uv in place (the only prerequisite), installs omni as a uv tool, and
 # leaves a global `omni` on your PATH. Models are not downloaded here: `omni init`
 # pulls the Ollama ones, and the speech/image/video models download on first use.
-set -eu
+#
+# Every failure prints a `fix:` line. Nothing is written until the checks pass.
+set -u
 
 REPO="https://github.com/nvkudva/omni-api"
-REF="main"
+DEFAULT_REF="main"
 SOURCE=""
 VERSION=""
-BIN_DIR="${OMNI_BIN_DIR:-${UV_TOOL_BIN_DIR:-$HOME/.local/bin}}"
 RUN_INIT=0
 MODIFY_PATH=0
+BIN_DIR="${OMNI_BIN_DIR:-${UV_TOOL_BIN_DIR:-$HOME/.local/bin}}"
 
 say() { printf '%s\n' "$*"; }
-die() { printf 'omni-install: %s\n' "$*" >&2; exit 1; }
+warn() { printf 'omni-install: %s\n' "$*" >&2; }
+die() {
+  message=$1
+  shift
+  printf 'omni-install: %s\n' "$message" >&2
+  for fix do printf '  fix: %s\n' "$fix" >&2; done
+  exit 1
+}
+have() { command -v "$1" >/dev/null 2>&1; }
 
 usage() {
   cat <<'EOF'
@@ -38,87 +48,224 @@ Options:
 EOF
 }
 
+# --- arguments --------------------------------------------------------------
 while [ $# -gt 0 ]; do
   case "$1" in
-    --from) [ $# -ge 2 ] || die "--from needs a value"; SOURCE="$2"; shift 2 ;;
-    --version) [ $# -ge 2 ] || die "--version needs a value"; VERSION="$2"; shift 2 ;;
-    --bin-dir) [ $# -ge 2 ] || die "--bin-dir needs a value"; BIN_DIR="$2"; shift 2 ;;
+    --from)
+      [ $# -ge 2 ] || die "--from needs a value" "example: --from /path/to/omni-api"
+      SOURCE=$2
+      shift 2
+      ;;
+    --version)
+      [ $# -ge 2 ] || die "--version needs a value" "example: --version 0.1.0"
+      VERSION=$2
+      shift 2
+      ;;
+    --bin-dir)
+      [ $# -ge 2 ] || die "--bin-dir needs a value" "example: --bin-dir \"\$HOME/bin\""
+      BIN_DIR=$2
+      shift 2
+      ;;
     --init) RUN_INIT=1; shift ;;
     --modify-path) MODIFY_PATH=1; shift ;;
     -h|--help) usage; exit 0 ;;
-    *) die "unknown option: $1 (try --help)" ;;
+    *) die "unknown option: $1" "run with --help to see the options" ;;
   esac
 done
 
-have() { command -v "$1" >/dev/null 2>&1; }
+case "$BIN_DIR" in
+  /*) ;;
+  *) BIN_DIR="$(pwd)/$BIN_DIR" ;;
+esac
+
+WORK=""
+cleanup() { [ -n "$WORK" ] && rm -rf "$WORK"; }
+trap cleanup EXIT
+trap 'cleanup; exit 130' INT TERM HUP
+
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/omni-install.XXXXXX" 2>/dev/null)" || die \
+  "could not create a temporary directory in ${TMPDIR:-/tmp}" \
+  "check that ${TMPDIR:-/tmp} exists and is writable, then rerun"
+LOG="$WORK/uv.log"
+
+if [ "$(id -u)" -eq 0 ]; then
+  warn "running as root, so omni lands in /var/root and only root can run it"
+  warn "  fix: rerun without sudo, as the user who will use omni"
+fi
 
 # --- platform ---------------------------------------------------------------
 os="$(uname -s)"
 arch="$(uname -m)"
 if [ "$os" != "Darwin" ]; then
-  die "omni needs macOS: its runtime is MLX, which has no Linux build. Nothing was changed."
+  die "omni needs macOS: its runtime is MLX, which has no Linux build. Nothing was changed." \
+    "run this on an Apple Silicon Mac; there is no Linux or Windows build yet"
 fi
 if [ "$arch" != "arm64" ]; then
-  die "omni needs Apple Silicon: MLX has no Intel-Mac build. Nothing was changed."
+  die "omni needs Apple Silicon: MLX has no Intel-Mac build. Nothing was changed." \
+    "run this on an M-series Mac"
+fi
+
+# --- disk, paths ------------------------------------------------------------
+available_kb="$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2 {print $4}')"
+if [ -n "${available_kb:-}" ] && [ "$available_kb" -lt 2097152 ]; then
+  available_gb="$(awk -v kb="$available_kb" 'BEGIN {printf "%.1f", kb / 1048576}')"
+  die "only ${available_gb} GB free in $HOME; the install needs about 2 GB" \
+    "free up space, then rerun" \
+    "the models omni init pulls need another 20 GB afterwards"
+fi
+
+if ! mkdir -p "$BIN_DIR" 2>/dev/null; then
+  die "cannot create $BIN_DIR" \
+    "choose a directory you can write to: --bin-dir \"\$HOME/bin\"" \
+    "or check its parent: ls -ld \"$(dirname "$BIN_DIR")\""
+fi
+if [ ! -w "$BIN_DIR" ]; then
+  die "$BIN_DIR is not writable" \
+    "rerun with --bin-dir \"\$HOME/bin\"" \
+    "or fix the permissions: chmod u+w \"$BIN_DIR\""
 fi
 
 # --- uv ---------------------------------------------------------------------
+install_uv_via_script() {
+  have curl || die "curl is missing, so uv cannot be downloaded" \
+    "install uv with Homebrew: brew install uv" \
+    "or download it yourself: https://docs.astral.sh/uv/getting-started/installation/"
+  curl -LsSf https://astral.sh/uv/install.sh -o "$WORK/uv-install.sh" || die \
+    "could not download the uv installer from astral.sh" \
+    "check your network connection (and any proxy or VPN), then rerun" \
+    "or install uv with Homebrew: brew install uv"
+  sh "$WORK/uv-install.sh" < /dev/null || die "the uv installer failed" \
+    "run it yourself to see why: curl -LsSf https://astral.sh/uv/install.sh | sh"
+  PATH="$HOME/.local/bin:$PATH"
+  export PATH
+}
+
 if ! have uv; then
   say "uv is not installed; installing it first (omni is distributed as a uv tool)."
   if have brew; then
-    brew install uv || die "brew install uv failed"
-  elif have curl; then
-    curl -LsSf https://astral.sh/uv/install.sh | sh || die "could not install uv"
-    PATH="$HOME/.local/bin:$PATH"
-    export PATH
+    if ! brew install uv < /dev/null > "$LOG" 2>&1; then
+      warn "brew install uv failed; trying the official installer instead"
+      tail -n 10 "$LOG" >&2
+      install_uv_via_script
+    fi
   else
-    die "no brew or curl here; install uv by hand (https://docs.astral.sh/uv/) and rerun"
+    install_uv_via_script
   fi
+  have uv || die "uv installed but is not on PATH" \
+    "add it for this shell: export PATH=\"\$HOME/.local/bin:\$PATH\"" \
+    "then rerun this script"
 fi
-have uv || die "uv is still not on PATH; add ~/.local/bin to PATH and rerun"
+
+# --- what to install --------------------------------------------------------
+require_git() {
+  have git && git --version >/dev/null 2>&1 && [ "$(git --version 2>&1 | cut -d' ' -f1)" = "git" ] && return 0
+  die "git is not usable on this Mac" \
+    "install Apple's command line tools: xcode-select --install" \
+    "then rerun this script"
+}
+
+if [ -n "$SOURCE" ]; then
+  if [ -d "$SOURCE" ]; then
+    [ -f "$SOURCE/pyproject.toml" ] || die "$SOURCE has no pyproject.toml, so it is not an omni-api checkout" \
+      "point --from at the repository root" \
+      "or drop --from to install the published main branch"
+    SOURCE="$(cd "$SOURCE" && pwd)"
+  fi
+  spec="$SOURCE"
+else
+  require_git
+  if ! git ls-remote --exit-code "$REPO" HEAD > /dev/null 2>&1; then
+    die "cannot reach $REPO" \
+      "check your network connection (and any proxy or VPN), then rerun" \
+      "or install from a local checkout: --from /path/to/omni-api"
+  fi
+  ref="$DEFAULT_REF"
+  if [ -n "$VERSION" ]; then
+    ref="$VERSION"
+    case "$ref" in v*) ;; *) ref="v$ref" ;; esac
+    if ! git ls-remote --exit-code --tags "$REPO" "refs/tags/$ref" > /dev/null 2>&1; then
+      released="$(git ls-remote --tags --refs "$REPO" 2>/dev/null | awk -F'refs/tags/' '{print $2}' | sort -V | tail -5 | tr '\n' ' ' | sed 's/ *$//')"
+      die "release $ref does not exist" \
+        "available releases: ${released:-none yet}" \
+        "or drop --version to install the latest main branch"
+    fi
+  fi
+  spec="git+$REPO@$ref"
+fi
 
 # --- install ----------------------------------------------------------------
-spec="$SOURCE"
-if [ -z "$spec" ]; then
-  if [ -n "$VERSION" ]; then
-    tag="$VERSION"
-    case "$tag" in v*) ;; *) tag="v$tag" ;; esac
-    spec="git+$REPO@$tag"
+say "installing omni from $spec"
+export UV_TOOL_BIN_DIR="$BIN_DIR"
+if ! uv tool install --force --python 3.12 "$spec" < /dev/null > "$LOG" 2>&1; then
+  tail -n 20 "$LOG" >&2
+  if grep -qi "failed to download\|error sending request\|dns error\|timed out\|connection" "$LOG"; then
+    die "could not download the Python packages" \
+      "check your network connection (and any proxy or VPN), then rerun"
+  elif grep -qi "couldn't find remote ref\|could not find remote ref\|repository not found" "$LOG"; then
+    die "the branch or tag in the install source does not exist" \
+      "check what follows @ in: $spec" \
+      "for a release, use --version TAG instead"
+  elif grep -qi "no python interpreter\|no interpreter found\|failed to download python" "$LOG"; then
+    die "uv could not get Python 3.12" \
+      "install it once by hand: uv python install 3.12" \
+      "then rerun this script"
+  elif grep -qi "unexpected argument\|unrecognized\|unknown option" "$LOG"; then
+    die "this uv is too old for the install command used here" \
+      "update it: uv self update" \
+      "then rerun this script"
+  elif grep -qi "no solution found\|because there" "$LOG"; then
+    die "the dependencies could not be resolved" \
+      "install from a checkout to rule out the git source: --from /path/to/omni-api" \
+      "if it still fails, open an issue: https://github.com/nvkudva/omni-api/issues"
   else
-    spec="git+$REPO@$REF"
+    die "uv tool install failed (the last 20 lines are above)" \
+      "retry once: the network or the git host may have been flaky" \
+      "then install from a checkout: --from /path/to/omni-api"
   fi
 fi
 
-case "$spec" in
-  git+*) have git || die "installing from git needs git; install it or pass --from a local path" ;;
-esac
+# --- verify -----------------------------------------------------------------
+[ -x "$BIN_DIR/omni" ] || die "uv reported success but $BIN_DIR/omni is missing" \
+  "see what uv installed: uv tool list" \
+  "remove the broken entry and rerun: uv tool uninstall omni-api"
 
-say "installing omni from $spec"
-UV_TOOL_BIN_DIR="$BIN_DIR"
-export UV_TOOL_BIN_DIR
-uv tool install --force --python 3.12 "$spec" || die "uv tool install failed"
-
-# --- check ------------------------------------------------------------------
-[ -x "$BIN_DIR/omni" ] || die "uv finished but $BIN_DIR/omni is missing"
-installed_version="$("$BIN_DIR/omni" --version)" || die "$BIN_DIR/omni did not run"
+if ! installed_version="$("$BIN_DIR/omni" --version 2>&1)"; then
+  die "$BIN_DIR/omni did not run (the error is above)" \
+    "see the full message: \"$BIN_DIR/omni --help\"" \
+    "reinstall cleanly: uv tool uninstall omni-api, then rerun this script"
+fi
 say "installed: $installed_version"
 
 # --- PATH -------------------------------------------------------------------
 on_path=0
 case ":${PATH}:" in *":${BIN_DIR}:"*) on_path=1 ;; esac
+
 if [ "$on_path" -eq 0 ]; then
   line="export PATH=\"$BIN_DIR:\$PATH\""
   if [ "$MODIFY_PATH" -eq 1 ]; then
     case "${SHELL:-}" in
       */zsh) rc="$HOME/.zshrc" ;;
       */bash) rc="$HOME/.bashrc" ;;
+      */fish) rc="$HOME/.config/fish/config.fish" ;;
       *) rc="" ;;
     esac
-    if [ -n "$rc" ] && ! grep -F "$line" "$rc" >/dev/null 2>&1; then
-      printf '\n# omni\n%s\n' "$line" >> "$rc"
-      say "added $BIN_DIR to PATH in $rc (open a new terminal to use it)"
+    if [ -z "$rc" ]; then
+      warn "cannot tell your shell from SHELL=${SHELL:-unset}; add this by hand:"
+      warn "  $line"
     else
-      say "add this to your shell startup file: $line"
+      case "$rc" in
+        */config.fish) fish_line="fish_add_path \"$BIN_DIR\"" ;;
+        *) fish_line="$line" ;;
+      esac
+      if grep -F "$BIN_DIR" "$rc" > /dev/null 2>&1; then
+        say "$rc already mentions $BIN_DIR"
+      elif printf '\n# omni\n%s\n' "$fish_line" >> "$rc" 2>/dev/null; then
+        say "added $BIN_DIR to PATH in $rc (open a new terminal to use it)"
+        on_path=1
+      else
+        warn "could not write to $rc; add this by hand:"
+        warn "  $fish_line"
+      fi
     fi
   else
     say "note: $BIN_DIR is not on PATH yet. Add it, or rerun with --modify-path:"
@@ -126,17 +273,27 @@ if [ "$on_path" -eq 0 ]; then
   fi
 fi
 
+resolved="$(command -v omni 2>/dev/null || true)"
+if [ -n "$resolved" ] && [ "$resolved" != "$BIN_DIR/omni" ]; then
+  warn "another omni comes first on PATH: $resolved"
+  warn "  fix: \"brew uninstall omni\", or put $BIN_DIR ahead of it; otherwise typing omni runs that one"
+fi
+
 # --- init -------------------------------------------------------------------
 if [ "$RUN_INIT" -eq 1 ]; then
   say ""
-  "$BIN_DIR/omni" init || die "omni init failed; fix the step above and run \`omni init\` again"
+  "$BIN_DIR/omni" init < /dev/null || die "omni init failed (the failing step is printed above)" \
+    "fix that step, then run: \"$BIN_DIR/omni\" init" \
+    "the CLI itself is installed; models are only needed to serve them"
 fi
 
+# --- done -------------------------------------------------------------------
+if [ "$on_path" -eq 1 ]; then run="omni"; else run="$BIN_DIR/omni"; fi
 say ""
 say "next:"
-say "  omni init     # once: install Ollama and pull chat, decide, embed"
-say "  omni up       # start the gateway in the background"
-say "  omni status   # what is running"
+say "  $run init     # once: install Ollama and pull chat, decide, embed"
+say "  $run up       # start the gateway in the background"
+say "  $run status   # what is running"
 say "then open http://127.0.0.1:10000/"
 say ""
 say "uninstall: uv tool uninstall omni-api"
