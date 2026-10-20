@@ -132,16 +132,35 @@ Measured on Apple Silicon:
 
 ## Install
 
-Requires macOS on Apple Silicon (MLX and MPS), Python 3.12–3.13, [uv](https://docs.astral.sh/uv/), and [Ollama](https://ollama.com) (`omni init` installs it if missing).
+Requires macOS on Apple Silicon (MLX and MPS) and [Ollama](https://ollama.com) (`omni init` installs it if missing). Python and [uv](https://docs.astral.sh/uv/) come with the install script:
 
 ```sh
-# global `omni` command; edits to the source take effect immediately
-uv tool install -e /path/to/omni-api
+curl -fsSL https://raw.githubusercontent.com/nvkudva/omni-api/main/install.sh | sh
 ```
 
-To run without installing, from the repo: `uv run omni serve`. From anywhere else: `uv run --project /path/to/omni-api omni serve`.
+That installs the global `omni` command. Homebrew users can tap this repo instead:
 
-`omni init` is the first thing to run. It validates `~/.omni-api/config.toml`, installs Ollama when the binary is missing, waits for the server to answer, pulls the chat/decide/embed models and confirms they landed; every failure prints the command to fix it and a link, so run it again from a fresh clone until it prints `ready`.
+```sh
+brew tap nvkudva/omni
+brew install omni
+```
+
+From a clone, for development (`-e` makes edits take effect immediately):
+
+```sh
+uv tool install -e .
+# or run it without installing
+uv run omni serve
+```
+
+Then:
+
+```sh
+omni init     # validate config, install Ollama if missing, pull chat/decide/embed
+omni up       # gateway and workers in the background
+```
+
+`omni init` validates `~/.omni-api/config.toml`, installs Ollama when the binary is missing, waits for the server to answer, pulls the chat/decide/embed models and confirms they landed; every failure prints the command to fix it and a link. The stt, tts, image and video models download on first use. Release and packaging notes live in [`docs/publishing.md`](docs/publishing.md).
 
 ---
 
