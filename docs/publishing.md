@@ -88,5 +88,6 @@ The version lives in `pyproject.toml` and is read at runtime by `omni --version`
 - [ ] commit and push `main`
 - [ ] `script/release --push` (tags, computes sha256, updates the tap, prints the pushes)
 - [ ] push `main` again and push the tap repo
+- [ ] refresh the local tap clone before testing: `brew update`, or `git -C "$(brew --repository)/Library/Taps/nvkudva/homebrew-omni" pull` — `brew reinstall` reads that clone, so a freshly pushed formula stays invisible (and reinstalls the old version) until it is fetched
 - [ ] `brew audit --strict --formula Formula/omni.rb` in the tap, then `brew reinstall omni && brew test omni`
 - [ ] smoke: `curl -fsSL .../main/install.sh | sh` on a clean machine, then `omni --version`, `omni init`, `omni up`
