@@ -1,7 +1,7 @@
 .facts { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px 24px; }
 .facts > div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.facts dt { color: var(--text-3); font-size: 11px; }
-.facts dd { margin: 0; font-family: var(--font); font-size: 12px; overflow-wrap: anywhere; }
+.facts dt { color: var(--muted-foreground); font-size: 0.75rem; }
+.facts dd { margin: 0; font-family: var(--font); font-size: 0.8125rem; overflow-wrap: anywhere; }
 
 .logs { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
 .logs > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-2); list-style: none; }

@@ -8,16 +8,16 @@
 /* A bar, not a field: the type names the card, flush to the card's edges. */
 .head {
   display: flex; align-items: center; gap: 6px;
-  min-height: 2.5rem;
-  padding: 0 6px 0 12px;
-  background: var(--muted);
+  min-height: 3rem;
+  padding: 0 8px 0 16px;
+  background: transparent;
   border-bottom: 1px solid var(--border);
 }
-.title { flex: 1; font-size: 0.8125rem; font-weight: 600; color: var(--foreground); }
-.body { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+.title { flex: 1; font-size: 0.875rem; font-weight: 600; color: var(--foreground); }
+.body { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
 .question textarea { min-height: 40px; }
 
-.label { font-size: 0.75rem; font-weight: 500; color: var(--muted-foreground); }
+.label { font-size: 0.875rem; font-weight: 500; color: var(--foreground); }
 
 /* Every editable input is the full width of the card. The row's action floats over
    the field's trailing edge, so it never narrows the input or breaks the alignment. */
@@ -34,7 +34,7 @@
 /* The noul branch rides inside the field as a tag, keeping the input full width. */
 .tag {
   position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
-  font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
   color: var(--muted-foreground); pointer-events: none;
 }
 .tagged input { padding-left: 56px; }

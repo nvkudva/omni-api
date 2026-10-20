@@ -5,8 +5,8 @@
 .logsHead:hover { background: var(--accent); }
 .logsCaret { flex: none; display: inline-flex; color: var(--text-2); transform: rotate(-90deg); transition: transform 0.15s; }
 .logsCaretOpen { transform: rotate(0); }
-.logsTitle { font-size: 13px; font-weight: 600; }
-.logsMeta { font-family: var(--font); font-size: 11px; color: var(--text-2); }
-.logsState { margin-left: auto; font-family: var(--font); font-size: 11px; color: var(--text-2); }
+.logsTitle { font-size: 0.875rem; font-weight: 600; }
+.logsMeta { font-family: var(--font); font-size: 0.75rem; color: var(--muted-foreground); }
+.logsState { margin-left: auto; font-family: var(--font); font-size: 0.75rem; color: var(--muted-foreground); }
 .terminal { border-top: 1px solid var(--border); background: #0c0e12; }
 .terminalBody { height: 300px; overflow: auto; margin: 0; padding: 8px; font-family: var(--mono); font-size: 12px; line-height: 1.5; color: #d7dde8; white-space: pre-wrap; word-break: break-word; }

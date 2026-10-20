@@ -1,33 +1,36 @@
 .page { flex: 1 1 0; min-height: 0; display: flex; }
 
+/* shadcn Sidebar: 16px inset, 8px gap, text-sm items at h-9 with rounded-md. */
 .nav {
-  flex: none; width: 196px;
-  padding: 8px; overflow: auto;
+  flex: none; width: 216px;
+  padding: 12px;
+  overflow: auto;
   border-right: 1px solid var(--border);
   background: var(--card);
-  display: flex; flex-direction: column; gap: 16px;
+  display: flex; flex-direction: column; gap: 20px;
 }
 .group { display: flex; flex-direction: column; gap: 2px; }
 .groupTitle {
-  margin: 0 0 4px; padding: 0 8px;
+  margin: 0 0 4px; padding: 0 12px;
   font-size: 0.75rem; font-weight: 500; line-height: 1.4;
   color: var(--muted-foreground);
 }
 .item {
-  display: flex; align-items: center; gap: 8px; min-height: var(--control-h-sm);
-  padding: 6px 8px; border: 1px solid transparent; border-radius: var(--radius-md);
+  display: flex; align-items: center; gap: 0.5rem; min-height: var(--control-h);
+  padding: 0.5rem 0.75rem; border: 1px solid transparent; border-radius: var(--radius-md);
   background: transparent; color: var(--muted-foreground);
   font: inherit; font-size: 0.875rem; line-height: 1.25rem; text-align: left; cursor: pointer;
   transition: background-color 0.15s, color 0.15s;
 }
 .item:hover { background: var(--accent); color: var(--accent-foreground); }
 .item:focus-visible { outline: none; border-color: var(--ring); box-shadow: var(--focus-ring); }
-.itemOn, .itemOn:hover { background: var(--muted); color: var(--foreground); font-weight: 500; }
+.itemOn, .itemOn:hover { background: var(--secondary); color: var(--foreground); font-weight: 500; }
 .back {
-  display: flex; align-items: center; gap: 6px; min-height: var(--control-h-sm);
-  padding: 6px 8px; border: 1px solid transparent; border-radius: var(--radius-md);
+  display: flex; align-items: center; gap: 0.5rem; min-height: var(--control-h);
+  padding: 0.5rem 0.75rem; border: 1px solid transparent; border-radius: var(--radius-md);
   background: transparent; color: var(--foreground);
   font: inherit; font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; text-align: left; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .back:hover { background: var(--accent); }
 .back:focus-visible { outline: none; border-color: var(--ring); box-shadow: var(--focus-ring); }
@@ -36,7 +39,7 @@
 
 @media (max-width: 760px) {
   .page { flex-direction: column; }
-  .nav { width: auto; flex-direction: row; gap: 4px; padding: 8px; border-right: 0; border-bottom: 1px solid var(--hairline); overflow-x: auto; }
+  .nav { width: auto; flex-direction: row; gap: 4px; padding: 8px; border-right: 0; border-bottom: 1px solid var(--border); overflow-x: auto; }
   .item, .back { white-space: nowrap; flex: none; }
   .group { flex-direction: row; }
   .groupTitle { display: none; }

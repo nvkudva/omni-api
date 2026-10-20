@@ -257,15 +257,13 @@ a:hover { color: color-mix(in oklab, var(--primary) 80%, transparent); }
 a:focus-visible, summary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
 * { scrollbar-width: thin; scrollbar-color: var(--input) transparent; }
 
-/* --- Table: shadcn Table — bordered wrapper, h-10 heads, p-2 cells, no header fill --- */
+/* --- Table: shadcn Table — no outer frame (it lives inside a Card), h-10 heads,
+       p-2 cells, muted header text, a hairline under every row. --- */
 table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  background: var(--card);
+  background: transparent;
   font-size: 0.875rem;
 }
 th {
@@ -275,7 +273,7 @@ th {
   vertical-align: middle;
   font-weight: 500;
   font-size: 0.875rem;
-  color: var(--foreground);
+  color: var(--muted-foreground);
   background: transparent;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;

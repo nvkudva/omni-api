@@ -1,19 +1,19 @@
 /* Shared by the two system pages (Models, Health): tables and inline controls. */
 
-.mono { font-family: var(--font); font-size: 12px; }
+.mono { font-family: var(--font); font-size: 0.8125rem; }
 .link { color: var(--primary); font-size: 0.8125rem; font-weight: 500; text-decoration: none; text-underline-offset: 4px; white-space: nowrap; }
 .link:hover { text-decoration: underline; }
 .link:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
 
 .nameCell { display: inline-flex; align-items: center; gap: 8px; }
-.numeric { font-variant-numeric: tabular-nums; color: var(--text-2); white-space: nowrap; }
+.numeric { font-variant-numeric: tabular-nums; color: var(--muted-foreground); white-space: nowrap; }
 .actionCell { text-align: right; width: 1%; }
-.tableSelect { min-width: 220px; height: var(--control-h-sm); min-height: var(--control-h-sm); font-family: var(--font); font-size: 0.75rem; }
+.tableSelect { min-width: 240px; font-family: var(--font); }
 .buttons { display: inline-flex; gap: 8px; justify-content: flex-end; }
 
 .subhead {
   margin: 8px 0 0;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   font-weight: 500;
   letter-spacing: -0.005em;
   color: var(--muted-foreground);
