@@ -2,26 +2,26 @@
 
 /* The Chat view: the same turns as Requests, read as a transcript. */
 .chat { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.bubble { max-width: 82%; padding: 8px 12px; border-radius: var(--radius-lg); font-size: 14px; line-height: 1.5; border: 1px solid var(--border); }
+.bubble { max-width: 82%; padding: 10px 14px; border-radius: var(--radius-xl); font-size: 0.875rem; line-height: 1.55; border: 1px solid transparent; }
 .bubbleText { white-space: pre-wrap; overflow-wrap: anywhere; }
-.user { align-self: flex-end; background: var(--bubble-user); color: var(--bubble-user-text); border-bottom-right-radius: 6px; }
-.assistant { align-self: flex-start; background: var(--bubble-bot); border-bottom-left-radius: 6px; }
+.user { align-self: flex-end; background: var(--bubble-user); color: var(--bubble-user-text); border-bottom-right-radius: var(--radius-md); }
+.assistant { align-self: flex-start; background: var(--bubble-bot); color: var(--card-foreground); border-color: var(--border); border-bottom-left-radius: var(--radius-md); }
 .chat .thumbs { margin-top: 6px; }
 
-.text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.5; }
-.thinking { color: var(--text-3); font-size: 13px; }
+.text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.875rem; line-height: 1.55; }
+.thinking { color: var(--muted-foreground); font-size: 0.8125rem; }
 
 .thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .thumb {
   width: 56px; height: 56px; object-fit: cover; display: block;
-  border-radius: var(--radius-sm); border: 1px solid var(--hairline);
+  border-radius: var(--radius-md); border: 1px solid var(--border);
 }
-.thumbButton { padding: 0; border: 0; background: none; cursor: pointer; border-radius: var(--radius-sm); transition: opacity 0.15s; }
+.thumbButton { padding: 0; border: 0; background: none; cursor: pointer; border-radius: var(--radius-md); transition: opacity 0.15s; }
 .thumbButton:hover { opacity: 0.6; }
 .thumbButton:focus-visible { outline: none; box-shadow: var(--focus-ring); opacity: 1; }
 
 .input { flex: 1; min-height: 3lh; max-height: 10lh; resize: none; field-sizing: content; }
-.footHint { margin-right: auto; color: var(--text-3); font-size: 12px; }
+.footHint { margin-right: auto; color: var(--muted-foreground); font-size: 0.75rem; }
 
 /* The system prompt is a closed disclosure; its text previews on one line when shut. */
 .system { min-width: 0; }
@@ -29,7 +29,7 @@
 .systemSummary::-webkit-details-marker { display: none; }
 .systemSummary::before { content: "▸"; flex: none; transition: transform 0.15s; }
 .system[open] > .systemSummary::before { transform: rotate(90deg); }
-.systemSummary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
+.systemSummary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
 .systemLabel { flex: none; }
 .systemPreview { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; color: var(--text-3); }
 .systemText { display: block; width: 100%; min-height: 80px; margin-top: 8px; resize: vertical; }

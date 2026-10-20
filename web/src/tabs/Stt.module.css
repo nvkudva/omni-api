@@ -1,18 +1,18 @@
 .recorder { display: flex; align-items: center; gap: 12px; }
 .timer { font-family: var(--font); font-size: 13px; font-variant-numeric: tabular-nums; min-width: 48px; }
-.wave { flex: 1; height: 34px; width: 100%; min-width: 0; border-radius: var(--radius-sm); background: var(--surface-2); }
+.wave { flex: 1; height: 2.25rem; width: 100%; min-width: 0; border-radius: var(--radius-md); background: var(--muted); }
 
 .audio { width: 100%; height: 36px; }
 
 .transcript { margin: 0; font-size: 14px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
 .segments { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .segment {
-  display: flex; gap: 8px; width: 100%; text-align: left; min-height: 36px; align-items: baseline;
-  padding: 8px; border: 0; border-radius: var(--radius-sm); background: transparent;
-  cursor: pointer; font-size: 13px; color: var(--text);
+  display: flex; gap: 8px; width: 100%; text-align: left; min-height: var(--control-h); align-items: baseline;
+  padding: 8px; border: 1px solid transparent; border-radius: var(--radius-md); background: transparent;
+  cursor: pointer; font-size: 0.8125rem; color: var(--foreground);
 }
-.segment:hover { background: var(--surface-2); }
-.segment:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.segment:hover { background: var(--accent); color: var(--accent-foreground); }
+.segment:focus-visible { outline: none; border-color: var(--ring); box-shadow: var(--focus-ring); }
 .timestamp { font-family: var(--font); font-size: 12px; color: var(--text-2); flex: none; }
 
 .stack { display: flex; flex-direction: column; gap: 16px; }

@@ -6,6 +6,15 @@
   <meta name="color-scheme" content="light dark">
   <title>OMNI API · Playground</title>
   <link rel="icon" href="/static/app/favicon.svg" type="image/svg+xml">
+  <script>
+    // Paint the stored theme on the first frame (shadcn/next-themes behaviour)
+    // so a dark-mode reload never flashes the light palette.
+    try {
+      var saved = JSON.parse(localStorage.getItem("omni.theme") || '"system"');
+      var dark = saved === "dark" || (saved !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+    } catch (error) { /* storage blocked: useTheme resolves it after mount */ }
+  </script>
 </head>
 <body>
   <div id="root"></div>

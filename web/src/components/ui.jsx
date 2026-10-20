@@ -37,11 +37,11 @@ export function Row({ end, children }) {
   return <div class={cx(styles.row, end && styles.rowEnd)}>{children}</div>;
 }
 
-export function Button({ variant = "secondary", small, class: extra, ...props }) {
+export function Button({ variant = "outline", small, class: extra, ...props }) {
   return <button type="button" class={cx(styles.button, styles[variant], small && styles.small, extra)} {...props} />;
 }
 
-export function IconButton({ icon, label, danger, size = 15, class: extra, ...props }) {
+export function IconButton({ icon, label, danger, size = 16, class: extra, ...props }) {
   // `class` is merged, not spread: a caller's class must add to the icon styling
   // (e.g. align-self), never replace it and leave a bare native button.
   return (

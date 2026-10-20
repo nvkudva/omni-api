@@ -20,13 +20,14 @@
 .actions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
 .iconButton {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 32px; height: 32px; padding: 0;
-  border: none; border-radius: var(--radius-sm); background: transparent;
-  color: var(--text-2); cursor: pointer;
+  width: var(--control-h); height: var(--control-h); padding: 0;
+  border: 1px solid transparent; border-radius: var(--radius-md); background: transparent;
+  color: var(--muted-foreground); cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, border-color 0.15s;
 }
-.iconButton:hover { background: var(--hairline); color: var(--text); }
-.iconButton:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.iconButtonOn, .iconButtonOn:hover { background: var(--muted); color: var(--foreground); }
+.iconButton:hover { background: var(--accent); color: var(--accent-foreground); }
+.iconButton:focus-visible { outline: none; border-color: var(--ring); box-shadow: var(--focus-ring); }
+.iconButtonOn, .iconButtonOn:hover { background: var(--accent); color: var(--accent-foreground); }
 
 /* The seven model cards double as the page tabs. */
 .cards {
@@ -54,20 +55,23 @@
 .downloadLabel strong { color: var(--text); font-weight: 600; }
 .execButton {
   justify-self: end;
-  font-size: 12px; line-height: 1;
-  padding: 5px 12px;
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
-  background: var(--surface); color: var(--text);
+  height: 1.5rem; padding: 0 0.5rem;
+  font-size: 0.75rem; line-height: 1; font-weight: 500;
+  border: 1px solid var(--input); border-radius: var(--radius-md);
+  background: var(--raised); color: var(--foreground);
+  box-shadow: var(--shadow-xs);
   cursor: pointer; white-space: nowrap;
+  transition: background-color 0.15s, border-color 0.15s;
 }
-.execButton:hover { background: var(--hairline); }
+.execButton:hover { background: var(--accent); border-color: var(--ring); }
+.execButton:focus-visible { outline: none; border-color: var(--ring); box-shadow: var(--focus-ring); }
 .execText {
   margin: 0; padding: 10px 12px;
   max-height: 240px; overflow: auto;
   font: 12px/1.5 var(--mono); white-space: pre-wrap; word-break: break-word;
-  background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius-sm);
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-md);
 }
-.execImage { max-width: 100%; max-height: 240px; border-radius: var(--radius-sm); }
+.execImage { max-width: 100%; max-height: 240px; border-radius: var(--radius-md); }
 .execAudio { width: 100%; max-width: 420px; }
 
 .main { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
