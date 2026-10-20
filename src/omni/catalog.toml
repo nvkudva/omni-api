@@ -13,10 +13,11 @@ model = "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0"
 model = "embeddinggemma-2:270m"
 
 [stt]
-# parakeet-mlx builds a dense model from config.json and loads it strictly, so a
-# 4-bit pack cannot work: animaslabs/parakeet-tdt-0.6b-v3-mlx-4bit fails with
-# "442 parameters not in model" (its .scales/.biases have nowhere to go).
-model = "moondream/parakeet-redux"
+# parakeet-mlx builds a dense model from the repo's NeMo config.json and loads it
+# strictly, so packed weights cannot work: a 4-bit pack fails with "442 parameters
+# not in model", and moondream/parakeet-redux has no NeMo `target` at all
+# ("Model is not supported yet!").
+model = "mlx-community/parakeet-tdt-0.6b-v3"
 
 [tts]
 model = "mlx-community/Kokoro-82M-8bit"

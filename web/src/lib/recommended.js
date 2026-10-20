@@ -31,9 +31,8 @@ export const RECOMMENDED = {
     { model: "qwen3-embedding:8b", gb: 4.7, note: "best quality; 4096-dim vectors" },
   ],
   stt: [
-    { model: "moondream/parakeet-redux", gb: 0.2, note: "shipped default — tiny, for quick notes" },
+    { model: "mlx-community/parakeet-tdt-0.6b-v3", gb: 2.5, note: "shipped default — best accuracy" },
     { model: "mlx-community/parakeet-tdt_ctc-110m", gb: 0.5, note: "small" },
-    { model: "mlx-community/parakeet-tdt-0.6b-v3", gb: 2.5, note: "best accuracy" },
     { model: "mlx-community/parakeet-tdt-0.6b-v2", gb: 2.5, note: "previous version" },
   ],
   tts: [

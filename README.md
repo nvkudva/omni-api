@@ -175,7 +175,7 @@ omni up       # gateway and workers in the background
 
 `omni init` validates `~/.omni-api/config.toml`, asks whether to install Ollama when the binary is missing (it stops if you say no), starts the server it just installed, pulls the chat/decide/embed models and confirms they landed; every failure prints the command to fix it and a link. The stt, tts, image and video models download on first use, or now with `omni init --media`. When something is wrong and you would rather not install anything, `omni doctor` runs the same checks read-only and prints one line per check. Release and packaging notes live in [`docs/publishing.md`](docs/publishing.md).
 
-The shipped defaults are the small profile: `qwen2.5:0.5b` (chat), `OneJev1.5-0.8B` (decide), `embeddinggemma-2:270m` (embed), `moondream/parakeet-redux` (stt), `Kokoro-82M-8bit` (tts), `Qwen-Image-2.1-Turbo` at Q8_0 (image, 7.6 GB) and `LTX-2.3-22B-RAM-12GB-MLX` (video). Any role can be changed in the playground (add a model, set it as default) or in `~/.omni-api/config.toml`; each role's list keeps the bigger models one click away.
+The shipped defaults are the small profile: `qwen2.5:0.5b` (chat), `OneJev1.5-0.8B` (decide), `embeddinggemma-2:270m` (embed), `parakeet-tdt-0.6b-v3` (stt, 2.5 GB), `Kokoro-82M-8bit` (tts), `Qwen-Image-2.1-Turbo` at Q8_0 (image, 7.6 GB) and `LTX-2.3-22B-RAM-12GB-MLX` (video). Any role can be changed in the playground (add a model, set it as default) or in `~/.omni-api/config.toml`; each role's list keeps the bigger models one click away.
 
 ---
 
@@ -311,7 +311,7 @@ Ports:
   loaded instead:
   - **image:** loading Qwen-Image-2.1-Turbo takes about a minute; each 1024² image takes under a minute at 8 steps.
   - **video:** the LTX-2.5 4-bit pack is about 51 GB plus its Gemma text encoder; loading takes minutes. Ollama can't run video models, so this runs on MLX. The pack lives in a gated Hugging Face repo (`dgrauet/ltx-2.5-mlx-q4`, as does the q8 one), so accept its terms before the first run.
-  - **stt stays unquantized:** parakeet-mlx loads dense checkpoints only, so a 4-bit parakeet pack cannot load.
+  - **stt stays unquantized:** parakeet-mlx loads dense checkpoints only, so a 4-bit parakeet pack cannot load. It also needs the repo's NeMo `config.json`; packed formats such as `moondream/parakeet-redux` need their own runtime (Photon) and fail with `Model is not supported yet!`.
   - **tts:** the first call also downloads a spaCy model and voice weights.
 - **Ollama roles are never downloaded by a load.** `POST /admin/models/load` (and a pin) answers `409`
   `conflict` for an Ollama model that is not installed; install it with `POST /admin/models/pull` first.
