@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { cx } from "../lib/cx.js";
 import { Icon } from "./Icon.jsx";
+import * as ui from "./ui.jsx";
 import { getText } from "../api/client.js";
 import { OLLAMA_ROLES } from "../api/roles.js";
 import { usePageActive } from "../hooks/usePageActive.js";
@@ -40,11 +41,11 @@ export function LogsCard({ role, initialOpen = false }) {
 
   return (
     <section class={styles.logsCard}>
-      <button type="button" class={styles.logsHead} aria-expanded={open} onClick={() => setOpen(!open)}>
-        <span class={cx(styles.logsCaret, open && styles.logsCaretOpen)}><Icon name="caret" size={12} /></span>
-        <span class={styles.logsTitle}>Logs</span>
-        <span class={styles.logsMeta}>{fileName} · live tail</span>
-        {open && <span class={styles.logsState}>{error ? "unavailable" : "tailing…"}</span>}
+      <button type="button" class={styles.head} aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span class={cx(styles.caret, open && styles.open)}><Icon name="caret" size={12} /></span>
+        <span class={styles.title}>Logs</span>
+        <ui.Meta class={styles.meta}>{fileName} · live tail</ui.Meta>
+        {open && <span class={styles.state}>{error ? "unavailable" : "tailing…"}</span>}
       </button>
       {open && (
         <div class={styles.terminal}>

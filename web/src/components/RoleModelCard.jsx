@@ -10,7 +10,6 @@ import { gb, shortModel } from "../lib/format.js";
 import { cx } from "../lib/cx.js";
 import * as ui from "./ui.jsx";
 import styles from "./RoleModelCard.module.css";
-import tabStyles from "../tabs/tabs.module.css";
 
 /**
  * One card, one status. A card is small enough that its light, its word and its button are read
@@ -146,14 +145,11 @@ function useStartWorker(role, onProblem) {
  *  `useWarmToggle`, so it does the same thing in either place. */
 export function WarmSwitch({ pinned, disabled, busy, title, label, onClick }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={pinned}
+    <ui.Switch
+      checked={pinned}
       aria-label={label}
       title={title}
       disabled={busy || disabled}
-      class={cx(styles.switch, pinned && styles.switchOn)}
       onClick={onClick}
     />
   );
@@ -164,20 +160,18 @@ export function Section({ title, meta, role, tools, warmToggle, health, children
   const [logOpen, setLogOpen] = useState(false);
   const [healthOpen, setHealthOpen] = useState(false);
   return (
-    <section class={styles.setup}>
+    <section class={styles.section}>
       {(title || meta) && (
-        <header
-          class={roleMeta ? [styles.setupHead, styles.setupHeadColor].join(" ") : styles.setupHead}
-        >
+        <header class={roleMeta ? cx(styles.head, styles.role) : styles.head}>
           {roleMeta
             ? (
               <>
-                <div class={styles.setupHeadRow}>
-                  <span class={styles.badge} style={{ background: roleMeta.color }}><Icon name={role} /></span>
-                  {title && <h2 class={styles.setupTitle}>{title}</h2>}
-                  <div class={styles.setupTools}>
+                <div class={styles.headRow}>
+                  <span class={ui.css.roleGlyph} style={{ background: roleMeta.color }}><Icon name={role} /></span>
+                  {title && <h2 class={styles.title}>{title}</h2>}
+                  <div class={styles.tools}>
                     {tools}
-                    <span class={styles.setupIcons}>
+                    <span class={styles.icons}>
                       {health && (
                         <ui.IconButton icon="health" label={`${title} health details`} aria-expanded={healthOpen} onClick={() => setHealthOpen(!healthOpen)} />
                       )}
@@ -186,34 +180,34 @@ export function Section({ title, meta, role, tools, warmToggle, health, children
                     {warmToggle}
                   </div>
                 </div>
-                <div class={styles.setupHeadSub}>
-                  <span class={styles.setupEndpoint} title={roleMeta.endpoint}>{roleMeta.endpoint}</span>
-                  {meta && <span class={styles.setupMeta}>{meta}</span>}
+                <div class={styles.headSub}>
+                  <span class={ui.css.endpoint} title={roleMeta.endpoint}>{roleMeta.endpoint}</span>
+                  {meta && <ui.Meta>{meta}</ui.Meta>}
                 </div>
               </>
             )
             : (
               <>
-                <div class={styles.setupTitleGroup}>
-                  {title && <h2 class={styles.setupTitle}>{title}</h2>}
-                  {meta && <span class={styles.setupMeta}>{meta}</span>}
+                <div class={ui.css.titleGroup}>
+                  {title && <h2 class={styles.title}>{title}</h2>}
+                  {meta && <ui.Meta>{meta}</ui.Meta>}
                 </div>
-                <div class={styles.setupTools}>{tools}</div>
+                <div class={styles.tools}>{tools}</div>
               </>
             )}
         </header>
       )}
       {healthOpen && roleMeta && (
-        <div class={styles.setupLog}>
+        <div class={styles.log}>
           <HealthCard role={role} label={title} />
         </div>
       )}
       {logOpen && roleMeta && (
-        <div class={styles.setupLog}>
+        <div class={styles.log}>
           <LogsCard role={role} initialOpen />
         </div>
       )}
-      <div class={styles.setupBody}>{children}</div>
+      <div class={styles.body}>{children}</div>
     </section>
   );
 }
@@ -320,8 +314,8 @@ export function DownloadedList({ role, installed, onChanged }) {
         {installed.map((model) => (
           <tr key={model.name}>
             <td>{model.name}</td>
-            <td class={tabStyles.numeric}>{modelDetail(model)}</td>
-            <td class={tabStyles.actionCell}>
+            <td class={ui.css.numeric}>{modelDetail(model)}</td>
+            <td class={ui.css.actionCell}>
               <ui.IconButton icon="trash" danger label={`Delete ${model.name}`} title="Delete (frees disk space)" onClick={() => remove(model.name)} />
             </td>
           </tr>
@@ -394,12 +388,12 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
 
   return (
     <div
-      class={cx(styles.card, active && styles.on, !running && !active && styles.off)}
+      class={cx(styles.miniCard, active && styles.on, !running && !active && styles.off)}
       aria-current={active ? "page" : undefined}
       onClick={open}
     >
       <span class={styles.top}>
-        <span class={styles.badge} style={{ background: state.color }}><Icon name={role} /></span>
+        <span class={ui.css.roleGlyph} style={{ background: state.color }}><Icon name={role} /></span>
         <button type="button" class={styles.name} aria-label={`Open ${state.label}`} title={state.label} onClick={() => onOpen(role)}>{MINI_TITLE[role] ?? state.label}</button>
         {(needsSetup || trouble) && (
           <button
@@ -414,7 +408,7 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
         )}
         <span class={styles.runner}>{state.runner}</span>
       </span>
-      <span class={styles.endpoint} title={state.endpoint}>{state.endpoint}</span>
+      <span class={ui.css.endpoint} title={state.endpoint}>{state.endpoint}</span>
       <span class={styles.modelRow}>
         <span class={styles.model} title={shownModel}>{shortModel(shownModel)}</span>
         {running && <span class={styles.memory}>{gb(state.memoryBytes)}</span>}
@@ -425,35 +419,13 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
           <span class={styles.word}>{word}</span>
         </span>
         {action === "setup" && (
-          <button
-            type="button"
-            class={styles.setupButton}
-            disabled={installing}
-            onClick={explain}
-          >
-            Setup
-          </button>
+          <ui.IconButton class={styles.footAction} icon="download" label={`Set up ${state.label}`} disabled={installing} size={14} onClick={explain} />
         )}
         {action === "start" && (
-          <button
-            type="button"
-            class={styles.startButton}
-            disabled={startBusy}
-            title={`Start the ${state.label} worker`}
-            onClick={startWorker}
-          >
-            Start
-          </button>
+          <ui.IconButton class={styles.footAction} icon="play" label={`Start the ${state.label} worker`} disabled={startBusy} size={14} onClick={startWorker} />
         )}
         {action === "server" && (
-          <button
-            type="button"
-            class={styles.setupButton}
-            title="Open the server controls"
-            onClick={server}
-          >
-            Server
-          </button>
+          <ui.IconButton class={styles.footAction} icon="server" label="Open the server controls" size={14} onClick={server} />
         )}
         {action === "warm" && (
           <WarmSwitch
@@ -523,7 +495,7 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
         </ui.Row>
       )}
       <InstallProgress role={role} />
-      <div class={styles.line} title={current ? `On disk · ${modelDetail(current)}` : "Not on disk"}>
+      <div class={ui.css.inputRow} title={current ? `On disk · ${modelDetail(current)}` : "Not on disk"}>
         <select aria-label="Current model" value={entry.default} onChange={(event) => choose(event.currentTarget.value)}>
           {names.map((name) => <option key={name} value={name}>{name}</option>)}
         </select>

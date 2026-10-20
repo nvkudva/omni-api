@@ -1,8 +1,13 @@
 import { cloneElement, isValidElement, toChildArray } from "preact";
 import { useEffect, useId, useRef, useState } from "preact/hooks";
 import { tintJson, tintShell } from "../lib/highlight.js";
+import { useModal } from "../hooks/useModal.js";
 import { Icon } from "./Icon.jsx";
 import styles from "./ui.module.css";
+
+// The module's class names, for the shared patterns other components reuse
+// (stack, card, link, facts …). A component's own styles stay in its own module.
+export { default as css } from "./ui.module.css";
 
 const cx = (...names) => names.filter(Boolean).join(" ");
 
@@ -18,9 +23,9 @@ export function Field({ label, hint, trailing, class: extra, children }) {
   return (
     <div class={cx(styles.field, extra)}>
       {(label || trailing) && (
-        <span class={styles.fieldLabel}>
+        <span class={styles.label}>
           {label && <label htmlFor={id}>{label}</label>}
-          {trailing && <span class={styles.fieldTrailing}>{trailing}</span>}
+          {trailing && <span class={styles.trailing}>{trailing}</span>}
         </span>
       )}
       {control}
@@ -34,14 +39,14 @@ export function Grid({ children }) {
 }
 
 export function Row({ end, children }) {
-  return <div class={cx(styles.row, end && styles.rowEnd)}>{children}</div>;
+  return <div class={cx(styles.row, end && styles.end)}>{children}</div>;
 }
 
 export function Button({ variant = "outline", small, class: extra, ...props }) {
   return <button type="button" class={cx(styles.button, styles[variant], small && styles.small, extra)} {...props} />;
 }
 
-export function IconButton({ icon, label, danger, size = 16, class: extra, ...props }) {
+export function IconButton({ icon, label, danger, active, size = 16, class: extra, ...props }) {
   // `class` is merged, not spread: a caller's class must add to the icon styling
   // (e.g. align-self), never replace it and leave a bare native button.
   return (
@@ -49,7 +54,7 @@ export function IconButton({ icon, label, danger, size = 16, class: extra, ...pr
       type="button"
       title={label}
       aria-label={props["aria-label"] ?? label}
-      class={cx(styles.icon, danger && styles.iconDanger, extra)}
+      class={cx(styles.iconButton, danger && styles.danger, active && styles.on, extra)}
       {...props}
     >
       <Icon name={icon} size={size} />
@@ -75,7 +80,7 @@ export function Segmented({ options, value, onChange, label }) {
           key={option.value}
           tabIndex={option.value === value ? 0 : -1}
           aria-checked={option.value === value}
-          class={cx(styles.segment, option.value === value && styles.segmentOn)}
+          class={cx(styles.segment, option.value === value && styles.on)}
           onClick={() => onChange(option.value)}
           onKeyDown={(event) => move(option.value, event.key)}
         >
@@ -92,6 +97,19 @@ export function Toggle({ checked, onChange, children }) {
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.currentTarget.checked)} />
       <span>{children}</span>
     </label>
+  );
+}
+
+/** shadcn Switch: `checked` slides the thumb; the click handler comes from the caller. */
+export function Switch({ checked, class: extra, ...props }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      class={cx(styles.switch, checked && styles.on, extra)}
+      {...props}
+    />
   );
 }
 
@@ -130,8 +148,8 @@ export function CodeBlock({ code, language = "json", label = "copy code" }) {
   };
   const runs = language === "shell" ? tintShell(code) : tintJson(code);
   return (
-    <div class={styles.codeWrap}>
-      <span class={styles.codeCopy}>
+    <div class={styles.codeBlock}>
+      <span class={styles.copy}>
         <IconButton icon="copy" label={state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : label} onClick={copy} />
       </span>
       <pre class={styles.code} tabIndex={0}>
@@ -145,17 +163,17 @@ export function CodeBlock({ code, language = "json", label = "copy code" }) {
   );
 }
 
-export function Meter({ fraction, high }) {
+export function Meter({ fraction }) {
   const percent = Math.min(1, Math.max(0, fraction || 0)) * 100;
   return (
     <div class={styles.meter} role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(percent)}>
-      <span class={cx(styles.meterFill, high && styles.meterHigh)} style={{ width: `${percent}%` }} />
+      <span class={styles.fill} style={{ width: `${percent}%` }} />
     </div>
   );
 }
 
 export function Notice({ tone = "warn", children }) {
-  return <p role={tone === "error" ? "alert" : "status"} class={cx(styles.notice, styles[`notice_${tone}`])}>{children}</p>;
+  return <p role={tone === "error" ? "alert" : "status"} class={cx(styles.notice, styles[tone])}>{children}</p>;
 }
 
 export function ErrorText({ children }) {
@@ -166,8 +184,8 @@ export function Empty({ children }) {
   return <p class={styles.empty}>{children}</p>;
 }
 
-export function Meta({ children }) {
-  return <span class={styles.meta}>{children}</span>;
+export function Meta({ class: extra, children }) {
+  return <span class={cx(styles.meta, extra)}>{children}</span>;
 }
 
 // A status word's colour. Anything unlisted reads as a problem, which is the safe default for a
@@ -184,7 +202,7 @@ const DOT_TONE = {
 
 export function Dot({ status, tone }) {
   const key = tone ?? DOT_TONE[status] ?? "bad";
-  return <span class={cx(styles.dot, styles[`dot_${key}`])} />;
+  return <span class={cx(styles.dot, styles[key])} />;
 }
 
 export function Spinner() {
@@ -197,7 +215,7 @@ export function DropZone({ accept, onFile, children }) {
   const pick = (file) => file && onFile(file);
   return (
     <div
-      class={cx(styles.drop, over && styles.dropOver)}
+      class={cx(styles.drop, over && styles.over)}
       role="button"
       tabIndex={0}
       onClick={() => input.current.click()}
@@ -208,6 +226,23 @@ export function DropZone({ accept, onFile, children }) {
     >
       <input ref={input} type="file" accept={accept} hidden onChange={(event) => { pick(event.currentTarget.files[0]); event.currentTarget.value = ""; }} />
       {children}
+    </div>
+  );
+}
+
+/**
+ * The one dialog shell: dimmed backdrop, centred surface, Escape and Tab handled
+ * by `useModal`. `class` sizes the surface; the content nests under the caller's
+ * own component class.
+ */
+export function Modal({ role = "dialog", label, class: extra, onClose, initialFocus, children }) {
+  const surface = useRef(null);
+  useModal(surface, onClose, initialFocus);
+  return (
+    <div class={styles.modal} onClick={(event) => { if (event.target === event.currentTarget) onClose?.(); }}>
+      <div ref={surface} role={role} aria-modal="true" aria-label={label} class={cx(styles.surface, extra)}>
+        {children}
+      </div>
     </div>
   );
 }

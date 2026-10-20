@@ -64,7 +64,7 @@ function Answers({ questions, data }) {
             foot={(
               <>
                 <span>{view.foot}</span>
-                <span class={styles.turnMeta}>
+                <span class={styles.meta}>
                   {answer.confidence != null && <span>confidence {answer.confidence.toFixed(3)}</span>}
                 </span>
               </>
@@ -218,6 +218,7 @@ export default function Decide() {
 
   return (
     <Workbench
+      class={styles.decide}
       title="Decide"
       subtitle="Yes/no, choice and score questions answered as probability distributions in one forward pass."
       modelRole="decide"
@@ -242,8 +243,8 @@ export default function Decide() {
         )}
         foot={(
           <>
-            {view === "ui" && rowsError && <span class={styles.turnMeta}>{rowsError}</span>}
-            {requestError && <span class={styles.turnMeta}>{requestError}</span>}
+            {view === "ui" && rowsError && <span class={styles.meta}>{rowsError}</span>}
+            {requestError && <span class={styles.meta}>{requestError}</span>}
             {busy
               ? <ui.Button variant="stop" onClick={() => cancelExec(abort.current, execId.current)}>Stop</ui.Button>
               : <ui.Button variant="primary" disabled={disableSend} onClick={send}>Decide</ui.Button>}
@@ -264,7 +265,7 @@ export default function Decide() {
         {error && <ui.ErrorText>{error}</ui.ErrorText>}
         {turns.length
           ? (
-            <div class={styles.pending}>
+            <div class={styles.history}>
               {turns.map((turn, index) => (
                 <Turn
                   key={turn.id}

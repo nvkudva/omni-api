@@ -1,11 +1,10 @@
-.stack { display: flex; flex-direction: column; gap: 16px; }
-.video { display: block; width: 100%; border-radius: var(--radius-sm); background: #000; }
-.clipText { margin: 0; font-size: 14px; line-height: 1.5; color: var(--text-2); white-space: pre-wrap; overflow-wrap: anywhere; }
-.clipFoot { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.link { color: var(--primary); font-size: 0.8125rem; font-weight: 500; text-decoration: none; text-underline-offset: 4px; white-space: nowrap; }
-.link:hover { text-decoration: underline; }
-.link:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
-.buttons { display: flex; align-items: center; gap: 10px; }
-.frame { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.thumb { width: 44px; height: 44px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--hairline); }
-.foot { margin-right: auto; color: var(--text-3); font-size: 12px; }
+/* The Video view: a job per turn, its clip, and the first-frame picker. */
+
+.video {
+  & .player { display: block; width: 100%; border-radius: var(--radius-sm); background: #000; }
+  & .frame { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  & .thumb {
+    width: 44px; height: 44px; object-fit: cover;
+    border-radius: var(--radius-sm); border: 1px solid var(--border);
+  }
+}

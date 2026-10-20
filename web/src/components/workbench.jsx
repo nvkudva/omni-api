@@ -26,11 +26,11 @@ export function useTurnState() {
   };
 }
 
-export function Workbench({ title, subtitle, readout, single, modelRole, headerTools, children }) {
+export function Workbench({ title, subtitle, readout, single, modelRole, headerTools, class: pageClass, children }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const roleLabel = (modelRole && ROLE_META[modelRole]?.label) ?? modelRole;
   return (
-    <div class={styles.shell}>
+    <div class={cx(styles.workbench, pageClass)}>
       <header class={styles.bar}>
         <div class={styles.barInner}>
           <div class={styles.barHead}>
@@ -55,7 +55,7 @@ export function Workbench({ title, subtitle, readout, single, modelRole, headerT
           {readout && <Readout fields={readout} />}
         </div>
       </header>
-      <main class={cx(styles.main, single && styles.mainSingle)}>{children}</main>
+      <main class={cx(styles.main, single && styles.single)}>{children}</main>
       {settingsOpen && modelRole && <ModelSettingsPopup role={modelRole} onClose={() => setSettingsOpen(false)} />}
     </div>
   );
@@ -67,7 +67,7 @@ export function Readout({ fields }) {
   const shown = (fields ?? []).filter(Boolean);
   if (!shown.length) return null;
   return (
-    <dl class={styles.readout}>
+    <dl class={cx(ui.css.facts, styles.readout)}>
       {shown.map((field) => (
         <div key={field.label}>
           <dt>{field.label}</dt>
@@ -81,21 +81,21 @@ export function Readout({ fields }) {
 }
 
 /** `endpoint` is the page's wire path, shown as a quiet chip beside the title. */
-export function Panel({ title, meta, endpoint, tools, flush, foot, children }) {
+export function Panel({ title, meta, endpoint, tools, foot, children }) {
   return (
     <section class={styles.panel}>
       {(title || meta || tools) && (
-        <header class={styles.panelHead}>
-          <div class={styles.panelTitleGroup}>
-            {title && <h2 class={styles.panelTitle}>{title}</h2>}
-            {endpoint && <code class={styles.panelEndpoint}>{endpoint}</code>}
-            {meta && <span class={styles.panelMeta}>{meta}</span>}
+        <header class={styles.head}>
+          <div class={ui.css.titleGroup}>
+            {title && <h2 class={styles.title}>{title}</h2>}
+            {endpoint && <code class={styles.endpoint}>{endpoint}</code>}
+            {meta && <ui.Meta>{meta}</ui.Meta>}
           </div>
-          {tools && <div class={styles.panelTools}>{tools}</div>}
+          {tools && <div class={styles.tools}>{tools}</div>}
         </header>
       )}
-      <div class={cx(styles.panelBody, flush && styles.panelBodyFlush)}>{children}</div>
-      {foot && <div class={styles.panelFoot}>{foot}</div>}
+      <div class={styles.body}>{children}</div>
+      {foot && <div class={styles.foot}>{foot}</div>}
     </section>
   );
 }
@@ -154,7 +154,7 @@ export function Turn({
   const collapsible = typeof onToggle === "function";
   const head = (
     <header
-      class={cx(styles.turnHead, !collapsible && styles.turnStatic)}
+      class={cx(styles.head, !collapsible && styles.static)}
       role={collapsible ? "button" : undefined}
       tabIndex={collapsible ? 0 : undefined}
       aria-expanded={collapsible ? open : undefined}
@@ -169,11 +169,11 @@ export function Turn({
         onToggle();
       }}
     >
-      {collapsible && <span class={styles.turnCaret} aria-hidden="true">{open ? "▾" : "▸"}</span>}
-      <span class={styles.turnLabel}>{label}</span>
+      {collapsible && <span class={styles.caret} aria-hidden="true">{open ? "▾" : "▸"}</span>}
+      <span class={styles.label}>{label}</span>
       {time && <span>· {time}</span>}
-      <span class={styles.turnMeta}>
-        {warn && <span class={styles.turnWarn}>{warn}</span>}
+      <span class={styles.meta}>
+        {warn && <span class={styles.warn}>{warn}</span>}
         {status && <span>{status}</span>}
         {meta}
         {onView && <TurnView view={view} onChange={onView} label={`view for ${label}`} />}
@@ -183,20 +183,20 @@ export function Turn({
 
   let body;
   if (!open) {
-    body = summary ? <div class={styles.turnSummary}>{summary}</div> : null;
+    body = summary ? <div class={styles.summary}>{summary}</div> : null;
   } else if (view === "json") {
     body = <ui.CodeBlock code={JSON.stringify(wire, null, 2)} language="json" label={`copy ${label} JSON`} />;
   } else {
     body = (
       <>
-        {summary && <div class={styles.turnSummary}>{summary}</div>}
-        <div class={styles.turnBody}>{children}</div>
+        {summary && <div class={styles.summary}>{summary}</div>}
+        <div class={styles.body}>{children}</div>
       </>
     );
   }
 
   return (
-    <article class={cx(styles.turn, open && styles.turnOpen)}>
+    <article class={cx(styles.turn, open && styles.open)}>
       {head}
       {body}
     </article>
@@ -206,12 +206,12 @@ export function Turn({
 /** A turn that is still running. */
 export function Pending({ label = "Request", at, note, children }) {
   return (
-    <article class={cx(styles.turn, styles.turnOpen)}>
-      <header class={cx(styles.turnHead, styles.turnStatic)}>
-        <span class={styles.turnLabel}>{label}</span>
+    <article class={cx(styles.turn, styles.open)}>
+      <header class={cx(styles.head, styles.static)}>
+        <span class={styles.label}>{label}</span>
         {at && <span>· {new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>}
       </header>
-      <div class={styles.turnPending}>
+      <div class={styles.pending}>
         {note && <span>{note}</span>}
         <div class={styles.progress} role="progressbar" aria-label={note ?? "working"} />
         {children}
@@ -221,7 +221,7 @@ export function Pending({ label = "Request", at, note, children }) {
 }
 
 export function TurnError({ children }) {
-  return <div class={styles.turnError}><ui.ErrorText>{children}</ui.ErrorText></div>;
+  return <div class={styles.error}><ui.ErrorText>{children}</ui.ErrorText></div>;
 }
 
 const BAR_PERCENT = (value) => `${(value * 100 >= 9.95 ? (value * 100).toFixed(0) : (value * 100).toFixed(1))}%`;
@@ -233,27 +233,27 @@ const BAR_PERCENT = (value) => `${(value * 100 >= 9.95 ? (value * 100).toFixed(0
 export function Distribution({ name, type, instruction, answer, rows, foot, format = BAR_PERCENT }) {
   const top = rows.reduce((best, row, index) => (row.value > rows[best].value ? index : best), 0);
   return (
-    <section class={styles.dist}>
-      <div class={styles.distQ}>
-        <span class={styles.distInstr}>{instruction || name}</span>
-        <span class={styles.distAnswer}>{answer}</span>
+    <section class={styles.distribution}>
+      <div class={styles.question}>
+        <span class={styles.instruction}>{instruction || name}</span>
+        <span class={styles.answer}>{answer}</span>
       </div>
-      <header class={styles.distHead}>
+      <header class={styles.head}>
         <h3>{name}</h3>
-        {type && <span class={styles.distType}>{type}</span>}
+        {type && <span class={styles.type}>{type}</span>}
       </header>
       <ol class={styles.bars}>
         {rows.map((row, index) => (
-          <li key={row.label} class={cx(styles.barRow, index === top && styles.barTop)} title={`${row.label} — ${row.value}`}>
-            <span class={styles.barLabel}>{row.label}</span>
-            <span class={styles.barTrack}>
-              <span class={styles.barFill} style={{ width: `max(2px, ${Math.max(0, Math.min(1, row.value)) * 100}%)` }} />
+          <li key={row.label} class={cx(styles.bar, index === top && styles.top)} title={`${row.label} — ${row.value}`}>
+            <span class={styles.label}>{row.label}</span>
+            <span class={styles.track}>
+              <span class={styles.fill} style={{ width: `max(2px, ${Math.max(0, Math.min(1, row.value)) * 100}%)` }} />
             </span>
-            <span class={styles.barValue}>{format(row.value, row)}</span>
+            <span class={styles.value}>{format(row.value, row)}</span>
           </li>
         ))}
       </ol>
-      {foot && <footer class={styles.distFoot}>{foot}</footer>}
+      {foot && <footer class={styles.foot}>{foot}</footer>}
     </section>
   );
 }
@@ -271,7 +271,7 @@ export function RequestBody({ view, jsonText, onJsonText, jsonError, curl, child
   return (
     <>
       <textarea
-        class={styles.jsonPane}
+        class={styles.requestBody}
         spellcheck={false}
         aria-label="request JSON"
         value={jsonText}

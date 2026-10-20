@@ -5,10 +5,8 @@ import { checkModel, modelStatus, searchModels } from "../api/endpoints.js";
 import { models } from "../api/models.js";
 import { recommendedFor } from "../lib/recommended.js";
 import { gb, size } from "../lib/format.js";
-import { useModal } from "../hooks/useModal.js";
 import * as ui from "./ui.jsx";
 import styles from "./FindAndInstall.module.css";
-import tabStyles from "../tabs/tabs.module.css";
 
 /**
  * What each role's runtime can take, as UI guidance. The gateway enforces the
@@ -108,27 +106,27 @@ export function Recommended({ role, onPick }) {
 
   return (
     <table>
-      <thead><tr><th>Recommended</th><th>Size</th><th>Downloaded</th><th /></tr></thead>
+      <thead><tr><th>Model</th><th>Size</th><th>Downloaded</th><th /></tr></thead>
       <tbody>
         {rows.map((row) => {
           const downloaded = Boolean(onDisk(row.model));
           return (
             <tr key={row.model}>
               <td>
-                <div class={tabStyles.nameCell}>
+                <div class={ui.css.nameCell}>
                   {row.model}
                   {matchesModel(row.model, defaultModel) && <span class={styles.chip}>default</span>}
                 </div>
                 {row.note && <span class={styles.note}>{row.note}</span>}
               </td>
-              <td class={tabStyles.numeric}>{sizeLabel(row)}</td>
+              <td class={ui.css.numeric}>{sizeLabel(row)}</td>
               <td>
                 <span class={styles.statusCell}>
                   <ui.Dot tone={downloaded ? "ok" : "idle"} />
                   {downloaded ? "yes" : "no"}
                 </span>
               </td>
-              <td class={tabStyles.actionCell}>
+              <td class={ui.css.actionCell}>
                 <ui.Button small onClick={() => onPick(row.model)}>Use</ui.Button>
               </td>
             </tr>
@@ -162,7 +160,7 @@ export function Search({ role, onPick, inputRef }) {
 
   return (
     <>
-      <div class={styles.line}>
+      <div class={ui.css.inputRow}>
         <input
           ref={inputRef}
           placeholder="Search Hugging Face (blank: most downloaded)"
@@ -181,11 +179,11 @@ export function Search({ role, onPick, inputRef }) {
             <tbody>
               {results.map((result) => (
                 <tr key={result.id}>
-                  <td><a class={tabStyles.link} href={`https://huggingface.co/${result.id}`} target="_blank" rel="noreferrer">{result.id}</a></td>
-                  <td class={tabStyles.numeric}>{(result.downloads ?? 0).toLocaleString()}</td>
-                  <td class={tabStyles.numeric}>{(result.likes ?? 0).toLocaleString()}</td>
-                  <td class={tabStyles.numeric}>{result.size_bytes ? `≈ ${size(result.size_bytes)}` : "—"}</td>
-                  <td class={tabStyles.actionCell}><ui.Button small onClick={() => onPick(result.name)}>Select</ui.Button></td>
+                  <td><a class={ui.css.link} href={`https://huggingface.co/${result.id}`} target="_blank" rel="noreferrer">{result.id}</a></td>
+                  <td class={ui.css.numeric}>{(result.downloads ?? 0).toLocaleString()}</td>
+                  <td class={ui.css.numeric}>{(result.likes ?? 0).toLocaleString()}</td>
+                  <td class={ui.css.numeric}>{result.size_bytes ? `≈ ${size(result.size_bytes)}` : "—"}</td>
+                  <td class={ui.css.actionCell}><ui.Button small onClick={() => onPick(result.name)}>Select</ui.Button></td>
                 </tr>
               ))}
             </tbody>
@@ -238,7 +236,7 @@ export function Install({ role, runner, initial, onInstalled }) {
 
   return (
     <>
-      <div class={styles.line}>
+      <div class={ui.css.inputRow}>
         <input
           placeholder="repo id or huggingface.co page URL"
           aria-label="Model repo id or Hugging Face page URL"
@@ -279,8 +277,6 @@ export function Install({ role, runner, initial, onInstalled }) {
 export function FindAndInstall({ role, onClose, onInstalled }) {
   const [pick, setPick] = useState(null);
   const searchRef = useRef(null);
-  const dialogRef = useRef(null);
-  useModal(dialogRef, onClose, searchRef);
   const meta = role ? ROLE_META[role] : null;
   const criteria = role ? criteriaFor(role) : null;
 
@@ -293,37 +289,38 @@ export function FindAndInstall({ role, onClose, onInstalled }) {
   if (!role || !meta || !criteria) return null;
 
   return (
-    <div
-      class={styles.backdrop}
-      onClick={(event) => { if (event.target === event.currentTarget) onClose?.(); }}
+    <ui.Modal
+      role="dialog"
+      label={`Find and install a ${meta.label} model`}
+      onClose={onClose}
+      initialFocus={searchRef}
+      class={styles.findAndInstall}
     >
-      <div ref={dialogRef} class={styles.dialog} role="dialog" aria-modal="true" aria-label={`Find and install a ${meta.label} model`}>
-        <header class={styles.head} style={{ background: `color-mix(in srgb, ${meta.color} 13%, var(--surface))` }}>
-          <span class={styles.badge} style={{ background: meta.color }}><Icon name={role} /></span>
-          <div class={styles.headText}>
-            <h2 class={styles.title}>Find &amp; install — {meta.label}</h2>
-            <span class={styles.headMeta}>{meta.endpoint}</span>
-          </div>
-          <ui.IconButton icon="x" label="Close" onClick={() => onClose?.()} />
-        </header>
-        <div class={styles.body}>
-          <div class={styles.criteria}>
-            <span class={styles.chip}>{criteria.kind}</span>
-            {criteria.family && <span class={styles.chip}>name contains “{criteria.family}”</span>}
-            <span class={styles.criteriaText}>{criteria.accepts}</span>
-          </div>
-          <h3 class={styles.subhead}>Recommended</h3>
-          <Recommended role={role} onPick={setPick} />
-          <h3 class={styles.subhead}>Search Hugging Face</h3>
-          <Search role={role} onPick={setPick} inputRef={searchRef} />
-          <h3 class={styles.subhead}>Or install by id</h3>
-          <Install role={role} runner={meta.runner} initial={pick} onInstalled={() => onInstalled?.()} />
-          <InstallProgress role={role} />
+      <header class={styles.head} style={{ background: `color-mix(in srgb, ${meta.color} 13%, var(--card))` }}>
+        <span class={ui.css.roleGlyph} style={{ background: meta.color }}><Icon name={role} /></span>
+        <div class={styles.headText}>
+          <h2 class={styles.title}>Find &amp; install — {meta.label}</h2>
+          <span class={ui.css.endpoint}>{meta.endpoint}</span>
         </div>
-        <footer class={styles.foot}>
-          <ui.Button small onClick={() => onClose?.()}>Done</ui.Button>
-        </footer>
+        <ui.IconButton icon="x" label="Close" onClick={() => onClose?.()} />
+      </header>
+      <div class={ui.css.modalBody}>
+        <div class={styles.criteria}>
+          <span class={styles.chip}>{criteria.kind}</span>
+          {criteria.family && <span class={styles.chip}>name contains “{criteria.family}”</span>}
+          <span class={styles.criteriaText}>{criteria.accepts}</span>
+        </div>
+        <h3 class={styles.subhead}>Recommended</h3>
+        <Recommended role={role} onPick={setPick} />
+        <h3 class={styles.subhead}>Search Hugging Face</h3>
+        <Search role={role} onPick={setPick} inputRef={searchRef} />
+        <h3 class={styles.subhead}>Or install by id</h3>
+        <Install role={role} runner={meta.runner} initial={pick} onInstalled={() => onInstalled?.()} />
+        <InstallProgress role={role} />
       </div>
-    </div>
+      <footer class={ui.css.modalFoot}>
+        <ui.Button small onClick={() => onClose?.()}>Done</ui.Button>
+      </footer>
+    </ui.Modal>
   );
 }

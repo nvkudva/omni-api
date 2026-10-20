@@ -330,6 +330,7 @@ export default function Embed() {
 
   return (
     <Workbench
+      class={styles.embed}
       title="Embed"
       subtitle="Embed files and folders, then search them by meaning. The model reads text only, so an image is embedded as a vision-model caption and audio as its transcript."
       modelRole="embed"
@@ -345,7 +346,7 @@ export default function Embed() {
         )}
       >
         <div
-          class={cx(styles.drop, over && styles.dropOver)}
+          class={cx(styles.drop, over && styles.over)}
           onDragOver={(event) => { event.preventDefault(); setOver(true); }}
           onDragLeave={() => setOver(false)}
           onDrop={async (event) => {
@@ -415,7 +416,7 @@ export default function Embed() {
         meta={turns.at(-1)?.meta}
         tools={<ui.IconButton icon="trash" label="Clear history" disabled={!turns.length} onClick={() => setTurns([])} />}
         foot={(
-          <form class={styles.ask} onSubmit={ask}>
+          <form class={cx(ui.css.inputRow, styles.ask)} onSubmit={ask}>
             <input
               aria-label="Search embedded data"
               value={query}
@@ -430,7 +431,7 @@ export default function Embed() {
         {error && <ui.ErrorText>{error}</ui.ErrorText>}
         {turns.length
           ? (
-            <div class={styles.turns}>
+            <div class={ui.css.stack}>
               {turns.map((turn, index) => (
                 <Turn
                   key={turn.id}

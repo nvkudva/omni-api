@@ -1,80 +1,50 @@
-/* shadcn Dialog: centred, max-w, rounded-lg, 1px border, shadow-lg, p-6, gap-4. */
-.backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  display: grid;
-  place-items: center;
-  padding: 16px;
-  background: rgb(0 0 0 / 0.5);
-  animation: fade 0.14s ease-out;
-}
+/* shadcn Alert Dialog: centred, max-w, rounded-lg, p-6, gap-4. The backdrop and
+   the surface come from ui.Modal; this file is what sits inside it. */
 
-.dialog {
-  display: flex;
-  flex-direction: column;
+.confirm {
   gap: 16px;
   width: min(440px, 100%);
   padding: 24px;
-  background: var(--background);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
-  animation: rise 0.16s cubic-bezier(0.2, 0.9, 0.3, 1);
-}
 
-.title {
-  font-size: 1.125rem;
-  line-height: 1.35;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
+  & .title {
+    font-size: 1.125rem;
+    line-height: 1.35;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
 
-.message {
-  margin: 0;
-  font-size: 0.875rem;
-  line-height: 1.5;
-  color: var(--muted-foreground);
-}
+  & .message {
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--muted-foreground);
+  }
 
-.reasons {
-  margin: 0;
-  padding: 12px;
-  list-style-position: inside;
-  background: var(--muted);
-  border-radius: var(--radius-md);
-  font-size: 0.875rem;
-  color: var(--foreground);
-}
+  & .reasons {
+    margin: 0;
+    padding: 12px;
+    list-style-position: inside;
+    background: var(--muted);
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    color: var(--foreground);
+  }
+  & .reasons li + li { margin-top: 6px; }
 
-.reasons li + li { margin-top: 6px; }
+  & .advisory {
+    margin: 0;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: var(--muted-foreground);
+  }
 
-.advisory {
-  margin: 0;
-  font-size: 0.8125rem;
-  line-height: 1.5;
-  color: var(--muted-foreground);
-}
-
-/* footer: flex-col-reverse gap-2 sm:flex-row sm:justify-end */
-.actions {
-  display: flex;
-  flex-direction: column-reverse;
-  gap: 8px;
-}
-
-@media (min-width: 640px) {
-  .actions { flex-direction: row; justify-content: flex-end; }
-}
-
-@keyframes fade {
-  from { opacity: 0; }
-}
-
-@keyframes rise {
-  from { opacity: 0; transform: translateY(6px) scale(0.99); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .backdrop, .dialog { animation: none; }
+  /* footer: flex-col-reverse gap-2 sm:flex-row sm:justify-end */
+  & .actions {
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+  @media (min-width: 640px) {
+    & .actions { flex-direction: row; justify-content: flex-end; }
+  }
 }

@@ -157,14 +157,14 @@ export default function Video() {
   const running = jobs.some((job) => RUNNING.has(job.status));
 
   return (
-    <Workbench title="Video" subtitle="Text or image to video, run as a background job you can stop and poll." modelRole="video">
+    <Workbench class={styles.video} title="Video" subtitle="Text or image to video, run as a background job you can stop and poll." modelRole="video">
       <Panel
         title="Request"
         endpoint="/v1/videos"
         tools={<UiJson view={view} onChange={setView} />}
         foot={(
           <>
-            <span class={styles.foot}>{form.size} · {form.seconds} s · seed {body.seed ?? "random"}</span>
+            <span class={ui.css.footNote}>{form.size} · {form.seconds} s · seed {body.seed ?? "random"}</span>
             <ui.Button variant="primary" disabled={busy || (view === "json" && (Boolean(json.error) || !json.body?.prompt))} onClick={() => submit()}>{busy ? "Submitting…" : "Generate"}</ui.Button>
           </>
         )}
@@ -210,7 +210,7 @@ export default function Video() {
       >
         {jobs.length
           ? (
-            <div class={styles.stack}>
+            <div class={ui.css.stack}>
               {jobs.map((job, index) => (
                 <Turn
                   key={job.id}
@@ -233,11 +233,11 @@ export default function Video() {
                       : job.error
                         ? <TurnError>{job.error}</TurnError>
                         : (
-                          <div class={styles.stack}>
-                            {job.url && <video class={styles.video} src={job.url} controls loop playsinline />}
-                            <div class={styles.clipFoot}>
+                          <div class={ui.css.stack}>
+                            {job.url && <video class={styles.player} src={job.url} controls loop playsinline />}
+                            <div class={ui.css.clipFoot}>
                               <ui.Meta>{job.caption}</ui.Meta>
-                              {job.url && <a class={styles.link} href={job.url} download={`${job.remoteId ?? job.id}.mp4`}>download .mp4</a>}
+                              {job.url && <a class={ui.css.link} href={job.url} download={`${job.remoteId ?? job.id}.mp4`}>download .mp4</a>}
                             </div>
                           </div>
                         )}

@@ -17,8 +17,7 @@ import * as ui from "../components/ui.jsx";
 import { Workbench } from "../components/workbench.jsx";
 import { RoleModelCard, Section, Tunable } from "../components/RoleModelCard.jsx";
 import { FindAndInstall } from "../components/FindAndInstall.jsx";
-import styles from "./tabs.module.css";
-import setup from "./Models.module.css";
+import styles from "./Models.module.css";
 
 export { DownloadedList, WarmSwitch } from "../components/RoleModelCard.jsx";
 export { GatedNotice, Install, Search } from "../components/FindAndInstall.jsx";
@@ -118,11 +117,11 @@ export function GlobalControls({ managed, tunables, onChanged, onSaved }) {
 export function WorkerRows({ workers }) {
   return Object.entries(workers).map(([name, worker]) => (
     <tr key={name}>
-      <td><span class={styles.nameCell}><ui.Dot status={worker.status} />{name}</span></td>
+      <td><span class={ui.css.nameCell}><ui.Dot status={worker.status} />{name}</span></td>
       <td>{worker.status}{worker.held ? " (held)" : ""}</td>
       <td>{worker.loaded ? (worker.model || "loaded") : "—"}</td>
       <td class={styles.mono}>{worker.pid ?? worker.url ?? "—"}</td>
-      <td class={styles.numeric}>{worker.restarts ?? "—"}</td>
+      <td class={ui.css.numeric}>{worker.restarts ?? "—"}</td>
     </tr>
   ));
 }
@@ -143,9 +142,9 @@ export function OllamaRow({ model, roles, onChanged }) {
   return (
     <tr>
       <td>{model.name}</td>
-      <td class={styles.numeric}>{gb(model.size_bytes)}</td>
-      <td class={styles.numeric}>{gb(model.vram_bytes)}</td>
-      <td class={styles.actionCell}><ui.Button small disabled={busy} onClick={() => run(() => setResidency(role, false, model.name), `unloaded ${model.name}`)}>Unload</ui.Button></td>
+      <td class={ui.css.numeric}>{gb(model.size_bytes)}</td>
+      <td class={ui.css.numeric}>{gb(model.vram_bytes)}</td>
+      <td class={ui.css.actionCell}><ui.Button small disabled={busy} onClick={() => run(() => setResidency(role, false, model.name), `unloaded ${model.name}`)}>Unload</ui.Button></td>
     </tr>
   );
 }
@@ -168,10 +167,10 @@ export function WorkerRow({ name, worker, model, onChanged }) {
     <tr>
       <td>{label}</td>
       <td>{worker.model || model || "—"}</td>
-      <td><span class={styles.nameCell}><ui.Dot status={worker.status} />{worker.status}</span></td>
-      <td class={styles.numeric}>{worker.cpu_percent.toFixed(0)}%</td>
-      <td class={styles.numeric}>{gb(worker.rss_bytes)}</td>
-      <td class={styles.actionCell}>
+      <td><span class={ui.css.nameCell}><ui.Dot status={worker.status} />{worker.status}</span></td>
+      <td class={ui.css.numeric}>{worker.cpu_percent.toFixed(0)}%</td>
+      <td class={ui.css.numeric}>{gb(worker.rss_bytes)}</td>
+      <td class={ui.css.actionCell}>
         <span class={styles.buttons}>
           {stopped
             ? <ui.Button small disabled={busy} onClick={() => control("start")}>Start</ui.Button>
@@ -214,18 +213,18 @@ export function Memory({ memory, roles, onChanged }) {
   const [load1, load5, load15] = (memory.load_average ?? [0, 0, 0]).map((value) => (value ?? 0).toFixed(2));
   return (
     <Section title="Memory" meta={`${gb(used)} of ${gb(memory.total_bytes)} used`}>
-      <div class={setup.meters}>
+      <div class={styles.meters}>
         <div>
-          <div class={setup.meterRow}>
-            <span class={setup.meterLabel}>RAM</span>
-            <ui.Meter fraction={fraction} high={fraction > 0.85} />
+          <div class={styles.meterRow}>
+            <span class={styles.meterLabel}>RAM</span>
+            <ui.Meter fraction={fraction} />
           </div>
           <ui.Meta>RAM {gb(memory.available_bytes)} free · swap {gb(memory.swap_used_bytes)} used · disk {gb(memory.disk_free_bytes)} free</ui.Meta>
         </div>
         <div>
-          <div class={setup.meterRow}>
-            <span class={setup.meterLabel}>CPU</span>
-            <ui.Meter fraction={memory.cpu_percent / 100} high={memory.cpu_percent > 90 || memory.load_average[0] > memory.cpu_count} />
+          <div class={styles.meterRow}>
+            <span class={styles.meterLabel}>CPU</span>
+            <ui.Meter fraction={memory.cpu_percent / 100} />
           </div>
           <ui.Meta>CPU {(memory.cpu_percent ?? 0).toFixed(0)}% · load {load1} / {load5} / {load15} on {memory.cpu_count ?? "?"} cores</ui.Meta>
         </div>
@@ -308,7 +307,7 @@ export default function Models({ role: filterRole = null, onRole }) {
   ];
 
   return (
-    <Workbench single title="Models" subtitle="Each role's current model, what is downloaded for it, and how to add more." readout={readout}>
+    <Workbench class={styles.models} single title="Models" subtitle="Each role's current model, what is downloaded for it, and how to add more." readout={readout}>
       {error && <ui.ErrorText>{error}</ui.ErrorText>}
       {notice && <ui.Notice>{notice}</ui.Notice>}
       {!status && !error && <Section title="Roles"><ui.Empty><ui.Spinner /> loading models…</ui.Empty></Section>}
@@ -323,7 +322,7 @@ export default function Models({ role: filterRole = null, onRole }) {
             />
           )}
           <GlobalControls managed={managed} tunables={tunables} onChanged={changed} onSaved={refresh} />
-          <div class={setup.cards}>
+          <div class={styles.cards}>
             {entries.map(([role, entry]) => (
               <RoleModelCard key={role} density="detail" role={role} entry={entry} pinned={pins.includes(role)} tunables={tunables} onChanged={changed} onSaved={refresh} onAdd={setAddRole} />
             ))}

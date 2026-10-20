@@ -12,9 +12,9 @@ export function HealthCard({ role, label }) {
   const worker = health.value?.workers?.[role];
   return (
     <section class={styles.healthCard} aria-label={`${label ?? role} health details`}>
-      <header class={styles.healthHead}>
-        <span class={styles.healthTitle}>Health</span>
-        <span class={styles.healthMeta}>{label ?? role}</span>
+      <header class={styles.head}>
+        <span class={styles.title}>Health</span>
+        <ui.Meta class={styles.meta}>{label ?? role}</ui.Meta>
       </header>
       {worker
         ? (

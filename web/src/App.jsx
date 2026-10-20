@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { loadModels } from "./api/models.js";
 import { downloads, installs, pollDownloads, pollRuntime, ROLE_META, ROLE_ORDER } from "./api/roles.js";
 import { execs, execResult, pollExecs } from "./api/execs.js";
-import { Meter, Spinner } from "./components/ui.jsx";
+import * as ui from "./components/ui.jsx";
+import { cx } from "./lib/cx.js";
 import { size } from "./lib/format.js";
 import { PageActive } from "./hooks/usePageActive.js";
 import { usePolling } from "./hooks/usePolling.js";
@@ -11,7 +12,6 @@ import { GatewayStatus, LastRequest } from "./components/GatewayStatus.jsx";
 import { ConfirmHost } from "./components/Confirm.jsx";
 import { RoleModelCard } from "./components/RoleModelCard.jsx";
 import * as store from "./store.js";
-import { Icon } from "./components/Icon.jsx";
 import styles from "./App.module.css";
 import Chat from "./tabs/Chat.jsx";
 import Decide from "./tabs/Decide.jsx";
@@ -62,7 +62,7 @@ function DownloadStrip() {
           <span class={styles.downloadLabel} title={entry.status}>
             <strong>{ROLE_META[entry.role]?.label ?? entry.role}</strong> · {entry.status}
           </span>
-          <Meter fraction={entry.fraction} />
+          <ui.Meter fraction={entry.fraction} />
         </div>
       ))}
     </div>
@@ -128,8 +128,8 @@ function ExecStrip() {
             {entry.error ? ` · ${entry.error}` : ""}
           </span>
           {entry.finished_at
-            ? <button type="button" class={styles.execButton} onClick={() => setOpenId(openId === entry.id ? null : entry.id)}>View</button>
-            : <Spinner />}
+            ? <ui.Button small class={styles.execButton} onClick={() => setOpenId(openId === entry.id ? null : entry.id)}>View</ui.Button>
+            : <ui.Spinner />}
         </div>
       ))}
       {open && (
@@ -137,7 +137,7 @@ function ExecStrip() {
           <span class={styles.downloadLabel} title={open.id}>
             <strong>{ROLE_META[open.role]?.label ?? open.role}</strong> · {open.path} · {word(open)}
           </span>
-          <button type="button" class={styles.execButton} onClick={() => setOpenId(null)}>Close</button>
+          <ui.Button small class={styles.execButton} onClick={() => setOpenId(null)}>Close</ui.Button>
         </div>
       )}
       {open && <ExecResult execId={open.id} />}
@@ -216,7 +216,7 @@ export default function App() {
   const settingsOpen = tab === "settings";
 
   return (
-    <div class={styles.shell}>
+    <div class={styles.app}>
       <header class={styles.header}>
         <div class={styles.brand}>
           <img src={`${import.meta.env?.BASE_URL ?? "/"}favicon.svg`} alt="" width="28" height="28" />
@@ -225,29 +225,22 @@ export default function App() {
         </div>
         <LastRequest />
         <div class={styles.actions}>
-          <button
-            type="button"
-            class={styles.iconButton}
-            title={`Theme: ${THEME_LABEL[theme]} (switch to ${THEME_LABEL[nextTheme]})`}
-            aria-label={`Theme: ${THEME_LABEL[theme]}. Switch to ${THEME_LABEL[nextTheme]}`}
+          <ui.IconButton
+            icon={theme}
+            label={`Theme: ${THEME_LABEL[theme]}. Switch to ${THEME_LABEL[nextTheme]}`}
             onClick={() => setTheme(nextTheme)}
-          >
-            <Icon name={theme} size={16} />
-          </button>
-          <button
-            type="button"
-            class={`${styles.iconButton} ${settingsOpen ? styles.iconButtonOn : ""}`}
-            title="Settings"
-            aria-label="Settings"
+          />
+          <ui.IconButton
+            icon="settings"
+            label="Settings"
+            active={settingsOpen}
             aria-current={settingsOpen ? "page" : undefined}
             onClick={() => choose("settings")}
-          >
-            <Icon name="settings" size={16} />
-          </button>
+          />
         </div>
       </header>
       {!settingsOpen && (
-        <nav ref={cardsRef} class={moreCards ? `${styles.cards} ${styles.cardsMore}` : styles.cards} aria-label="Models">
+        <nav ref={cardsRef} class={cx(styles.cards, moreCards && styles.more)} aria-label="Models">
           {ROLE_ORDER.map((role) => (
             <RoleModelCard key={role} density="mini" role={role} active={role === tab} onOpen={choose} onSetup={openSetup} onServer={openServer} />
           ))}

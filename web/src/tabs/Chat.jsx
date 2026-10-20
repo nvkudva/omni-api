@@ -264,7 +264,7 @@ export default function Chat() {
   );
 
   return (
-    <Workbench title="Chat" subtitle="Streaming completions from the chat role, OpenAI wire format." modelRole="chat" headerTools={modelPicker}>
+    <Workbench class={styles.chat} title="Chat" subtitle="Streaming completions from the chat role, OpenAI wire format." modelRole="chat" headerTools={modelPicker}>
       <Panel
         title="Request"
         endpoint="/v1/chat/completions"
@@ -289,7 +289,7 @@ export default function Chat() {
                   onKeyDown={onKeyDown}
                 />
               )
-              : <span class={styles.footHint}>sending the JSON above</span>}
+              : <span class={ui.css.footNote}>sending the JSON above</span>}
             {streaming
               ? <ui.Button variant="stop" onClick={() => cancelExec(abort.current, execId.current)}>Stop</ui.Button>
               : <ui.Button variant="primary" disabled={!canSend} onClick={send}>Send</ui.Button>}
@@ -351,7 +351,7 @@ export default function Chat() {
         {turns.length
           ? conversation === "chat"
             ? (
-              <div class={styles.chat} ref={listRef}>
+              <div class={styles.transcript} ref={listRef}>
                 {bubbles.map((bubble) => (
                   <div key={bubble.id} class={cx(styles.bubble, styles[bubble.role])}>
                     {bubble.live
@@ -363,7 +363,7 @@ export default function Chat() {
               </div>
             )
             : (
-              <div class={styles.log} ref={listRef}>
+              <div class={styles.transcript} ref={listRef}>
                 {turns.map((turn, index) => {
                   const isStreaming = streaming && index === turns.length - 1;
                   const live = isStreaming && !turn.assistant;

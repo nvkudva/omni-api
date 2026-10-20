@@ -89,7 +89,7 @@ export function QuestionBuilder({ rows, onRows }) {
   const remove = (index) => onRows(rows.filter((_, at) => at !== index));
   const add = (type) => onRows([...rows, questions.blankRow(type)]);
   return (
-    <div class={styles.builder}>
+    <div class={styles.questionBuilder}>
       {rows.map((row, index) => (
         <Question key={row.id ?? index} row={row} index={index} onChange={(next) => change(index, next)} onRemove={() => remove(index)} />
       ))}

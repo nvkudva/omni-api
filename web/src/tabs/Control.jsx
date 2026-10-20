@@ -49,7 +49,7 @@ function useInfo() {
 
 function Facts({ rows }) {
   return (
-    <dl class={styles.facts}>
+    <dl class={ui.css.facts}>
       {rows.map(([label, value]) => (
         <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
       ))}
@@ -255,7 +255,7 @@ export function Server() {
     Object.entries(runtime.value.roles).map(([role, entry]) => [role, { default: entry.model }]),
   );
   return (
-    <Workbench single title="Server" subtitle="Start, stop and restart the gateway, Ollama and the workers.">
+    <Workbench class={styles.server} single title="Server" subtitle="Start, stop and restart the gateway, Ollama and the workers.">
       {error && <ui.ErrorText>server info failed: {error}</ui.ErrorText>}
       {info && <Gateway info={info} onReconnected={reconnected} />}
       {info && <Ollama info={info} onChanged={async () => { await refresh(); await pollRuntime(); }} />}

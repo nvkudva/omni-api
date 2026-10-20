@@ -5,7 +5,8 @@
      · cards     rounded-xl (14px) · shadow-sm
      · focus     border flips to --ring plus a 3px ring at 50%
    The radius scale is shadcn's: sm 6 · md 8 · lg 10 · xl 14 for --radius 0.625rem.
-   Legacy --bg / --surface / --text aliases stay so older modules keep working. */
+   Components read these tokens and never branch on the theme themselves: where
+   light and dark differ, the difference lives in a token below. */
 :root {
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
@@ -41,6 +42,9 @@
   --green: #16a34a;
   --orange: #d97706;
   --red: #e7000b;
+  /* The quiet third text tone: lighter than --muted-foreground on light, and
+     paler than it on dark. */
+  --text-3: #52525b;
 
   /* Control surfaces. Inputs are bg-transparent in shadcn light and
      dark:bg-input/30 in dark; pills that sit on --muted use --raised. */
@@ -54,30 +58,12 @@
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 
-  /* Legacy aliases used across modules. */
-  --bg: var(--background);
-  --sidebar: var(--background);
-  --surface: var(--card);
-  --surface-2: var(--muted);
-  --text: var(--foreground);
-  --text-2: var(--muted-foreground);
-  --text-3: #52525b;
-  --hairline: var(--border);
-  --hairline-strong: var(--input);
-  --shadow: var(--shadow-sm);
-  --shadow-pop: var(--shadow-lg);
-  --code-bg: var(--muted);
-  --signal: var(--muted-foreground);
-  --bubble-user: var(--primary);
-  --bubble-user-text: var(--primary-foreground);
-  --bubble-bot: var(--muted);
-  --brand: var(--primary);
-  --accent-soft: var(--accent);
-  --accent-hover: color-mix(in oklab, var(--accent) 80%, var(--foreground));
-  --accent-fg: var(--accent-foreground);
-  --destructive-fg: var(--destructive-foreground);
+  /* The few places where the dark theme is not just a different token value. */
+  --destructive-fill: var(--destructive);
+  --destructive-fill-hover: color-mix(in oklab, var(--destructive) 90%, transparent);
+  --switch-thumb: var(--background);
+  --segment-on-border: transparent;
 
-  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px;
   --control-h: 2.25rem; --control-h-sm: 2rem; --control-h-lg: 2.5rem;
   --focus-ring: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
@@ -108,11 +94,17 @@
   --green: #34d399;
   --orange: #fbbf24;
   --red: #ff6467;
+  --text-3: #9f9fa6;
 
   --field: color-mix(in oklab, var(--input) 30%, transparent);
   --raised: color-mix(in oklab, var(--input) 30%, transparent);
 
-  --text-3: #9f9fa6;
+  /* destructive:bg-destructive/60 hover:bg-destructive/75; the switch thumb flips to --foreground. */
+  --destructive-fill: color-mix(in oklab, var(--destructive) 60%, transparent);
+  --destructive-fill-hover: color-mix(in oklab, var(--destructive) 75%, transparent);
+  --switch-thumb: var(--foreground);
+  --segment-on-border: var(--input);
+
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   color-scheme: dark;
 }
@@ -177,7 +169,11 @@ select {
   cursor: pointer;
 }
 
-input:focus-visible, select:focus-visible, textarea:focus-visible {
+/* One focus ring for every control, so a component never restates it. `:where`
+   keeps specificity at zero: a component that needs a different ring (the
+   slider's pill) wins with its own rule. */
+:where(a, button, summary, input, select, textarea, [role="button"], [role="switch"], [role="radio"]):focus-visible {
+  outline: none;
   border-color: var(--ring);
   box-shadow: var(--focus-ring);
 }
@@ -254,7 +250,6 @@ a { color: var(--primary); text-decoration: underline; text-underline-offset: 4p
 a:hover { color: color-mix(in oklab, var(--primary) 80%, transparent); }
 
 ::selection { background: var(--primary); color: var(--primary-foreground); }
-a:focus-visible, summary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
 * { scrollbar-width: thin; scrollbar-color: var(--input) transparent; }
 
 /* --- Table: shadcn Table — no outer frame (it lives inside a Card), h-10 heads,

@@ -90,6 +90,7 @@ export default function Image() {
 
   return (
     <Workbench
+      class={styles.image}
       title="Image"
       subtitle="Text to image with Qwen-Image-2.1-Turbo (8 steps). First request loads it (~1 min); smaller sizes are faster."
       modelRole="image"
@@ -101,8 +102,8 @@ export default function Image() {
         foot={(
           <>
             {busy
-              ? <ui.Button variant="stop" class={styles.action} onClick={stop}>Stop</ui.Button>
-              : <ui.Button variant="primary" class={styles.action} disabled={view === "json" ? Boolean(json.error) || !json.body?.prompt : !body.prompt} onClick={generate}>Generate</ui.Button>}
+              ? <ui.Button variant="stop" onClick={stop}>Stop</ui.Button>
+              : <ui.Button variant="primary" disabled={view === "json" ? Boolean(json.error) || !json.body?.prompt : !body.prompt} onClick={generate}>Generate</ui.Button>}
           </>
         )}
       >
@@ -120,7 +121,7 @@ export default function Image() {
               </select>
             </ui.Field>
             <ui.Field label="Seed">
-              <div class={styles.seedRow}>
+              <div class={ui.css.inputRow}>
                 <input type="number" step={1} aria-label="Seed" placeholder="blank = random" value={seed} onInput={(event) => setSeed(event.currentTarget.value)} />
                 <ui.IconButton icon="dice" label="Random seed" onClick={randomSeed} />
               </div>
@@ -143,7 +144,7 @@ export default function Image() {
       >
         {turns.length
           ? (
-            <div class={styles.gallery}>
+            <div class={ui.css.stack}>
               {turns.map((turn, index) => (
                 <Turn
                   key={turn.id}
@@ -165,9 +166,9 @@ export default function Image() {
                       : (
                         <div class={styles.figure}>
                           <img class={styles.picture} src={turn.url} alt={turn.prompt} />
-                          <div class={styles.foot}>
+                          <div class={ui.css.clipFoot}>
                             <ui.Meta>{turn.caption}</ui.Meta>
-                            <a class={styles.link} href={turn.url} download="omni.png">download .png</a>
+                            <a class={ui.css.link} href={turn.url} download="omni.png">download .png</a>
                           </div>
                         </div>
                       )}

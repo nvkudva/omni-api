@@ -1,9 +1,8 @@
 import { useRef } from "preact/hooks";
 
 import { signal } from "@preact/signals";
-import { Button } from "./ui.jsx";
+import { Button, Modal } from "./ui.jsx";
 import { runtime } from "../api/roles.js";
-import { useModal } from "../hooks/useModal.js";
 import styles from "./Confirm.module.css";
 
 /**
@@ -23,35 +22,21 @@ export function ConfirmDialog({
   onCancel,
 }) {
   const confirmRef = useRef(null);
-  const dialogRef = useRef(null);
-  useModal(dialogRef, onCancel, confirmRef);
   return (
-    <div
-      class={styles.backdrop}
-      onClick={onCancel}
-    >
-      <div
-        ref={dialogRef}
-        class={styles.dialog}
-        role="alertdialog"
-        aria-modal="true"
-        aria-label={title}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <h2 class={styles.title}>{title}</h2>
-        {message && <p class={styles.message}>{message}</p>}
-        {reasons.length > 0 && (
-          <ul class={styles.reasons}>
-            {reasons.map((reason, index) => <li key={index}>{reason}</li>)}
-          </ul>
-        )}
-        {advisories.length > 0 && <p class={styles.advisory}>Also worth knowing: {advisories.join("; ")}.</p>}
-        <div class={styles.actions}>
-          <Button onClick={onCancel}>{cancelLabel}</Button>
-          <Button ref={confirmRef} variant={tone} onClick={onConfirm}>{confirmLabel}</Button>
-        </div>
+    <Modal role="alertdialog" label={title} onClose={onCancel} initialFocus={confirmRef} class={styles.confirm}>
+      <h2 class={styles.title}>{title}</h2>
+      {message && <p class={styles.message}>{message}</p>}
+      {reasons.length > 0 && (
+        <ul class={styles.reasons}>
+          {reasons.map((reason, index) => <li key={index}>{reason}</li>)}
+        </ul>
+      )}
+      {advisories.length > 0 && <p class={styles.advisory}>Also worth knowing: {advisories.join("; ")}.</p>}
+      <div class={styles.actions}>
+        <Button onClick={onCancel}>{cancelLabel}</Button>
+        <Button ref={confirmRef} variant={tone} onClick={onConfirm}>{confirmLabel}</Button>
       </div>
-    </div>
+    </Modal>
   );
 }
 

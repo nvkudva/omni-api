@@ -1,135 +1,99 @@
-/* Mini density: the top-strip navigation card — shadcn Card (rounded-xl, 1px border,
-   shadow-sm) at a compact padding so seven of them fit across the strip. */
-.card {
+/* One role, two densities. MiniCard is the top-strip navigation card: a compact
+   shadcn Card so seven of them fit across the strip. Section is the Settings
+   card: same surface, every card the same size, its body scrolls. */
+
+/* --- MiniCard ------------------------------------------------------------- */
+
+.miniCard {
+  composes: card from "./ui.module.css";
   display: flex; flex-direction: column; gap: 10px;
   padding: 14px;
-  border: 1px solid var(--border); border-radius: var(--radius-xl);
-  background: var(--card);
-  box-shadow: var(--shadow-sm);
   cursor: pointer; text-align: left; min-width: 0;
   transition: border-color 0.15s, background-color 0.15s;
-}
-.card:hover { border-color: var(--ring); }
-.card:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.on { background: var(--accent); border-color: var(--ring); }
-.off { opacity: 0.72; }
 
-.top { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.badge {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; border-radius: var(--radius-sm); color: #fff; flex: none;
-  box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12);
-}
-.name { font-size: 0.875rem; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
-.runner { margin-left: auto; font: 500 0.6875rem var(--font); color: var(--muted-foreground); text-transform: lowercase; white-space: nowrap; }
+  &:hover { border-color: var(--ring); }
+  &.on { background: var(--accent); border-color: var(--ring); }
+  &.off { opacity: 0.72; }
 
-.endpoint {
-  font: 0.75rem var(--font); color: var(--muted-foreground);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  & .top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  & .name {
+    font-size: 0.875rem; font-weight: 600; letter-spacing: -0.01em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    background: none; border: none; padding: 0; cursor: pointer; text-align: left;
+  }
+  & .runner {
+    margin-left: auto; font: 500 0.6875rem var(--font); color: var(--muted-foreground);
+    text-transform: lowercase; white-space: nowrap;
+  }
+
+  & .modelRow { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  & .model {
+    flex: 1; min-width: 0; font: 0.75rem var(--font); color: var(--muted-foreground);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  & .memory { flex: none; font: 500 0.75rem var(--font); color: var(--foreground); font-variant-numeric: tabular-nums; }
+
+  /* The light and the word hold the left edge, the action the right, whatever the
+     action is; a download's progress line can be long and must not push them.
+     The row is one control tall so every card's footer has the same size. */
+  & .foot {
+    display: flex; align-items: center; justify-content: space-between; gap: 6px;
+    min-height: 24px; margin-top: auto;
+  }
+  /* A 24px icon button, the switch's own height, so the footer never grows. */
+  & .footAction { width: 24px; height: 24px; border-radius: var(--radius-sm); }
+  & .status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--muted-foreground); min-width: 0; }
+  & .word { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  & .warnBadge {
+    flex: none; display: inline-flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%;
+    background: color-mix(in oklab, var(--orange) 20%, transparent); color: var(--orange);
+    cursor: pointer;
+
+    &:hover { background: color-mix(in oklab, var(--orange) 38%, transparent); }
+  }
 }
 
-.modelRow { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.model { flex: 1; min-width: 0; font: 0.75rem var(--font); color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.memory { flex: none; font: 500 0.75rem var(--font); color: var(--foreground); font-variant-numeric: tabular-nums; }
+/* --- Section (the Settings card) ------------------------------------------ */
 
-.foot { display: flex; align-items: center; gap: 6px; margin-top: 1px; }
-.status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--muted-foreground); min-width: 0; }
-/* A download's progress line can be long; the light and the button keep their place regardless. */
-.word { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.section {
+  composes: card from "./ui.module.css";
+  display: flex; flex-direction: column; min-width: 0;
 
-/* shadcn Switch: h-5 w-9 track, size-4 thumb; checked track = primary. */
-.switch {
-  margin-left: auto; position: relative; width: 2.25rem; height: 1.25rem; flex: none; padding: 0;
-  border-radius: 999px; border: 1px solid transparent;
-  background: var(--input); cursor: pointer;
-  box-shadow: var(--shadow-xs);
-  transition: background-color 0.15s, border-color 0.15s;
-}
-.switch::after {
-  content: ""; position: absolute; top: 50%; left: 2px; width: 1rem; height: 1rem;
-  border-radius: 50%; background: var(--background); box-shadow: var(--shadow-sm);
-  transform: translateY(-50%);
-  transition: transform 0.16s cubic-bezier(0.3, 0.7, 0.3, 1);
-}
-:global(:root[data-theme="dark"]) .switch::after { background: var(--foreground); }
-.switchOn { background: var(--primary); border-color: var(--primary); }
-.switchOn::after { transform: translate(1rem, -50%); background: var(--primary-foreground); }
-.switch:disabled { opacity: 0.5; cursor: not-allowed; }
-.switch:focus-visible { outline: none; border-color: var(--ring); box-shadow: var(--focus-ring); }
+  & .head {
+    flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    /* The header is the card's first child, so its own top corners have to follow
+       the card's curve (inset by the card's 1px border) instead of squaring off over it. */
+    border-top-left-radius: calc(var(--radius-xl) - 1px);
+    border-top-right-radius: calc(var(--radius-xl) - 1px);
+  }
+  /* A role's head stacks: identity row over endpoint line. */
+  & .head.role { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 4px; }
+  & .headRow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  & .headRow .tools { margin-left: auto; }
+  & .headSub { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; padding-left: 28px; }
+  & .title { font-size: 0.875rem; font-weight: 600; }
+  & .tools { flex: none; display: inline-flex; align-items: center; gap: 4px; }
+  /* Header icon buttons read as secondary buttons: a hairline-bordered surface at
+     the same height as the Add model button beside them. */
+  & .icons { display: inline-flex; align-items: center; gap: 4px; }
+  & .icons button {
+    width: var(--control-h-sm); height: var(--control-h-sm);
+    background: var(--raised); color: var(--foreground);
+    border-color: var(--input);
+    box-shadow: var(--shadow-xs);
 
-/* shadcn Button (sm): h-8 · px-3 · text-xs · rounded-md · shadow-xs. */
-.setupButton {
-  margin-left: auto; flex: none; height: var(--control-h-sm); padding: 0 0.75rem;
-  border: 1px solid var(--input); border-radius: var(--radius-md);
-  background: var(--raised); color: var(--foreground);
-  font-size: 0.75rem; font-weight: 500; line-height: 1; cursor: pointer;
-  box-shadow: var(--shadow-xs);
-  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+    &:hover:not(:disabled) { background: var(--accent); color: var(--accent-foreground); border-color: var(--ring); }
+  }
+  & .tunable { display: flex; gap: 8px; align-items: center; }
+  & .tunable input, & .tunable select { max-width: 260px; }
+  & .body {
+    flex: 1; min-height: 0; overflow-y: auto; padding: 16px;
+    display: flex; flex-direction: column; gap: 12px; min-width: 0; font-size: 0.875rem;
+  }
+  /* An opened health or log card sits flush under the head, inside the card. */
+  & .log { padding: 16px 16px 0; }
+  & .log > section { box-shadow: none; }
 }
-.setupButton:hover { background: var(--accent); border-color: var(--ring); }
-.setupButton:focus-visible { outline: none; border-color: var(--ring); box-shadow: var(--focus-ring); }
-/* Starting a stopped worker is the card's only offered action, so it is the filled one. */
-.startButton {
-  margin-left: auto; flex: none; height: var(--control-h-sm); padding: 0 0.75rem;
-  border: 1px solid transparent; border-radius: var(--radius-md);
-  background: var(--primary); color: var(--primary-foreground);
-  font-size: 0.75rem; font-weight: 500; line-height: 1; cursor: pointer;
-  box-shadow: var(--shadow-xs);
-  transition: background-color 0.15s, border-color 0.15s;
-}
-.startButton:hover:not(:disabled) { background: color-mix(in oklab, var(--primary) 90%, transparent); }
-.startButton:disabled { opacity: 0.5; pointer-events: none; }
-.startButton:focus-visible { outline: none; border-color: var(--ring); box-shadow: var(--focus-ring); }
-.warnBadge {
-  flex: none; display: inline-flex; align-items: center; justify-content: center;
-  width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%;
-  background: color-mix(in oklab, var(--orange) 20%, transparent); color: var(--orange);
-  cursor: pointer;
-}
-.warnBadge:hover { background: color-mix(in oklab, var(--orange) 38%, transparent); }
-.warnBadge:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-
-/* Detail density: the Settings card. Every card is the same size; body scrolls. */
-.setup {
-  display: flex; flex-direction: column;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-sm);
-  min-width: 0;
-}
-.setupHead {
-  flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 12px 16px; border-bottom: 1px solid var(--border);
-  /* The header is the card's first child, so its own top corners have to follow the
-     card's curve (inset by the card's 1px border) instead of squaring off over it. */
-  border-top-left-radius: calc(var(--radius-xl) - 1px);
-  border-top-right-radius: calc(var(--radius-xl) - 1px);
-}
-.setupTitleGroup { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; }
-.setupHeadColor { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 4px; }
-.setupHeadRow { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.setupHeadRow .setupTools { margin-left: auto; }
-.setupHeadSub { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; padding-left: 28px; }
-.setupEndpoint { font: 0.75rem var(--font); color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.setupTitle { font-size: 0.875rem; font-weight: 600; }
-.setupTools { flex: none; display: inline-flex; align-items: center; gap: 4px; }
-/* Header icon buttons read as secondary buttons: a hairline-bordered surface at
-   the same height as the Add model button beside them. */
-.setupIcons { display: inline-flex; align-items: center; gap: 4px; }
-.setupIcons button {
-  width: var(--control-h-sm); height: var(--control-h-sm);
-  background: var(--raised); color: var(--foreground);
-  border-color: var(--input);
-  box-shadow: var(--shadow-xs);
-}
-.setupIcons button:hover:not(:disabled) { background: var(--accent); color: var(--accent-foreground); border-color: var(--ring); }
-.tunable { display: flex; gap: 8px; align-items: center; }
-.tunable input, .tunable select { max-width: 260px; }
-.setupMeta { font-family: var(--font); font-size: 0.75rem; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
-.setupBody { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; font-size: 0.875rem; }
-.setupLog { padding: 16px 16px 0; }
-.setupLog > section { box-shadow: none; }
-.line { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.line > input, .line > select { flex: 1; min-width: 0; }
-.line > button { flex: none; }

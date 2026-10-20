@@ -313,9 +313,9 @@ describe("the sidebar card", () => {
 
   const blocked = { setupState: "missing", setupReason: MISSING_ENTRY.reason };
 
-  test("a role whose default cannot run shows Setup instead of the switch", () => {
+  test("a role whose default cannot run shows a setup action instead of the switch", () => {
     const html = sidebar("chat", blocked);
-    expect(html).toContain(">Setup<");
+    expect(html).toContain("Set up Chat");
     expect(html).not.toContain('role="switch"');
   });
 
@@ -333,7 +333,7 @@ describe("the sidebar card", () => {
   test("a ready role keeps its warm switch", () => {
     const html = sidebar("chat", { status: "ready" });
     expect(html).toContain('role="switch"');
-    expect(html).not.toContain(">Setup<");
+    expect(html).not.toContain("Set up Chat");
   });
 
   test("a worker that is up but holding no model reads 'not running', never 'running'", () => {
@@ -348,24 +348,24 @@ describe("the sidebar card", () => {
   test("a stopped worker offers Start, not a keep-warm switch", () => {
     const html = sidebar("tts", { status: "stopped" });
     expect(html).toContain(">off<");
-    expect(html).toContain(">Start<");
+    expect(html).toContain("Start the Text to speech worker");
     expect(html).not.toContain('role="switch"');
   });
 
   test("a failed worker offers Start too", () => {
     const html = sidebar("image", { status: "failed" });
     expect(html).toContain(">failed<");
-    expect(html).toContain(">Start<");
+    expect(html).toContain("Start the Image worker");
   });
 
   test("an unreachable Ollama reads stopped and points at the server controls", () => {
     const html = sidebar("chat", { status: "unavailable", engineUrl: "127.0.0.1:11434" });
     expect(html).toContain(">off<");
-    expect(html).toContain(">Server<");
+    expect(html).toContain("Open the server controls");
     expect(html).toContain("127.0.0.1:11434");
     // nothing here can start an Ollama omni does not own, so no switch and no Start
     expect(html).not.toContain('role="switch"');
-    expect(html).not.toContain(">Start<");
+    expect(html).not.toContain("Start the Chat worker");
   });
 
   test("warm and running differ only in whether the model is held", () => {

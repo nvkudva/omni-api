@@ -81,8 +81,8 @@ export function Transcript({ turn }) {
 
   if (turn.format === "text") {
     return (
-      <div class={styles.stack}>
-        {turn.url && <audio ref={audio} class={styles.audio} controls src={turn.url} />}
+      <div class={ui.css.stack}>
+        {turn.url && <audio ref={audio} class={ui.css.audio} controls src={turn.url} />}
         {body}
         <ui.Row end><ui.IconButton icon="copy" label={copied ? "Copied" : "Copy text"} onClick={copy} /></ui.Row>
       </div>
@@ -90,8 +90,8 @@ export function Transcript({ turn }) {
   }
 
   return (
-    <div class={styles.stack}>
-      {turn.url && <audio ref={audio} class={styles.audio} controls src={turn.url} />}
+    <div class={ui.css.stack}>
+      {turn.url && <audio ref={audio} class={ui.css.audio} controls src={turn.url} />}
       {body}
       {turn.result.segments?.length > 0 && (
         <ul class={styles.segments}>
@@ -250,7 +250,7 @@ export default function Stt() {
   const openId = turnState.open ?? turns[turns.length - 1]?.id;
 
   return (
-    <Workbench title="Speech to text" subtitle="Record or upload audio, get a transcript with segment timings you can click to replay." modelRole="stt">
+    <Workbench class={styles.stt} title="Speech to text" subtitle="Record or upload audio, get a transcript with segment timings you can click to replay." modelRole="stt">
       <Panel
         title="Request"
         endpoint="/v1/audio/transcriptions"
@@ -258,7 +258,7 @@ export default function Stt() {
         tools={<UiJson view={view} onChange={setView} />}
         foot={(
           <>
-            <span class={styles.foot}>{recording ? clock(elapsed) : format}</span>
+            <span class={ui.css.footNote}>{recording ? clock(elapsed) : format}</span>
             {busy
               ? <ui.Button variant="stop" onClick={stop}>Stop</ui.Button>
               : <ui.Button variant="primary" disabled={!canTranscribe} onClick={() => run(clip.blob, clip.name, sendFormat)}>Transcribe</ui.Button>}
@@ -278,7 +278,7 @@ export default function Stt() {
           <ui.DropZone accept="audio/*,video/*" onFile={(file) => applyClip(file, file.name)}>
             Drop audio here or click to choose (wav, mp3, m4a, webm, ogg…)
           </ui.DropZone>
-          {clip && <audio class={styles.audio} controls src={clip.url} />}
+          {clip && <audio class={ui.css.audio} controls src={clip.url} />}
         </RequestBody>
       </Panel>
 
@@ -289,7 +289,7 @@ export default function Stt() {
       >
         {turns.length
           ? (
-            <div class={styles.stack}>
+            <div class={ui.css.stack}>
               {turns.map((turn, index) => (
                 <Turn
                   key={turn.id}
@@ -308,8 +308,8 @@ export default function Stt() {
                     ? <Pending label="transcribing" note={turn.request.file} />
                     : turn.error
                       ? (
-                        <div class={styles.stack}>
-                          {turn.url && <audio class={styles.audio} controls src={turn.url} />}
+                        <div class={ui.css.stack}>
+                          {turn.url && <audio class={ui.css.audio} controls src={turn.url} />}
                           <TurnError>{turn.error}</TurnError>
                         </div>
                       )

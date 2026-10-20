@@ -1,52 +1,71 @@
-.pick { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-.pickHint { color: var(--text-3); font-size: 12px; }
-.notes { margin: 0; color: var(--text-3); font-size: 12px; line-height: 1.5; }
+/* The Embed view: the drop zone and file list on the left, the passage search on the right. */
 
-.stats {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 1px;
-  background: var(--border); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden;
+.embed {
+  & .pick { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  & .pickHint { color: var(--text-3); font-size: 12px; }
+  & .notes { margin: 0; color: var(--text-3); font-size: 12px; line-height: 1.5; }
+
+  /* The six stored totals, as one hairline grid. */
+  & .stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 1px;
+    background: var(--border); border: 1px solid var(--border);
+    border-radius: var(--radius-lg); overflow: hidden;
+  }
+  & .stat { background: var(--muted); padding: 10px 12px; min-width: 0; }
+  & .stat dt { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; }
+  & .stat dd {
+    margin: 2px 0 0; font: 500 14px var(--font); font-variant-numeric: tabular-nums; color: var(--foreground);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  & .files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  & .file {
+    display: grid; grid-template-columns: 40px minmax(0, 1fr) auto;
+    gap: 4px 12px; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+
+    &:last-child { border-bottom: 0; }
+  }
+  & .thumb, & .kindIcon {
+    width: 40px; height: 40px;
+    border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--muted);
+  }
+  & .thumb { object-fit: cover; display: block; }
+  & .kindIcon { display: grid; place-items: center; color: var(--text-3); }
+  & .fileText { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  & .fileName { font: 500 13px var(--font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  & .fileDetail {
+    font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  & .fileBad { color: var(--red); }
+  & .fileBar { grid-column: 2 / -1; }
+  & .fileError { grid-column: 2 / -1; font-size: 12px; color: var(--red); overflow-wrap: anywhere; }
+
+  & .fine {
+    display: flex; flex-direction: column; gap: 6px; padding-top: 4px;
+
+    & p { margin: 0; font-size: 11px; line-height: 1.5; color: var(--text-3); }
+    & code { font: inherit; color: var(--muted-foreground); }
+  }
+
+  & .passages { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  & .passage { padding: 12px; border-top: 1px solid var(--border); }
+  & .passageHead {
+    display: flex; gap: 8px; align-items: baseline; margin-bottom: 4px;
+    font: 12px var(--font); color: var(--muted-foreground);
+  }
+  & .passageScore { margin-left: auto; font-variant-numeric: tabular-nums; }
+  & .passageText { margin: 0; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+  & .ask { width: 100%; align-items: flex-start; }
+
+  & .drop {
+    display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px;
+    border: 1px dashed var(--input); border-radius: var(--radius-lg); background: var(--field);
+    color: var(--muted-foreground); font-size: 13px; text-align: center; cursor: default;
+    transition: border-color 0.15s, background-color 0.15s;
+
+    &.over { border-color: var(--ring); background: var(--accent); }
+  }
 }
-.stat { background: var(--muted); padding: 10px 12px; min-width: 0; }
-.stat dt { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; }
-.stat dd { margin: 2px 0 0; font: 500 14px var(--font); font-variant-numeric: tabular-nums; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.files { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.file {
-  display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 4px 12px; align-items: center;
-  padding: 10px 0; border-bottom: 1px solid var(--hairline);
-}
-.file:last-child { border-bottom: 0; }
-.thumb, .kindIcon {
-  width: 40px; height: 40px; border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--muted);
-}
-.thumb { object-fit: cover; display: block; }
-.kindIcon { display: grid; place-items: center; color: var(--text-3); }
-.fileText { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.fileName { font: 500 13px var(--font); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fileDetail { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fileBad { color: var(--red); }
-.fileBar { grid-column: 2 / -1; }
-.fileError { grid-column: 2 / -1; font-size: 12px; color: var(--red); overflow-wrap: anywhere; }
-
-.fine { display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
-.fine p { margin: 0; font-size: 11px; line-height: 1.5; color: var(--text-3); }
-.fine code { font: inherit; color: var(--text-2); }
-
-.passages { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.passage { padding: 12px; border-top: 1px solid var(--border); }
-.passageHead { display: flex; gap: 8px; align-items: baseline; font: 12px var(--font); color: var(--text-2); margin-bottom: 4px; }
-.passageScore { margin-left: auto; font-variant-numeric: tabular-nums; }
-.passageText { margin: 0; font-size: 13px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
-
-.ask { display: flex; gap: 8px; width: 100%; align-items: flex-start; }
-.ask input { flex: 1; min-width: 0; }
-
-.drop {
-  display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px; cursor: default;
-  border: 1px dashed var(--input); border-radius: var(--radius-lg); background: var(--field);
-  color: var(--text-2); font-size: 13px; text-align: center;
-  transition: border-color 0.15s, background-color 0.15s;
-}
-.dropOver { border-color: var(--ring); background: var(--accent); }
-
-.turns { display: flex; flex-direction: column; gap: 14px; }

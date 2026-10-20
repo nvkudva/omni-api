@@ -1,11 +1,10 @@
-.figure { display: flex; flex-direction: column; gap: 8px; }
-.picture { display: block; width: 100%; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--hairline); }
-.foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.action { margin-left: auto; }
-.seedRow { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.seedRow input { flex: 1; min-width: 0; }
-.scale { display: flex; justify-content: space-between; width: 100%; font-variant-numeric: tabular-nums; }
-.link { color: var(--primary); font-size: 0.8125rem; font-weight: 500; text-decoration: none; text-underline-offset: 4px; white-space: nowrap; }
-.link:hover { text-decoration: underline; }
-.link:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
-.gallery { display: flex; flex-direction: column; gap: 16px; }
+/* The Image view: one generated picture per turn, with its download. */
+
+.image {
+  & .figure { display: flex; flex-direction: column; gap: 8px; }
+  & .picture {
+    display: block; width: 100%;
+    background: var(--muted); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  }
+  & .scale { display: flex; justify-content: space-between; width: 100%; font-variant-numeric: tabular-nums; }
+}

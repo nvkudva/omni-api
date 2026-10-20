@@ -113,14 +113,14 @@ export default function Tts({ active = true }) {
   const canSpeak = !(view === "json" && json.error) && !(view === "ui" && !body.input.trim()) && !busy;
 
   return (
-    <Workbench title="Text to speech" subtitle="Kokoro voices on MLX, returned as WAV. The first request loads the voice model." modelRole="tts">
+    <Workbench class={styles.tts} title="Text to speech" subtitle="Kokoro voices on MLX, returned as WAV. The first request loads the voice model." modelRole="tts">
       <Panel
         title="Request"
         endpoint="/v1/audio/speech"
         tools={<UiJson view={view} onChange={setView} />}
         foot={(
           <>
-            <span class={styles.foot}>{text.length} / {MAX_LENGTH} characters</span>
+            <span class={ui.css.footNote}>{text.length} / {MAX_LENGTH} characters</span>
             {busy
               ? <ui.Button variant="stop" onClick={stop}>Stop</ui.Button>
               : <ui.Button variant="primary" disabled={!canSpeak} onClick={speak}>Speak</ui.Button>}
@@ -152,7 +152,7 @@ export default function Tts({ active = true }) {
       >
         {clips.length
           ? (
-            <div class={styles.stack}>
+            <div class={ui.css.stack}>
               {clips.map((clip, index) => (
                 <Turn
                   key={clip.id}
@@ -172,11 +172,11 @@ export default function Tts({ active = true }) {
                     : clip.error
                       ? <TurnError>{clip.error}</TurnError>
                       : (
-                        <div class={styles.stack}>
-                          <audio class={styles.audio} controls src={clip.url} />
-                          <div class={styles.clipFoot}>
+                        <div class={ui.css.stack}>
+                          <audio class={ui.css.audio} controls src={clip.url} />
+                          <div class={ui.css.clipFoot}>
                             <ui.Meta>{clip.caption}</ui.Meta>
-                            <a class={styles.link} href={clip.url} download={clip.filename}>download .wav</a>
+                            <a class={ui.css.link} href={clip.url} download={clip.filename}>download .wav</a>
                           </div>
                           {clip.heard != null && <ui.Meta>stt heard: “{clip.heard.trim()}”</ui.Meta>}
                           {clip.heardError && <ui.Meta>stt round trip failed: {clip.heardError}</ui.Meta>}

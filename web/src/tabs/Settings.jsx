@@ -1,4 +1,5 @@
 import { Icon } from "../components/Icon.jsx";
+import { cx } from "../lib/cx.js";
 import { ROLE_META } from "../api/roles.js";
 import * as control from "./Control.jsx";
 import Models from "./Models.jsx";
@@ -8,7 +9,7 @@ export default function Settings({ section = "server", role = null, backTo = "ch
   const go = (next) => onNavigate({ tab: "settings", section: next, role: null });
 
   return (
-    <div class={styles.page}>
+    <div class={styles.settings}>
       <nav class={styles.nav} aria-label="Settings sections">
         <button type="button" class={styles.back} onClick={onBack}>
           <span aria-hidden="true">←</span> Back to {ROLE_META[backTo]?.label ?? backTo}
@@ -17,7 +18,7 @@ export default function Settings({ section = "server", role = null, backTo = "ch
           <h2 class={styles.groupTitle}>Settings</h2>
           <button
             type="button"
-            class={section === "server" ? [styles.item, styles.itemOn].join(" ") : styles.item}
+            class={section === "server" ? cx(styles.item, styles.on) : styles.item}
             aria-current={section === "server" ? "page" : undefined}
             onClick={() => go("server")}
           >
@@ -26,7 +27,7 @@ export default function Settings({ section = "server", role = null, backTo = "ch
           </button>
           <button
             type="button"
-            class={section === "models" ? [styles.item, styles.itemOn].join(" ") : styles.item}
+            class={section === "models" ? cx(styles.item, styles.on) : styles.item}
             aria-current={section === "models" ? "page" : undefined}
             onClick={() => go("models")}
           >

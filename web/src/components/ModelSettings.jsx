@@ -1,14 +1,12 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { getJson } from "../api/client.js";
 import { modelStatus, serverInfo } from "../api/endpoints.js";
 import { loadModels } from "../api/models.js";
 import { pollRuntime } from "../api/roles.js";
 import { pollHealth } from "../api/health.js";
-import { useModal } from "../hooks/useModal.js";
 import * as ui from "./ui.jsx";
 import { RoleModelCard } from "./RoleModelCard.jsx";
 import { FindAndInstall } from "./FindAndInstall.jsx";
-import styles from "./FindAndInstall.module.css";
 
 /**
  * One role's model settings card in a popup. Opened from the role tab's
@@ -22,8 +20,6 @@ export function ModelSettingsPopup({ role, onClose }) {
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [addRole, setAddRole] = useState(null);
-  const dialogRef = useRef(null);
-  useModal(dialogRef, onClose);
 
   const refresh = async () => {
     try {
@@ -60,12 +56,9 @@ export function ModelSettingsPopup({ role, onClose }) {
   const entry = status?.roles[role];
 
   return (
-    <div
-      class={styles.backdrop}
-      onClick={(event) => { if (event.target === event.currentTarget) onClose?.(); }}
-    >
-      <div ref={dialogRef} class={styles.dialog} role="dialog" aria-modal="true" aria-label={`${role} model settings`}>
-        <div class={styles.body}>
+    <>
+      <ui.Modal role="dialog" label={`${role} model settings`} onClose={onClose} class={ui.css.modalLarge}>
+        <div class={ui.css.modalBody}>
           {error && <ui.ErrorText>{error}</ui.ErrorText>}
           {notice && <ui.Notice>{notice}</ui.Notice>}
           {!status && !error && <ui.Empty><ui.Spinner /> loading model settings…</ui.Empty>}
@@ -83,11 +76,11 @@ export function ModelSettingsPopup({ role, onClose }) {
             />
           )}
         </div>
-        <footer class={styles.foot}>
+        <footer class={ui.css.modalFoot}>
           <ui.Button small onClick={() => onClose?.()}>Done</ui.Button>
         </footer>
-      </div>
+      </ui.Modal>
       {addRole && <FindAndInstall key={addRole} role={addRole} onClose={() => setAddRole(null)} onInstalled={() => changed("")} />}
-    </div>
+    </>
   );
 }
