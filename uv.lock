@@ -1296,48 +1296,55 @@ wheels = [
 
 [[package]]
 name = "omni-api"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
-    { name = "diffusers" },
-    { name = "en-core-web-sm" },
     { name = "fastapi" },
     { name = "httpx" },
+    { name = "huggingface-hub" },
+    { name = "numpy" },
+    { name = "pillow" },
+    { name = "psutil" },
+    { name = "python-multipart" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+media = [
+    { name = "diffusers" },
+    { name = "en-core-web-sm" },
     { name = "ltx-core-mlx" },
     { name = "ltx-pipelines-mlx" },
     { name = "misaki", extra = ["en"] },
     { name = "mlx-audio" },
-    { name = "numpy" },
     { name = "parakeet-mlx" },
-    { name = "pillow" },
-    { name = "psutil" },
-    { name = "python-multipart" },
     { name = "torch" },
     { name = "torchvision" },
     { name = "transformers" },
-    { name = "uvicorn", extra = ["standard"] },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "diffusers", git = "https://github.com/huggingface/diffusers?rev=4295ee3ec58efa6577bc459e9b84ca3f63aa9a96" },
-    { name = "en-core-web-sm", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },
+    { name = "diffusers", marker = "extra == 'media'", git = "https://github.com/huggingface/diffusers?rev=4295ee3ec58efa6577bc459e9b84ca3f63aa9a96" },
+    { name = "en-core-web-sm", marker = "extra == 'media'", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.27" },
-    { name = "ltx-core-mlx", git = "https://github.com/dgrauet/ltx-2-mlx?subdirectory=packages%2Fltx-core-mlx&rev=9e4a1a54194460547a103334b5e06382724fbba6" },
-    { name = "ltx-pipelines-mlx", git = "https://github.com/dgrauet/ltx-2-mlx?subdirectory=packages%2Fltx-pipelines-mlx&rev=9e4a1a54194460547a103334b5e06382724fbba6" },
-    { name = "misaki", extras = ["en"], specifier = ">=0.7" },
-    { name = "mlx-audio", specifier = ">=0.2" },
+    { name = "huggingface-hub", specifier = ">=0.30" },
+    { name = "ltx-core-mlx", marker = "extra == 'media'", git = "https://github.com/dgrauet/ltx-2-mlx?subdirectory=packages%2Fltx-core-mlx&rev=9e4a1a54194460547a103334b5e06382724fbba6" },
+    { name = "ltx-pipelines-mlx", marker = "extra == 'media'", git = "https://github.com/dgrauet/ltx-2-mlx?subdirectory=packages%2Fltx-pipelines-mlx&rev=9e4a1a54194460547a103334b5e06382724fbba6" },
+    { name = "misaki", extras = ["en"], marker = "extra == 'media'", specifier = ">=0.7" },
+    { name = "mlx-audio", marker = "extra == 'media'", specifier = ">=0.2" },
     { name = "numpy", specifier = ">=1.26" },
-    { name = "parakeet-mlx", specifier = ">=0.2" },
+    { name = "parakeet-mlx", marker = "extra == 'media'", specifier = ">=0.2" },
     { name = "pillow", specifier = ">=10" },
     { name = "psutil", specifier = ">=7.2.2" },
     { name = "python-multipart", specifier = ">=0.0.9" },
-    { name = "torch", specifier = "==2.14.1" },
-    { name = "torchvision", specifier = ">=0.29.1" },
-    { name = "transformers", specifier = "==5.19.0" },
+    { name = "torch", marker = "extra == 'media'", specifier = "==2.14.1" },
+    { name = "torchvision", marker = "extra == 'media'", specifier = ">=0.29.1" },
+    { name = "transformers", marker = "extra == 'media'", specifier = "==5.19.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
 ]
+provides-extras = ["media"]
 
 [[package]]
 name = "opentelemetry-api"
