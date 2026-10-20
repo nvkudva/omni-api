@@ -5,6 +5,7 @@ this module only parses arguments and dispatches.
 """
 import argparse
 import sys
+from importlib.metadata import PackageNotFoundError, version
 
 from omni import config
 from omni.commands import init, lifecycle
@@ -21,6 +22,13 @@ COMMANDS = (
 )
 
 
+def _version() -> str:
+    try:
+        return version("omni-api")
+    except PackageNotFoundError:
+        return "0.0.0+unknown"
+
+
 def _gateway_defaults() -> dict:
     try:
         return config.load()["gateway"]
@@ -32,6 +40,7 @@ def _gateway_defaults() -> dict:
 def build_parser() -> argparse.ArgumentParser:
     settings = _gateway_defaults()
     parser = argparse.ArgumentParser(prog="omni", description="local models behind one gateway port")
+    parser.add_argument("--version", action="version", version=f"omni {_version()}")
     parser.add_argument("--host", default=settings["host"])
     parser.add_argument("--port", type=int, default=settings["port"])
     commands = parser.add_subparsers(dest="command", required=True)

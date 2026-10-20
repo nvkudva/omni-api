@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
-import { OLLAMA_ROLES, ROLE_META, downloadFor, install, installs } from "../api/roles.js";
-import { checkModel, searchModels } from "../api/endpoints.js";
+import { OLLAMA_ROLES, ROLE_META, downloadFor, install, installs, matchesModel } from "../api/roles.js";
+import { checkModel, modelStatus, searchModels } from "../api/endpoints.js";
+import { models } from "../api/models.js";
+import { recommendedFor } from "../lib/recommended.js";
 import { gb, size } from "../lib/format.js";
 import { useModal } from "../hooks/useModal.js";
 import * as ui from "./ui.jsx";
@@ -72,6 +74,68 @@ export function InstallProgress({ role }) {
       {progress.warnings?.length > 0 && <ui.Notice>{progress.warnings.join(" ")}</ui.Notice>}
       {progress.error && <ui.ErrorText>{progress.error}</ui.ErrorText>}
     </>
+  );
+}
+
+/**
+ * The curated candidates for this role, with the configured default marked and
+ * every row saying whether it is already on disk. Reads `/admin/models/status`
+ * once per open and again after an install lands, so the column cannot go stale
+ * while the popup is up.
+ */
+export function Recommended({ role, onPick }) {
+  const [known, setKnown] = useState({ installed: [], defaultModel: null });
+  const finished = installs.value[role]?.fraction;
+
+  useEffect(() => {
+    let live = true;
+    modelStatus()
+      .then((body) => {
+        if (!live) return;
+        const entry = body.roles?.[role];
+        setKnown({ installed: entry?.installed ?? [], defaultModel: entry?.default ?? null });
+      })
+      .catch(() => {
+        // the table still lists the candidates, just without download marks
+      });
+    return () => { live = false; };
+  }, [role, finished]);
+
+  const defaultModel = known.defaultModel ?? models.value.defaults?.[role] ?? null;
+  const rows = recommendedFor(role, defaultModel);
+  const onDisk = (model) => known.installed.find((entry) => matchesModel(entry.name, model));
+  const sizeLabel = (row) => (row.gb ? `${row.gb} GB` : onDisk(row.model)?.size_bytes ? size(onDisk(row.model).size_bytes) : "—");
+
+  return (
+    <table>
+      <thead><tr><th>Recommended</th><th>Size</th><th>Downloaded</th><th /></tr></thead>
+      <tbody>
+        {rows.map((row) => {
+          const downloaded = Boolean(onDisk(row.model));
+          return (
+            <tr key={row.model}>
+              <td>
+                <div class={tabStyles.nameCell}>
+                  {row.model}
+                  {matchesModel(row.model, defaultModel) && <span class={styles.chip}>default</span>}
+                </div>
+                {row.note && <span class={styles.note}>{row.note}</span>}
+              </td>
+              <td class={tabStyles.numeric}>{sizeLabel(row)}</td>
+              <td>
+                <span class={styles.statusCell}>
+                  <ui.Dot tone={downloaded ? "ok" : "idle"} />
+                  {downloaded ? "yes" : "no"}
+                </span>
+              </td>
+              <td class={tabStyles.actionCell}>
+                <ui.Button small onClick={() => onPick(row.model)}>Use</ui.Button>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 
@@ -248,6 +312,9 @@ export function FindAndInstall({ role, onClose, onInstalled }) {
             {criteria.family && <span class={styles.chip}>name contains “{criteria.family}”</span>}
             <span class={styles.criteriaText}>{criteria.accepts}</span>
           </div>
+          <h3 class={styles.subhead}>Recommended</h3>
+          <Recommended role={role} onPick={setPick} />
+          <h3 class={styles.subhead}>Search Hugging Face</h3>
           <Search role={role} onPick={setPick} inputRef={searchRef} />
           <h3 class={styles.subhead}>Or install by id</h3>
           <Install role={role} runner={meta.runner} initial={pick} onInstalled={() => onInstalled?.()} />

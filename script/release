@@ -1,0 +1,107 @@
+#!/bin/sh
+# Cut a release: run the checks, tag vX.Y.Z, push it, then pin the Homebrew
+# formula to that tag's tarball and sha256.
+#
+#   script/release --dry-run   print the steps, change nothing
+#   script/release --push      do them (needs push access to origin)
+#
+# The version comes from pyproject.toml; bump it before running.
+set -eu
+
+DRY=0
+PUSH=0
+
+say() { printf '%s\n' "$*"; }
+die() { printf 'release: %s\n' "$*" >&2; exit 1; }
+
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run) DRY=1 ;;
+    --push) PUSH=1 ;;
+    -h|--help)
+      sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
+      exit 0 ;;
+    *) die "unknown option: $arg" ;;
+  esac
+done
+[ "$PUSH" -eq 1 ] || [ "$DRY" -eq 1 ] || die "pass --dry-run to preview or --push to release"
+
+cd "$(dirname "$0")/.." || die "cannot find the repo root"
+
+run() {
+  if [ "$DRY" -eq 1 ]; then say "  would run: $*"; else "$@"; fi
+}
+
+version="$(python3 -c 'import tomllib,pathlib;print(tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"])')"
+tag="v$version"
+tarball="https://github.com/nvkudva/omni-api/archive/refs/tags/$tag.tar.gz"
+
+say "releasing $tag"
+
+# A release must describe a tree that is already committed: the workflow builds
+# the playground into src/omni/static/app, so a stale build shows up here.
+[ -z "$(git status --porcelain)" ] || die "working tree is dirty; commit or stash first"
+
+if [ -n "$(git tag -l "$tag")" ]; then
+  die "$tag already exists; bump version in pyproject.toml"
+fi
+
+if command -v bun >/dev/null 2>&1; then
+  say "building the playground"
+  run sh -c "cd web && bun run build"
+  [ -z "$(git status --porcelain)" ] || die "the build changed files; commit them, then rerun"
+else
+  say "skipping the playground build: bun is not installed"
+fi
+
+say "running the checks"
+run uv run python -m unittest discover -s tests -q
+if command -v bun >/dev/null 2>&1; then
+  run sh -c "cd web && bun test"
+fi
+
+say "tagging $tag"
+run git tag -a "$tag" -m "$tag"
+
+if [ "$PUSH" -eq 0 ]; then
+  say ""
+  say "dry run only. To release:"
+  say "  script/release --push"
+  exit 0
+fi
+
+say "pushing $tag"
+git push origin "$tag" || die "could not push $tag"
+
+say "reading the tarball's sha256"
+sha="$(curl -fsSL "$tarball" | shasum -a 256 | cut -d' ' -f1)"
+[ -n "$sha" ] || die "could not download $tarball"
+
+say "pinning the tap to $tag"
+tap="${OMNI_TAP_DIR:-../homebrew-omni}"
+formula="$tap/Formula/omni.rb"
+
+if [ -f "$formula" ]; then
+  python3 - "$formula" "$tarball" "$sha" <<'PY'
+import pathlib, re, sys
+
+path = pathlib.Path(sys.argv[1])
+url, sha = sys.argv[2], sys.argv[3]
+text = path.read_text()
+text = re.sub(r'^  url ".*"$', f'  url "{url}"', text, count=1, flags=re.M)
+text = re.sub(r'^  sha256 ".*"$', f'  sha256 "{sha}"', text, count=1, flags=re.M)
+path.write_text(text)
+PY
+  git -C "$tap" add Formula/omni.rb
+  git -C "$tap" commit -q -m "$tag"
+else
+  say "no tap checkout at $tap; paste these into its Formula/omni.rb:"
+  say "  url \"$tarball\""
+  say "  sha256 \"$sha\""
+fi
+
+say ""
+say "done: $tag"
+say "  tag:    $tag (pushed)"
+say "  sha256: $sha"
+say "  next:   git push origin main && git -C $tap push origin main"
