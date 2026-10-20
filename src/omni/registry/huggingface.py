@@ -1,9 +1,14 @@
 """The Hugging Face cache: what is downloaded, how big it is, search, and delete."""
+import asyncio
+import contextlib
+import json
 import os
+import signal
+import sys
 import time
 from pathlib import Path
 
-from huggingface_hub import HfApi, constants, scan_cache_dir, snapshot_download
+from huggingface_hub import HfApi, constants, scan_cache_dir
 
 from omni.registry.roles import SEARCH_FILTERS, runner
 
@@ -118,9 +123,63 @@ def delete(repo_id: str) -> None:
     invalidate()
 
 
-def download(repo_id: str) -> str:
-    """Blocking download; called in a thread. Returns the snapshot path."""
-    return snapshot_download(repo_id)
+DOWNLOAD_SCRIPT = (
+    "import json, sys\n"
+    "from huggingface_hub import snapshot_download\n"
+    "from huggingface_hub.errors import GatedRepoError\n"
+    "try:\n"
+    "    snapshot_download(sys.argv[1])\n"
+    "except Exception as error:\n"
+    "    print(json.dumps({'error': str(error), 'gated': isinstance(error, GatedRepoError)}), file=sys.stderr)\n"
+    "    sys.exit(1)\n"
+)
+TERMINATE_GRACE_SECONDS = 5.0
+STDERR_TAIL_CHARS = 2000
+
+
+def download_command(repo_id: str) -> list[str]:
+    return [sys.executable, "-c", DOWNLOAD_SCRIPT, repo_id]
+
+
+def failure_message(stderr: bytes, code: int | None) -> str:
+    """The error a failed download child reported, with 'gated repo' kept in the text so is_gated still matches."""
+    lines = stderr.decode(errors="replace").strip().splitlines()
+    if lines and lines[-1].startswith("{"):
+        try:
+            report = json.loads(lines[-1])
+        except ValueError:
+            report = None
+        if isinstance(report, dict) and report.get("error"):
+            return f"gated repo: {report['error']}" if report.get("gated") else str(report["error"])
+    tail = "\n".join(lines)[-STDERR_TAIL_CHARS:]
+    return tail or f"download exited with status {code}"
+
+
+async def stop_process(process: asyncio.subprocess.Process) -> None:
+    """Terminate the child's process group, escalating to SIGKILL, and reap it."""
+    if process.returncode is None:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(process.pid, signal.SIGTERM)
+        try:
+            await asyncio.wait_for(process.wait(), TERMINATE_GRACE_SECONDS)
+        except TimeoutError:
+            with contextlib.suppress(ProcessLookupError):
+                os.killpg(process.pid, signal.SIGKILL)
+    await process.wait()
+
+
+async def download(repo_id: str) -> None:
+    """Download in a child process so cancelling really stops it. Raises OSError on failure."""
+    process = await asyncio.create_subprocess_exec(
+        *download_command(repo_id), stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.PIPE, start_new_session=True,
+        env={**os.environ, "HF_HUB_DISABLE_PROGRESS_BARS": "1"})
+    try:
+        _, stderr = await process.communicate()
+    finally:
+        await asyncio.shield(stop_process(process))
+    if process.returncode != 0:
+        raise OSError(failure_message(stderr, process.returncode))
 
 
 def disk_usage_root() -> Path:

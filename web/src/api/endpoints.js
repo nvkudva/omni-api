@@ -25,7 +25,7 @@ export async function embed(body, abortSignal, execId) {
   return { status: response.status, data: await response.json() };
 }
 
-export async function describeImage(dataUrl, model, abortSignal) {
+export async function describeImage(dataUrl, model, abortSignal, execId) {
   const response = await postJson("/v1/chat/completions", {
     model,
     stream: false,
@@ -36,7 +36,7 @@ export async function describeImage(dataUrl, model, abortSignal) {
         { type: "image_url", image_url: { url: dataUrl } },
       ],
     }],
-  }, { signal: abortSignal });
+  }, { signal: abortSignal, headers: execHeaders(execId) });
   const data = await response.json();
   return data.choices?.[0]?.message?.content ?? "";
 }

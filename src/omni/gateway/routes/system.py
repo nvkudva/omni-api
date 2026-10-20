@@ -48,7 +48,7 @@ def register(app: FastAPI, ctx: Context) -> None:
 
     @app.get("/health")
     async def health() -> dict:
-        statuses = ctx.pool.status()
+        statuses = await asyncio.to_thread(ctx.pool.status)
         if "chat" not in statuses:
             reachable = bool(await _chat_models(ctx.clients["chat"]))
             statuses["chat"] = {"status": "external" if reachable else "unavailable", "url": ctx.chat_url}

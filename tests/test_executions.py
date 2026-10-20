@@ -3,6 +3,7 @@ import asyncio
 import unittest
 from unittest.mock import patch
 
+import httpx
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
@@ -88,7 +89,7 @@ class Retention(unittest.TestCase):
         entry = executions.get("e2")
         self.assertEqual(entry["body"], b"onetwothree")
 
-    def test_bodies_past_the_cap_are_marked_truncated(self):
+    def test_bodies_past_the_cap_are_not_retained_or_replayed(self):
         async def run():
             upstream = FakeUpstream([b"xxxxx"])
             executions.begin("e3", "image", "/v1/images/generations", 200,
@@ -99,8 +100,48 @@ class Retention(unittest.TestCase):
             asyncio.run(run())
         entry = executions.get("e3")
         self.assertTrue(entry["truncated"])
-        self.assertEqual(entry["body"], b"xxxx")
+        self.assertEqual(entry["body"], b"")
         self.assertEqual(entry["size"], 5)
+        self.assertIsNotNone(entry["error"])
+        self.assertEqual(executions.result_response(entry).status_code, 502)
+        self.assertIsNone(executions.claim("e3", "image", "/v1/images/generations"))
+
+    def test_an_error_status_runs_again_instead_of_replaying(self):
+        async def answer():
+            return JSONResponse({"error": {"message": "not ready", "type": "unavailable"}},
+                                status_code=503)
+
+        asyncio.run(executions.run("e6", "embed", "/v1/embeddings", answer))
+        self.assertIsNotNone(executions.get("e6")["error"])
+        self.assertIsNone(executions.claim("e6", "embed", "/v1/embeddings"))
+
+    def test_an_id_reused_for_another_request_is_a_conflict(self):
+        executions.claim("e7", "tts", "/v1/audio/speech", "hash-a")
+        executions.record("e7", "tts", "/v1/audio/speech", 200, "audio/wav", b"RIFF")
+        self.assertEqual(executions.claim("e7", "tts", "/v1/audio/speech", "hash-b").status_code, 409)
+        self.assertEqual(executions.claim("e7", "stt", "/v1/audio/transcriptions", "hash-a").status_code, 409)
+        self.assertEqual(executions.claim("e7", "tts", "/v1/audio/speech", "hash-a").body, b"RIFF")
+
+    def test_replay_restores_the_headers_a_client_needs(self):
+        executions.claim("e8", "tts", "/v1/audio/speech")
+        entry = executions.record("e8", "tts", "/v1/audio/speech", 200, "audio/pcm", b"\0\0",
+                                  headers={"x-sample-rate": "24000", "content-length": "2"})
+        replayed = executions.http_response(entry)
+        self.assertEqual(replayed.headers["x-sample-rate"], "24000")
+        self.assertEqual(replayed.headers["content-length"], "2")
+
+    def test_old_bodies_are_evicted_past_the_memory_budget(self):
+        with patch.object(executions, "MAX_STORED_BYTES", 5):
+            executions.record("old", "chat", "/v1/chat/completions", 200, "text/plain", b"aaaa")
+            executions.record("new", "chat", "/v1/chat/completions", 200, "text/plain", b"bbbb")
+        self.assertEqual(executions.get("old")["body"], b"")
+        self.assertEqual(executions.get("old")["error"], executions.EVICTED)
+        self.assertEqual(executions.get("new")["body"], b"bbbb")
+
+    def test_too_many_running_executions_is_a_429(self):
+        with patch.object(executions, "MAX_ACTIVE", 1):
+            self.assertIsNone(executions.claim("a1", "chat", "/v1/chat/completions"))
+            self.assertEqual(executions.claim("a2", "chat", "/v1/chat/completions").status_code, 429)
 
     def test_a_direct_call_survives_a_cancelled_wait(self):
         async def answer():
@@ -358,3 +399,73 @@ class RetainedForward(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BrokenErrorUpstream(FakeUpstream):
+    async def aiter_raw(self):
+        raise httpx.ReadTimeout("stalled")
+        yield b""
+
+
+class ForwardEdges(unittest.TestCase):
+    setUp = RetainedForward.setUp
+    settled = RetainedForward.settled
+
+    def test_a_broken_error_body_is_recorded_not_left_running(self):
+        class Client(FakeClient):
+            async def send(self, _request, stream=True):
+                return BrokenErrorUpstream([], status=500)
+
+        async def run():
+            proxy = Proxy({"tts": Client([])}, {})
+            return await proxy.forward(post_request("f1"), "tts", "/v1/audio/speech", body=b"{}")
+
+        response = asyncio.run(run())
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(executions.get("f1")["status"], "done")
+
+    def test_ready_runs_only_for_a_real_run_and_its_refusal_is_recorded(self):
+        calls = []
+
+        async def refuse():
+            calls.append(1)
+            return "model is still downloading"
+
+        async def ready():
+            calls.append(2)
+
+        async def run():
+            client = FakeClient([b"img"])
+            proxy = Proxy({"image": client}, {})
+            refused = await proxy.forward(post_request("f2"), "image", "/v1/images/generations",
+                                          body=b"{}", ready=refuse)
+            self.assertEqual(refused.status_code, 502)
+            first = await proxy.forward(post_request("f2"), "image", "/v1/images/generations",
+                                        body=b"{}", ready=ready)
+            async for _chunk in first.body_iterator:
+                pass
+            await self.settled("f2")
+            await proxy.forward(post_request("f2"), "image", "/v1/images/generations",
+                                body=b"{}", ready=ready)
+            return client.sends
+
+        self.assertEqual(asyncio.run(run()), 1)
+        self.assertEqual(calls, [1, 2])
+
+    def test_a_retained_stream_declares_no_content_length(self):
+        class Client(FakeClient):
+            async def send(self, _request, stream=True):
+                upstream = FakeUpstream([b"ab"])
+                upstream.headers["content-length"] = "2"
+                return upstream
+
+        async def run():
+            proxy = Proxy({"chat": Client([])}, {})
+            response = await proxy.forward(post_request("f3"), "chat", "/v1/chat/completions",
+                                           body=b"{}")
+            async for _chunk in response.body_iterator:
+                pass
+            await self.settled("f3")
+            return response
+
+        self.assertNotIn("content-length", asyncio.run(run()).headers)

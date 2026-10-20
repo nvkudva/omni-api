@@ -1,4 +1,5 @@
 """Speech to text: POST /v1/audio/transcriptions on parakeet-mlx."""
+import asyncio
 import tempfile
 from pathlib import Path
 from typing import Annotated
@@ -18,7 +19,13 @@ def _load():
     return parakeet_mlx.from_pretrained(model_name)
 
 
-model = workers.Lazy(_load, config.idle_seconds(settings))
+def _clear_cache() -> None:
+    import mlx.core
+
+    mlx.core.clear_cache()
+
+
+model = workers.Lazy(_load, config.idle_seconds(settings), _clear_cache)
 # MLX streams are thread-local, so every call into the model (load, unload,
 # transcribe) must land on this one thread or parakeet raises
 # "There is no Stream(...) in current thread".
@@ -30,6 +37,11 @@ def _transcribe(path: Path):
     # parakeet decodes the file with ffmpeg, so any container the browser records (webm, ogg, m4a) works.
     with model.use() as transcriber:
         return transcriber.transcribe(path)
+
+
+def _write_upload(upload, data: bytes) -> None:
+    upload.write(data)
+    upload.flush()
 
 
 def _suffix(filename: str | None) -> str:
@@ -64,8 +76,7 @@ async def transcriptions(
         raise HTTPException(413, f"file: larger than {limit_mb} MB")
 
     with tempfile.NamedTemporaryFile(suffix=_suffix(file.filename)) as upload:
-        upload.write(data)
-        upload.flush()
+        await asyncio.to_thread(_write_upload, upload, data)
         result = await executor.run(_transcribe, Path(upload.name))
 
     if response_format == "text":

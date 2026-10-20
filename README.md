@@ -10,7 +10,7 @@ The first client is Hyperlight.
 
 ![Playground — Chat tab, dark theme](docs/screenshots/playground-chat.png)
 
-The playground at `/playground`: every role is a card on top (runner, endpoint, one status that says what its runtime is doing, and the single action that follows from it), and each tab is a workbench with a UI / JSON / cURL view of the same request.
+The playground at `/`: every role is a card on top (runner, endpoint, one status that says what its runtime is doing, and the single action that follows from it), and each tab is a workbench with a UI / JSON / cURL view of the same request.
 
 ---
 
@@ -24,7 +24,7 @@ apps ──► 127.0.0.1:10000  omni gateway (FastAPI + httpx streaming proxy)
            /v1/images/generations    ──► image worker    unix:~/.omni-api/run/image.sock
            /v1/audio/transcriptions  ──► stt worker      unix:~/.omni-api/run/stt.sock
            /v1/audio/speech          ──► tts worker      unix:~/.omni-api/run/tts.sock
-           /playground, /static      ──► built playground (src/omni/static/app)
+           /, /static            ──► built playground (src/omni/static/app)
 ```
 
 - **Gateway** (`gateway/`): the FastAPI app (`gateway/app.py`) builds the shared context and mounts one module per route family (`gateway/routes/`). `gateway/proxy.py` streams each request through to its worker with httpx, filling in the default chat model when the request leaves `model` out.
@@ -49,7 +49,7 @@ omni status    # worker health as JSON
 omni down      # stop the gateway and every worker
 ```
 
-Then open **http://127.0.0.1:10000/playground**.
+Then open **http://127.0.0.1:10000/**.
 
 ### Playground
 
@@ -120,7 +120,7 @@ omni brings all of that together:
 | **tts** | `POST /v1/audio/speech`, `GET /v1/audio/voices` | `prince-canuma/Kokoro-82M-4bit` (27 voices) | mlx-audio |
 | — | `GET /health`, `GET /v1/models` | | |
 | — | `GET /admin/models`, `GET /admin/models/search`, `POST /admin/models/{pull,delete,default,load,unload}`, `POST /admin/workers/{name}/{start,stop,restart}`, `GET /admin/memory` | list, search Hugging Face (per-role filter), install, delete, switch, load and unload models; start, stop and restart workers; memory, CPU and load with overload warnings | |
-| — | `GET /playground` | browser playground for every endpoint | |
+| — | `GET /` | browser playground for every endpoint (`/playground` redirects here) | |
 
 Measured on Apple Silicon:
 

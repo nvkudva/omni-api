@@ -155,6 +155,6 @@ def run() -> int:
     if host in ("0.0.0.0", "::"):
         host = "127.0.0.1"
     print(f"ready: {', '.join(models)}")
-    print(f"next: `omni up`, then open http://{host}:{settings['gateway']['port']}/playground")
+    print(f"next: `omni up`, then open http://{host}:{settings['gateway']['port']}/")
     print("  (the stt, tts, image and video models download on first use)")
     return 0

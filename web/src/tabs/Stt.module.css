@@ -16,3 +16,5 @@
 .timestamp { font-family: var(--font); font-size: 12px; color: var(--text-2); flex: none; }
 
 .stack { display: flex; flex-direction: column; gap: 16px; }
+
+.foot { margin-right: auto; color: var(--text-3); font-size: 12px; }

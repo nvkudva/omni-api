@@ -69,13 +69,14 @@ function textOf(message) {
 }
 
 /** Turns flattened for the bubble view: a user bubble and/or an assistant bubble each. */
-function toBubbles(turns, streaming, streamingText) {
+function toBubbles(turns, streaming) {
   const bubbles = [];
   turns.forEach((turn, index) => {
     if (turn.user) bubbles.push({ id: `${turn.id}-user`, role: "user", content: turn.user.content, images: turn.user.images });
     const isStreaming = streaming && index === turns.length - 1;
-    const body = turn.assistant?.content ?? (isStreaming ? streamingText : "");
-    if (body || isStreaming) bubbles.push({ id: `${turn.id}-assistant`, role: "assistant", content: body });
+    const live = isStreaming && !turn.assistant;
+    const body = turn.assistant?.content ?? "";
+    if (body || live) bubbles.push({ id: `${turn.id}-assistant`, role: "assistant", content: body, live });
   });
   return bubbles;
 }
@@ -87,6 +88,33 @@ function Attachments({ images }) {
       {images.map((url, index) => <img key={index} class={styles.thumb} src={url} alt="" />)}
     </div>
   );
+}
+
+/** The only reader of the stream signal, so a token re-renders this text and nothing else. */
+function StreamText({ stream, class: className, follow }) {
+  const text = stream.value;
+  useEffect(() => { follow(); }, [text]);
+  return text ? <div class={className}>{text}</div> : <div class={styles.thinking}>…</div>;
+}
+
+/** A wire request with its image data URLs shortened for display. */
+function shortenWire(body) {
+  return {
+    ...body,
+    messages: (body.messages ?? []).map((message) => (Array.isArray(message.content)
+      ? {
+        ...message,
+        content: message.content.map((part) => (part?.type === "image_url" && part.image_url?.url
+          ? { ...part, image_url: { ...part.image_url, url: shorten(part.image_url.url) } }
+          : part)),
+      }
+      : message)),
+  };
+}
+
+function imagesOf(message) {
+  if (!Array.isArray(message?.content)) return [];
+  return message.content.filter((part) => part?.type === "image_url" && part.image_url?.url).map((part) => part.image_url.url);
 }
 
 export default function Chat() {
@@ -104,6 +132,7 @@ export default function Chat() {
   const fileInput = useRef(null);
   const stream = useMemo(() => signal(""), []);
   const turns = useMemo(() => toTurns(messages), [messages]);
+  const listRef = useRef(null);
   const turnState = useTurnState();
 
   const names = chatModels();
@@ -114,10 +143,24 @@ export default function Chat() {
   useEffect(() => { if (!vision) setImages([]); }, [vision]);
 
   const draft = input ? [{ id: "draft", role: "user", content: input, images }] : [];
-  const preview = requestBody(selected, system, [...messages, ...draft], true);
+  const preview = useMemo(
+    () => requestBody(selected, system, [...messages, ...draft], true),
+    [selected, system, messages, input, images],
+  );
   const json = useJsonRequest(view, preview);
   const effectiveBody = view === "json" && json.body ? json.body : preview;
-  const curl = curlJson("/v1/chat/completions", effectiveBody, " \\\n  --no-buffer");
+  const curl = useMemo(
+    () => curlJson("/v1/chat/completions", effectiveBody, " \\\n  --no-buffer"),
+    [effectiveBody],
+  );
+
+  const follow = () => {
+    const scroller = listRef.current?.parentElement;
+    if (!scroller) return;
+    const nearBottom = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80;
+    if (nearBottom) scroller.scrollTop = scroller.scrollHeight;
+  };
+  useEffect(follow, [messages, conversation]);
 
   const choose = (name) => {
     setModel(name);
@@ -144,7 +187,7 @@ export default function Chat() {
       outgoing = json.body;
       const lastUser = [...(outgoing.messages ?? [])].reverse().find((message) => message.role === "user");
       if (!lastUser) return;
-      userMessage = { id: uid(), role: "user", content: textOf(lastUser), images: [], at: Date.now() };
+      userMessage = { id: uid(), role: "user", content: textOf(lastUser), images: imagesOf(lastUser), at: Date.now() };
     } else {
       const text = input.trim();
       if (!text) return;
@@ -153,7 +196,7 @@ export default function Chat() {
     }
 
     const base = [...messages, userMessage];
-    const wireRequest = requestBody(outgoing.model ?? selected, system, base, true);
+    const wireRequest = view === "json" ? shortenWire(outgoing) : requestBody(outgoing.model ?? selected, system, base, true);
     setMessages(base);
     setInput("");
     setImages([]);
@@ -210,7 +253,7 @@ export default function Chat() {
   const jsonHasUser = Boolean(json.body?.messages?.some?.((message) => message.role === "user"));
   const canSend = !streaming && (view === "json" ? Boolean(json.body) && !json.error && jsonHasUser : Boolean(input.trim()));
   const openId = turnState.open ?? turns[turns.length - 1]?.id;
-  const bubbles = toBubbles(turns, streaming, stream.value);
+  const bubbles = useMemo(() => toBubbles(turns, streaming), [turns, streaming]);
 
   const modelPicker = (
     <select aria-label="chat model" value={selected} onChange={(event) => choose(event.currentTarget.value)}>
@@ -302,22 +345,22 @@ export default function Chat() {
         {turns.length
           ? conversation === "chat"
             ? (
-              <div class={styles.chat}>
+              <div class={styles.chat} ref={listRef}>
                 {bubbles.map((bubble) => (
                   <div key={bubble.id} class={cx(styles.bubble, styles[bubble.role])}>
-                    {bubble.content
-                      ? <div class={styles.bubbleText}>{bubble.content}</div>
-                      : <span class={styles.thinking}>…</span>}
+                    {bubble.live
+                      ? <StreamText stream={stream} class={styles.bubbleText} follow={follow} />
+                      : <div class={styles.bubbleText}>{bubble.content}</div>}
                     <Attachments images={bubble.images} />
                   </div>
                 ))}
               </div>
             )
             : (
-              <div class={styles.log}>
+              <div class={styles.log} ref={listRef}>
                 {turns.map((turn, index) => {
                   const isStreaming = streaming && index === turns.length - 1;
-                  const body = turn.assistant?.content ?? (isStreaming ? stream.value : "");
+                  const live = isStreaming && !turn.assistant;
                   return (
                     <Turn
                       key={turn.id}
@@ -334,8 +377,9 @@ export default function Chat() {
                         ? { request: turn.assistant.request, response: turn.assistant.response }
                         : { request: preview }}
                     >
-                      <div class={styles.text}>{body}</div>
-                      {isStreaming && !body && <div class={styles.thinking}>…</div>}
+                      {live
+                        ? <StreamText stream={stream} class={styles.text} follow={follow} />
+                        : <div class={styles.text}>{turn.assistant?.content ?? ""}</div>}
                     </Turn>
                   );
                 })}

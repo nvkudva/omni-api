@@ -1,5 +1,5 @@
 import { signal } from "@preact/signals";
-import { getJson } from "./client.js";
+import { assertOk, getJson } from "./client.js";
 import { uid } from "../lib/uid.js";
 
 export const EXEC_HEADER = "x-omni-exec";
@@ -30,8 +30,7 @@ export async function pollExecs() {
 
 /** Fetch one retained result as a blob with its stored content type. */
 export async function execResult(execId) {
-  const response = await fetch(`/admin/requests/${encodeURIComponent(execId)}/result`);
-  if (!response.ok) throw new Error(`request ${execId}: ${response.status}`);
+  const response = await assertOk(await fetch(`/admin/requests/${encodeURIComponent(execId)}/result`));
   return { blob: await response.blob(), contentType: response.headers.get("content-type") ?? "" };
 }
 

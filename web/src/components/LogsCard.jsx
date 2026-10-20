@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { getText } from "../api/client.js";
 import { OLLAMA_ROLES } from "../api/roles.js";
+import { usePageActive } from "../hooks/usePageActive.js";
 import { usePolling } from "../hooks/usePolling.js";
 import styles from "./LogsCard.module.css";
 
@@ -16,6 +17,7 @@ export function LogsCard({ role, initialOpen = false }) {
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const viewRef = useRef(null);
+  const pageActive = usePageActive();
   const fileName = OLLAMA_ROLES.has(role) ? "Ollama server.log" : `${role}.log`;
 
   usePolling(async () => {
@@ -25,7 +27,7 @@ export function LogsCard({ role, initialOpen = false }) {
     } catch (failure) {
       setError(failure.message);
     }
-  }, LOG_POLL_MS, { active: open });
+  }, LOG_POLL_MS, { active: open && pageActive });
 
   useEffect(() => {
     const view = viewRef.current;

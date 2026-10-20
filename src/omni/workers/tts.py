@@ -24,7 +24,13 @@ def _load():
     return load_model(model_name)
 
 
-model = workers.Lazy(_load, config.idle_seconds(settings))
+def _clear_cache() -> None:
+    import mlx.core
+
+    mlx.core.clear_cache()
+
+
+model = workers.Lazy(_load, config.idle_seconds(settings), _clear_cache)
 executor = workers.ModelExecutor("tts-model")
 app = workers.app(model, model_executor=executor)
 

@@ -1,4 +1,6 @@
 """POST /v1/systemone and POST /v1/embeddings: gateway logic answered by Ollama."""
+import json
+
 import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse, Response
@@ -20,6 +22,8 @@ def register(app: FastAPI, ctx: Context) -> None:
             return error_response(400, str(error), "invalid_request_error")
         except UpstreamError as error:
             return error_response(502, str(error), "upstream_error")
+        except httpx.TimeoutException:
+            return error_response(504, f"ollama did not answer {role} in time", "timeout")
         except httpx.TransportError:
             return error_response(
                 503, f"ollama is not ready ({ctx.proxy.state('chat')}); GET /health shows progress", "unavailable")
@@ -42,7 +46,8 @@ def register(app: FastAPI, ctx: Context) -> None:
         if exec_id is None:
             return await answer(role, run, model, payload)
         path = f"/v1/{'systemone' if role == 'decide' else 'embeddings'}"
-        answered = executions.claim(exec_id, role, path)
+        request_hash = executions.fingerprint(json.dumps(payload, sort_keys=True).encode())
+        answered = executions.claim(exec_id, role, path, request_hash)
         if answered is not None:
             return answered
         # retained: a disconnect cancels this wait behind a shield, never the work itself

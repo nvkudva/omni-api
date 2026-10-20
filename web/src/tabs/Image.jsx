@@ -123,10 +123,10 @@ export default function Image() {
         tools={<UiJson view={view} onChange={setView} />}
         foot={(
           <>
-            <span style={{ marginRight: "auto", color: "var(--text-3)", fontSize: "12px" }}>{steps} steps · {size}</span>
+            <span class={styles.summary}>{steps} steps · {size}</span>
             {busy
               ? <ui.Button variant="stop" onClick={() => cancelExec(abort.current, execId.current)}>Stop</ui.Button>
-              : <ui.Button variant="primary" disabled={view === "ui" && !body.prompt} onClick={generate}>Generate</ui.Button>}
+              : <ui.Button variant="primary" disabled={view === "json" ? Boolean(json.error) || !json.body?.prompt : !body.prompt} onClick={generate}>Generate</ui.Button>}
           </>
         )}
       >

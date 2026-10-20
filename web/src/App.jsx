@@ -4,6 +4,7 @@ import { downloads, installs, pollDownloads, pollRuntime, ROLE_META, ROLE_ORDER 
 import { execs, execResult, pollExecs } from "./api/execs.js";
 import { Meter, Spinner } from "./components/ui.jsx";
 import { size } from "./lib/format.js";
+import { PageActive } from "./hooks/usePageActive.js";
 import { usePolling } from "./hooks/usePolling.js";
 import { useTheme } from "./hooks/useTheme.js";
 import { GatewayStatus, LastRequest } from "./components/GatewayStatus.jsx";
@@ -108,7 +109,8 @@ function ExecStrip() {
   const word = (entry) => entry.error ? "failed"
     : entry.finished_at ? `done · ${size(entry.size)}` : `running · ${size(entry.bytes)}`;
   return (
-    <div class={styles.downloads} role="status" aria-label="Recent requests">
+    <div class={styles.downloads} aria-label="Recent requests">
+      <span class={styles.srOnly} role="status">{running.length ? `${running.length} running` : ""}</span>
       {entries.map((entry) => (
         <div key={entry.id} class={styles.download}>
           <span class={styles.downloadLabel} title={`${entry.id} · ${entry.error ?? entry.path}`}>
@@ -215,7 +217,9 @@ export default function App() {
           const RolePage = COMPONENTS[role];
           return (
             <div key={role} class={role === tab && !settingsOpen ? styles.page : styles.pageHidden} aria-hidden={role === tab && !settingsOpen ? undefined : true}>
-              <RolePage active={role === tab && !settingsOpen} />
+              <PageActive.Provider value={role === tab && !settingsOpen}>
+                <RolePage active={role === tab && !settingsOpen} />
+              </PageActive.Provider>
             </div>
           );
         })}

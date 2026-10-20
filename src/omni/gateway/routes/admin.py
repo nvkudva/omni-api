@@ -12,12 +12,22 @@ from omni.errors import error_response
 from omni.gateway import executions, residency
 from omni.gateway.context import Context
 from omni.gateway.http import json_object
+from omni.registry import pulling
 
 HF_ERRORS = (HfHubHTTPError, OSError)
 
 
 def _bad_role() -> HTTPException:
     return HTTPException(400, f"role: one of {', '.join(registry.ROLES)}")
+
+
+def _unsupported(role: str, name: str) -> str | None:
+    """Why this role's runtime cannot run `name`, or None when it can."""
+    if registry.supports(role, name):
+        return None
+    marker = registry.family(role)
+    hint = f" (it loads only repos with '{marker}' in the name)" if marker else ""
+    return f"the {role} runtime cannot run {name}{hint}"
 
 
 def register(app: FastAPI, ctx: Context) -> None:
@@ -58,11 +68,14 @@ def register(app: FastAPI, ctx: Context) -> None:
                              "installed_by_role": installed_by_role})
 
     @app.post("/admin/models/pull")
-    async def admin_pull(request: Request) -> StreamingResponse:
+    async def admin_pull(request: Request) -> Response:
         role, model = await model_request(request)
         model = registry.normalize_repo_id(model)
         if registry.runner(role) != "ollama":
             model = registry.bare_repo_id(model)
+        reason = _unsupported(role, model)
+        if reason:
+            return error_response(400, reason, "invalid_request_error")
         # the download belongs to the server from here on: this stream only watches it, so
         # closing the tab, navigating away or closing the browser never cancels the download
         task = registry.ensure_started(role, model, clients["chat"])
@@ -94,6 +107,8 @@ def register(app: FastAPI, ctx: Context) -> None:
         users = [name for name in registry.ROLES if registry.matches(settings[name]["model"], model)]
         if users:
             return error_response(409, f"{model} is the default for {', '.join(users)}; switch that first", "conflict")
+        if registry.progress(model) or model in pulling.TASKS:
+            return error_response(409, f"{model} is still downloading; wait for it to finish", "conflict")
         try:
             if registry.runner(role) == "ollama":
                 await registry.ollama_delete(clients["chat"], model)
@@ -203,7 +218,7 @@ def register(app: FastAPI, ctx: Context) -> None:
             return error_response(404, f"no retained request {exec_id}", "not_found")
         if entry["status"] == "running":
             return error_response(409, f"request {exec_id} is still running", "conflict")
-        return executions.http_response(entry)
+        return executions.result_response(entry)
 
     @app.get("/admin/models/check")
     async def admin_check(role: str, model: str = Query(..., min_length=1)) -> JSONResponse:
@@ -213,11 +228,9 @@ def register(app: FastAPI, ctx: Context) -> None:
         name = registry.normalize_repo_id(model.strip())
         if registry.runner(role) != "ollama":
             name = registry.bare_repo_id(name)
-        if not registry.supports(role, name):
-            marker = registry.family(role)
-            hint = f" (it loads only repos with '{marker}' in the name)" if marker else ""
-            return JSONResponse({"role": role, "model": name, "supported": False,
-                                 "reason": f"the {role} runtime cannot run {name}{hint}",
+        reason = _unsupported(role, name)
+        if reason:
+            return JSONResponse({"role": role, "model": name, "supported": False, "reason": reason,
                                  "installed": False, "size_bytes": None, "blockers": []})
         try:
             available = await installed_for(role)
@@ -375,12 +388,13 @@ def register(app: FastAPI, ctx: Context) -> None:
             return error_response(404, f"no worker named {name}", "not_found")
         if action not in ("start", "stop", "restart"):
             return error_response(400, "action: start, stop or restart", "invalid_request_error")
+        worker = pool.workers[name]
         if action == "stop":
             await pool.hold(name)
-        else:
+        elif action == "restart" or worker.held or worker.status in ("stopped", "failed"):
             await pool.restart(name)
         return JSONResponse({"worker": name, "status": pool.workers[name].status})
 
     @app.get("/admin/memory")
     async def admin_memory() -> dict:
-        return await registry.memory(clients["chat"], pool.status())
+        return await registry.memory(clients["chat"], await asyncio.to_thread(pool.status))

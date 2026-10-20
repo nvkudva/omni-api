@@ -138,6 +138,15 @@ def ensure_started(role: str, model: str, client: httpx.AsyncClient) -> asyncio.
     return task
 
 
+async def shutdown() -> None:
+    """Cancel every in-flight download and wait until its child process is gone."""
+    tasks = list(TASKS.values())
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+    TASKS.clear()
+
+
 async def pull(client: httpx.AsyncClient, role: str, model: str) -> AsyncIterator[dict]:
     """Progress events while `model` downloads."""
     events = _ollama_pull(client, role, model) if runner(role) == "ollama" else _hf_pull(role, model)
@@ -186,7 +195,7 @@ async def _hf_pull(role: str, repo_id: str) -> AsyncIterator[dict]:
     for warning in fit_blockers(total):
         yield {"warning": warning}
     track(role, repo_id, total, 0)
-    download = asyncio.create_task(asyncio.to_thread(huggingface.download, repo_id))
+    download = asyncio.create_task(huggingface.download(repo_id))
     folder = huggingface.cache_dir(repo_id)
     try:
         while not download.done():
@@ -202,5 +211,6 @@ async def _hf_pull(role: str, repo_id: str) -> AsyncIterator[dict]:
         # a client that disconnects mid-download closes this generator; do not leave the task pending
         if not download.done():
             download.cancel()
+        await asyncio.gather(download, return_exceptions=True)
     huggingface.invalidate()
     yield {"status": "success"}

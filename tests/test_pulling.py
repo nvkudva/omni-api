@@ -1,9 +1,12 @@
 """Gated Hugging Face repos surface as a structured accept-terms event, not a raw upstream error."""
 import asyncio
+import os
+import sys
+import time
 import unittest
 from unittest.mock import patch
 
-from omni.registry import pulling
+from omni.registry import huggingface, pulling
 
 
 class Gated(unittest.TestCase):
@@ -170,6 +173,91 @@ class Tracker(unittest.TestCase):
             asyncio.run(run())
         self.assertTrue(any(event.get("completed") == 10 for event in seen))
         self.assertEqual(seen[-1], {"status": "success"})
+
+
+SLEEPER = [sys.executable, "-c", "import time; print('up', flush=True); time.sleep(60)"]
+
+
+def alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+class ChildDownload(unittest.TestCase):
+    def test_cancel_kills_the_child_process(self):
+        pids = []
+        real = asyncio.create_subprocess_exec
+
+        async def spawn(*args, **kwargs):
+            process = await real(*SLEEPER, **kwargs)
+            pids.append(process.pid)
+            return process
+
+        async def run():
+            task = asyncio.create_task(huggingface.download("a/b"))
+            await asyncio.sleep(0.5)
+            task.cancel()
+            started = time.monotonic()
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+            return time.monotonic() - started
+
+        with patch.object(huggingface.asyncio, "create_subprocess_exec", spawn):
+            elapsed = asyncio.run(run())
+        self.assertLess(elapsed, 4)
+        self.assertFalse(alive(pids[0]))
+
+    def test_a_failing_child_reports_its_error(self):
+        script = "import sys; print('{\"error\": \"404 not found\", \"gated\": false}', file=sys.stderr); sys.exit(1)"
+        with patch.object(huggingface, "download_command", return_value=[sys.executable, "-c", script]), \
+                self.assertRaises(OSError) as raised:
+            asyncio.run(huggingface.download("a/b"))
+        self.assertEqual(str(raised.exception), "404 not found")
+        self.assertFalse(pulling.is_gated(raised.exception))
+
+    def test_a_gated_child_stays_recognisable(self):
+        script = "import sys; print('{\"error\": \"403\", \"gated\": true}', file=sys.stderr); sys.exit(1)"
+        with patch.object(huggingface, "download_command", return_value=[sys.executable, "-c", script]), \
+                self.assertRaises(OSError) as raised:
+            asyncio.run(huggingface.download("a/b"))
+        self.assertTrue(pulling.is_gated(raised.exception))
+
+    def test_unstructured_stderr_becomes_the_message(self):
+        script = "import sys; print('boom', file=sys.stderr); sys.exit(3)"
+        with patch.object(huggingface, "download_command", return_value=[sys.executable, "-c", script]), \
+                self.assertRaises(OSError) as raised:
+            asyncio.run(huggingface.download("a/b"))
+        self.assertEqual(str(raised.exception), "boom")
+
+
+class Shutdown(unittest.TestCase):
+    def test_shutdown_cancels_and_awaits_in_flight_downloads(self):
+        pulling.TASKS.clear()
+        self.addCleanup(pulling.TASKS.clear)
+        cleaned = []
+
+        async def fake_pull(client, role, model):
+            try:
+                await asyncio.sleep(60)
+            finally:
+                cleaned.append(model)
+            yield {"status": "success"}
+
+        async def run():
+            pulling.ensure_started("stt", "a/b", None)
+            await asyncio.sleep(0.05)
+            task = pulling.TASKS["a/b"]
+            await pulling.shutdown()
+            return task
+
+        with patch.object(pulling, "pull", fake_pull):
+            task = asyncio.run(run())
+        self.assertTrue(task.cancelled())
+        self.assertEqual(cleaned, ["a/b"])
+        self.assertEqual(pulling.TASKS, {})
 
 
 if __name__ == "__main__":

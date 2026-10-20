@@ -48,3 +48,5 @@
   transition: border-color 0.15s, background-color 0.15s;
 }
 .dropOver { border-color: var(--ring); background: var(--muted); }
+
+.turns { display: flex; flex-direction: column; gap: 14px; }

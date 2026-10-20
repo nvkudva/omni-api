@@ -5,6 +5,7 @@ import { cancelExec, newExecId } from "../api/execs.js";
 import { curlJson } from "../lib/curl.js";
 import { uid } from "../lib/uid.js";
 import { since, wavSeconds } from "../lib/format.js";
+import { models } from "../api/models.js";
 import { usePolling } from "../hooks/usePolling.js";
 import * as store from "../store.js";
 import * as ui from "../components/ui.jsx";
@@ -23,19 +24,25 @@ function voiceLabel(voice) {
   return `${voice.slice(3)} · ${ACCENTS[voice[0]] ?? voice[0]} ${GENDERS[voice[1]] ?? voice[1]}`;
 }
 
-function useVoices() {
+function useVoices(active) {
   const [voices, setVoices] = useState(null);
   const [fallback, setFallback] = useState("");
+  const model = models.value.defaults.tts;
+  // A different TTS model has a different voice list: start over.
+  useEffect(() => {
+    setVoices(null);
+    setFallback("");
+  }, [model]);
   usePolling(async () => {
     const result = await fetchVoices();
     setVoices(result.voices);
     setFallback(result.default);
-  }, 3000, { active: voices === null });
+  }, 3000, { active: active && voices === null });
   return { voices, fallback };
 }
 
-export default function Tts() {
-  const { voices, fallback } = useVoices();
+export default function Tts({ active = true }) {
+  const { voices, fallback } = useVoices(active);
   const [chosen, setChosen] = useState(() => store.get("omni.tts.voice", ""));
   const [text, setText] = useState(DEFAULT_TEXT);
   const [speed, setSpeed] = useState(1);
@@ -118,7 +125,9 @@ export default function Tts() {
       const heard = typeof result === "string" ? result : result?.text;
       if (heard != null) updateClip(id, { heard });
     } catch (error) {
-      if (error.name === "AbortError") updateClip(id, { pending: false, error: "cancelled" });
+      if (clipsRef.current.find((clip) => clip.id === id)?.url) {
+        updateClip(id, { heardError: error.name === "AbortError" ? "stopped" : error.message });
+      } else if (error.name === "AbortError") updateClip(id, { pending: false, error: "cancelled" });
       else updateClip(id, { pending: false, error: error.message });
       setMeta("");
     } finally {
@@ -197,6 +206,7 @@ export default function Tts() {
                             <a class={styles.link} href={clip.url} download={clip.filename}>download .wav</a>
                           </div>
                           {clip.heard != null && <ui.Meta>stt heard: “{clip.heard.trim()}”</ui.Meta>}
+                          {clip.heardError && <ui.Meta>stt round trip failed: {clip.heardError}</ui.Meta>}
                         </div>
                       )}
                 </Turn>

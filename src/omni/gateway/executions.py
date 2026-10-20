@@ -9,6 +9,7 @@ or was cancelled, which runs it afresh. A POST with an id that is still running 
 pointing at the status endpoint. `DELETE /admin/requests/{id}` cancels a running execution.
 """
 import asyncio
+import hashlib
 import time
 
 from fastapi.responses import Response
@@ -23,9 +24,15 @@ MAX_BODY_BYTES = 24 * 1024 * 1024
 HARD_CAP_BYTES = 64 * 1024 * 1024
 LIVE_BACKPRESSURE_BYTES = 8 * 1024 * 1024
 MAX_DONE = 50
+# finished bodies beyond this budget are dropped oldest first; their metadata stays
+MAX_STORED_BYTES = 256 * 1024 * 1024
+MAX_ACTIVE = 16
 TTL_SECONDS = 1800.0
 
 CANCELLED = "cancelled"
+EVICTED = "result evicted to free memory; run it again"
+# replay restores these; content-type travels separately and content-length is recomputed
+REPLAYED_HEADERS = ("server-timing", "x-sample-rate", "content-disposition", "cache-control")
 
 TASKS: dict[str, asyncio.Task] = {}
 """The task doing each execution's work: the upstream send while it waits for headers, then
@@ -49,6 +56,11 @@ def valid_id(value) -> str | None:
     return None
 
 
+def fingerprint(body: bytes) -> str:
+    """What a request asked for, so an id reused for a different request is never replayed."""
+    return hashlib.sha256(body).hexdigest()
+
+
 def get(exec_id: str) -> dict | None:
     """The execution, running or finished, or None when unknown."""
     entry = ACTIVE.get(exec_id)
@@ -60,17 +72,19 @@ def get(exec_id: str) -> dict | None:
     return None
 
 
-def _show_running(exec_id: str, role: str, path: str) -> None:
+def _show_running(exec_id: str, role: str, path: str, request_hash: str | None = None) -> None:
     ACTIVE[exec_id] = {"id": exec_id, "role": role, "path": path, "started_at": time.monotonic(),
-                       "bytes": 0, "status_code": None, "content_type": None}
+                       "bytes": 0, "status_code": None, "content_type": None,
+                       "fingerprint": request_hash}
 
 
-def claim(exec_id: str, role: str, path: str) -> Response | None:
+def claim(exec_id: str, role: str, path: str, request_hash: str | None = None) -> Response | None:
     """Take `exec_id` for a new run, or answer without running.
 
     Returns None when claimed (the run shows as running from now on; the caller puts the task
-    doing the work in TASKS), a 409 when the id is still running, or the stored response when
-    it finished cleanly and should replay.
+    doing the work in TASKS), a 409 when the id is still running or names a different request,
+    a 429 when too many executions are running, or the stored response when it finished cleanly
+    and should replay.
     """
     entry = get(exec_id)
     if entry is not None and entry["status"] == "running":
@@ -78,8 +92,14 @@ def claim(exec_id: str, role: str, path: str) -> Response | None:
             409, f"request {exec_id} is already running; GET /admin/requests/{exec_id} to watch it",
             "conflict")
     if entry is not None and entry.get("error") is None:
+        if entry["path"] != path or entry.get("fingerprint") != request_hash:
+            return error_response(
+                409, f"request id {exec_id} was already used for a different request", "conflict")
         return http_response(entry)
-    _show_running(exec_id, role, path)
+    if len(ACTIVE) >= MAX_ACTIVE:
+        return error_response(429, f"{MAX_ACTIVE} retained requests are already running; retry later",
+                              "rate_limit_exceeded")
+    _show_running(exec_id, role, path, request_hash)
     return None
 
 
@@ -125,18 +145,37 @@ def _remember(entry: dict) -> None:
     while len(DONE) > MAX_DONE:
         oldest = min(DONE, key=lambda key: DONE[key]["finished_at"])
         del DONE[oldest]
+    _evict_bodies()
+
+
+def _evict_bodies() -> None:
+    """Keep stored bodies within MAX_STORED_BYTES by dropping the oldest ones first."""
+    stored = sum(len(entry["body"]) for entry in DONE.values())
+    for entry in sorted(DONE.values(), key=lambda e: e["finished_at"]):
+        if stored <= MAX_STORED_BYTES:
+            return
+        if not entry["body"]:
+            continue
+        stored -= len(entry["body"])
+        entry["body"] = b""
+        entry["error"] = entry["error"] or EVICTED
 
 
 class Sink:
     """One retained response: the pump feeds it, the live client reads from it, the store keeps it."""
 
-    def __init__(self, exec_id: str, role: str, path: str, status: int, content_type: str) -> None:
+    def __init__(self, exec_id: str, role: str, path: str, status: int, content_type: str,
+                 headers: dict | None = None) -> None:
         self.exec_id = exec_id
         self.role = role
         self.path = path
         self.status = status
         self.content_type = content_type
-        self.started_at = ACTIVE.get(exec_id, {}).get("started_at", time.monotonic())
+        self.headers = {name: value for name, value in (headers or {}).items()
+                        if name.lower() in REPLAYED_HEADERS}
+        claimed = ACTIVE.get(exec_id, {})
+        self.started_at = claimed.get("started_at", time.monotonic())
+        self.fingerprint = claimed.get("fingerprint")
         self.stream = bytearray()
         self.bytes = 0
         self.live_offset = 0
@@ -148,7 +187,8 @@ class Sink:
     def describe(self) -> dict:
         return {"id": self.exec_id, "role": self.role, "path": self.path,
                 "started_at": self.started_at, "bytes": self.bytes,
-                "status_code": self.status, "content_type": self.content_type}
+                "status_code": self.status, "content_type": self.content_type,
+                "fingerprint": self.fingerprint}
 
     def feed(self, chunk: bytes) -> bool:
         """Append one upstream chunk for the live client. False when past the hard cap."""
@@ -190,12 +230,15 @@ class Sink:
         """Close the execution and remember it for replay. Returns the stored entry."""
         self.finished = True
         self.pooled.set()
-        body = bytes(self.stream[:MAX_BODY_BYTES])
+        truncated = len(self.stream) > MAX_BODY_BYTES
+        if truncated and error is None:
+            error = f"response larger than {MAX_BODY_BYTES // 1024 // 1024} MB; not retained"
+        body = b"" if truncated else bytes(self.stream)
         entry = {"id": self.exec_id, "role": self.role, "path": self.path,
                  "started_at": self.started_at, "status_code": self.status,
-                 "content_type": self.content_type, "size": len(self.stream),
-                 "truncated": len(self.stream) > MAX_BODY_BYTES,
-                 "body": body, "error": error}
+                 "content_type": self.content_type, "headers": self.headers,
+                 "fingerprint": self.fingerprint, "size": len(self.stream),
+                 "truncated": truncated, "body": body, "error": error}
         del self.stream
         TASKS.pop(self.exec_id, None)
         _remember(entry)
@@ -223,19 +266,33 @@ async def _pump(sink: Sink, upstream) -> None:
     sink.finish(error=error)
 
 
-def begin(exec_id: str, role: str, path: str, status: int, content_type: str, upstream) -> Sink:
+def begin(exec_id: str, role: str, path: str, status: int, content_type: str, upstream,
+          headers: dict | None = None) -> Sink:
     """Start retaining one upstream response in its own task. Returns the live sink."""
-    sink = Sink(exec_id, role, path, status, content_type)
+    sink = Sink(exec_id, role, path, status, content_type, headers)
     TASKS[exec_id] = asyncio.create_task(_pump(sink, upstream), name=f"omni-exec-{exec_id}")
     return sink
 
 
 def record(exec_id: str, role: str, path: str, status: int, content_type: str,
-           body: bytes, error: str | None = None) -> dict:
-    """Remember one already-complete response (an error, or a direct call's answer) for replay."""
-    sink = Sink(exec_id, role, path, status, content_type)
-    sink.stream.extend(body[:MAX_BODY_BYTES])
+           body: bytes, error: str | None = None, headers: dict | None = None) -> dict:
+    """Remember one already-complete response (an error, or a direct call's answer) for replay.
+
+    A status of 400 or above is a failure, so a repeated POST runs it again instead of replaying.
+    """
+    if status >= 400 and error is None:
+        error = f"answered {status}"
+    sink = Sink(exec_id, role, path, status, content_type, headers)
+    sink.stream.extend(body)
     return sink.finish(error=error)
+
+
+def record_response(exec_id: str, role: str, path: str, response: Response,
+                    error: str | None = None) -> dict:
+    """`record` for a finished Response object."""
+    return record(exec_id, role, path, response.status_code,
+                  response.headers.get("content-type", "application/octet-stream"),
+                  response.body, error=error, headers=dict(response.headers))
 
 
 async def run(exec_id: str, role: str, path: str, call):
@@ -246,16 +303,13 @@ async def run(exec_id: str, role: str, path: str, call):
     """
     async def complete() -> None:
         try:
-            response: Response = await call()
-            record(exec_id, role, path, response.status_code,
-                   response.headers.get("content-type", "application/octet-stream"),
-                   response.body)
+            record_response(exec_id, role, path, await call())
         except asyncio.CancelledError:
             cancelled(exec_id, role, path)
         except Exception as failure:  # noqa: BLE001 - the outcome must be recorded, not raised
-            record(exec_id, role, path, 502, "application/json",
-                   b'{"error": {"message": "upstream failed", "type": "upstream_error"}}',
-                   error=str(failure))
+            message = f"{role} failed: {type(failure).__name__}: {failure}"
+            record_response(exec_id, role, path, error_response(502, message, "upstream_error"),
+                            error=message)
 
     if exec_id not in ACTIVE:
         _show_running(exec_id, role, path)
@@ -270,4 +324,20 @@ async def run(exec_id: str, role: str, path: str, call):
 def http_response(entry: dict):
     """Replay a stored execution exactly as it answered the first time."""
     return Response(content=entry["body"], status_code=entry["status_code"],
-                    media_type=entry["content_type"])
+                    headers=entry.get("headers") or {}, media_type=entry["content_type"])
+
+
+def result_response(entry: dict):
+    """A finished execution for `/result`: the stored answer, or an error when there is none."""
+    if entry.get("error") and entry["status_code"] < 400:
+        return error_response(502, f"request {entry['id']} did not finish cleanly: {entry['error']}",
+                              "upstream_error")
+    return http_response(entry)
+
+
+async def shutdown() -> None:
+    """Cancel every execution still working so it is recorded before the upstream clients close."""
+    tasks = [task for task in TASKS.values() if not task.done()]
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)

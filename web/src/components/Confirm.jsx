@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "preact/hooks";
+import { useRef } from "preact/hooks";
 
 import { signal } from "@preact/signals";
 import { Button } from "./ui.jsx";
 import { runtime } from "../api/roles.js";
+import { useModal } from "../hooks/useModal.js";
 import styles from "./Confirm.module.css";
 
 /**
@@ -23,32 +24,11 @@ export function ConfirmDialog({
 }) {
   const confirmRef = useRef(null);
   const dialogRef = useRef(null);
-  useEffect(() => {
-    const opener = document.activeElement;
-    confirmRef.current?.focus();
-    const trap = (event) => {
-      if (event.key === "Escape") { event.preventDefault(); onCancel(); return; }
-      if (event.key !== "Tab" || !dialogRef.current) return;
-      const focusable = [...dialogRef.current.querySelectorAll("button, [href], input, select, textarea, [tabIndex]")];
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    };
-    document.addEventListener("keydown", trap, true);
-    return () => { document.removeEventListener("keydown", trap, true); opener?.focus?.(); };
-  }, []);
+  useModal(dialogRef, onCancel, confirmRef);
   return (
     <div
       class={styles.backdrop}
       onClick={onCancel}
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          onCancel();
-        }
-      }}
     >
       <div
         ref={dialogRef}

@@ -4,6 +4,8 @@ The gateway records its own pid in ``omni.pid``. Every operation that signals it
 pid is alive *and* still looks like an omni gateway, so a pidfile whose pid the OS has recycled is
 never signalled.
 """
+import contextlib
+import fcntl
 import json
 import logging
 import os
@@ -69,7 +71,7 @@ def gateway_pid() -> int | None:
     if not _alive(pid):
         return None
     command = supervisor.command_line(pid)
-    if command and not supervisor.is_ours(pid, list(GATEWAY_MARKERS)):
+    if not command or not supervisor.is_ours(pid, list(GATEWAY_MARKERS)):
         log.warning("pid %s in %s is no longer an omni gateway; ignoring it", pid, config.PIDFILE.name)
         return None
     return pid
@@ -104,8 +106,30 @@ def relaunch(host: str, port: int, restart: bool) -> None:
         )
 
 
+@contextlib.contextmanager
+def _exclusive_lock():
+    """Hold an flock next to omni.pid for the life of the gateway; yields False when another holds it."""
+    config.ensure_dirs()
+    with config.PIDFILE.with_suffix(".lock").open("a") as handle:
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            yield False
+            return
+        yield True
+
+
 def serve(host: str, port: int) -> int:
     """Run the gateway in the foreground."""
+    with _exclusive_lock() as acquired:
+        if not acquired:
+            print("omni: another gateway is already starting or running (lock held); `omni status` to check",
+                  file=sys.stderr)
+            return 1
+        return _serve_locked(host, port)
+
+
+def _serve_locked(host: str, port: int) -> int:
     import uvicorn
 
     from omni import gateway
@@ -146,7 +170,7 @@ def up(host: str, port: int) -> int:
         record = _read_record()
         running_host = record.get("host", host)
         running_port = record.get("port", port)
-        print(f"omni already running: http://{running_host}:{running_port}/playground")
+        print(f"omni already running: http://{running_host}:{running_port}/")
         if (running_host, running_port) != (host, port):
             print(f"omni: that instance is not on {host}:{port}; `omni down` first to start there",
                   file=sys.stderr)
@@ -174,7 +198,7 @@ def up(host: str, port: int) -> int:
         except httpx.HTTPError:
             time.sleep(POLL_SECONDS)
             continue
-        print(f"omni up: http://{host}:{port}/playground  (workers warm up in the background; `omni status`)")
+        print(f"omni up: http://{host}:{port}/  (workers warm up in the background; `omni status`)")
         return 0
     process.terminate()
     print(f"omni: gateway did not answer in {UP_TIMEOUT_SECONDS}s; stopped it; see {log_path}", file=sys.stderr)

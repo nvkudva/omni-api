@@ -28,7 +28,7 @@ export function record(route, status, elapsed) {
   lastRequest.value = { route, status, elapsed };
 }
 
-async function assertOk(response) {
+export async function assertOk(response) {
   if (response.ok) return response;
   const { message, code, blockers } = parseError(await response.text());
   const error = new Error(message);

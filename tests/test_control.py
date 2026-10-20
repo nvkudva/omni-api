@@ -22,7 +22,7 @@ class Control(unittest.TestCase):
     def setUpClass(cls):
         cls.spawn = patch("omni.supervisor.pool.Supervisor.start", new=AsyncMock())
         cls.spawn.start()
-        cls.client = TestClient(gateway.create())
+        cls.client = TestClient(gateway.create(), base_url="http://localhost")
         cls.client.__enter__()
 
     @classmethod

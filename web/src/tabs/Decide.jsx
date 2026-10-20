@@ -1,7 +1,7 @@
-import { useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { record } from "../api/client.js";
 import { decide } from "../api/endpoints.js";
-import { newExecId } from "../api/execs.js";
+import { cancelExec, newExecId } from "../api/execs.js";
 import { models } from "../api/models.js";
 import { curlJson } from "../lib/curl.js";
 import { uid } from "../lib/uid.js";
@@ -115,7 +115,11 @@ export default function Decide() {
   const [error, setError] = useState("");
   const [requestError, setRequestError] = useState("");
   const [view, setView] = useState("ui");
+  const abort = useRef(null);
+  const execId = useRef(null);
   const turnState = useTurnState();
+
+  useEffect(() => () => abort.current?.abort(), []);
 
   const decideModels = models.value.data.filter((entry) => entry.role === "decide").map((entry) => entry.id);
   const effectiveModel = decideModels.includes(model) ? model : "";
@@ -177,16 +181,24 @@ export default function Decide() {
     setError("");
     const start = performance.now();
     const at = Date.now();
-    record("decide", 0, 0);
+    const controller = new AbortController();
+    abort.current = controller;
+    const id = newExecId();
+    execId.current = id;
     try {
-      const { status, data } = await decide(payload, undefined, newExecId());
+      const { status, data } = await decide(payload, controller.signal, id);
       const elapsed = since(start);
       record("decide", status, elapsed);
       setTurns((current) => [...current, { id: uid(), at, request: payload, response: data, meta: `${elapsed} ms` }]);
     } catch (failure) {
+      if (failure.name === "AbortError") {
+        setError("stopped");
+        return;
+      }
       record("decide", failure.status ?? 0, since(start));
       setError(failure.message);
     } finally {
+      abort.current = null;
       setBusy(false);
     }
   };
@@ -232,7 +244,9 @@ export default function Decide() {
           <>
             {view === "ui" && rowsError && <span class={styles.turnMeta}>{rowsError}</span>}
             {requestError && <span class={styles.turnMeta}>{requestError}</span>}
-            <ui.Button variant="primary" disabled={disableSend} onClick={send}>{busy ? "Deciding…" : "Decide"}</ui.Button>
+            {busy
+              ? <ui.Button variant="stop" onClick={() => cancelExec(abort.current, execId.current)}>Stop</ui.Button>
+              : <ui.Button variant="primary" disabled={disableSend} onClick={send}>Decide</ui.Button>}
           </>
         )}
       >

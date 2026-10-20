@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 
 /**
  * Drives a request panel's UI/JSON switch.
@@ -8,11 +8,13 @@ import { useEffect, useMemo, useState } from "preact/hooks";
  * pane parses. Sliding into JSON re-serialises from the fields.
  */
 export function useJsonRequest(view, body) {
-  const serialized = JSON.stringify(body, null, 2);
+  const serialized = useMemo(() => JSON.stringify(body, null, 2), [body]);
   const [text, setText] = useState(serialized);
+  const previousView = useRef(view);
 
   useEffect(() => {
-    if (view === "json") setText(serialized);
+    if (view === "json" && previousView.current !== "json") setText(serialized);
+    previousView.current = view;
   }, [view, serialized]);
 
   const resolved = useMemo(() => {

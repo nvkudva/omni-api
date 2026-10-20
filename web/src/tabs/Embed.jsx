@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { readDataUrl, record } from "../api/client.js";
 import { describeImage, embed, transcribe } from "../api/endpoints.js";
-import { newExecId } from "../api/execs.js";
+import { cancelExec, newExecId } from "../api/execs.js";
 import { models } from "../api/models.js";
 import { shortModel, since, size } from "../lib/format.js";
 import { uid } from "../lib/uid.js";
@@ -27,25 +27,25 @@ function visionModel() {
   return capable.find((entry) => entry.id === defaults.chat)?.id ?? capable[0]?.id;
 }
 
-async function extractText(file, kind) {
+async function extractText(file, kind, run) {
   if (kind === "text") return file.text();
-  if (kind === "audio") return (await transcribe(file, file.name, "text")).result;
+  if (kind === "audio") return (await transcribe(file, file.name, "text", run.controller.signal, run.next())).result;
   const model = visionModel();
   if (!model) throw new Error("no vision-capable chat model is installed to caption images");
-  const caption = await describeImage(await readDataUrl(file), model).catch((failure) => {
+  const caption = await describeImage(await readDataUrl(file), model, run.controller.signal, run.next()).catch((failure) => {
     throw Object.assign(new Error(`${model} could not describe this image: ${failure.message}`), { status: failure.status });
   });
   if (!caption.trim()) throw new Error(`${model} returned no description for this image`);
   return caption;
 }
 
-async function embedAll(texts, onProgress) {
+async function embedAll(texts, onProgress, run) {
   const vectors = new Array(texts.length);
   let tokens = 0;
   let model = "";
   for (let from = 0; from < texts.length; from += BATCH) {
     const batch = texts.slice(from, from + BATCH);
-    const { data } = await embed({ input: batch, input_type: "document" });
+    const { data } = await embed({ input: batch, input_type: "document" }, run.controller.signal, run.next());
     const items = data.data ?? [];
     if (items.length !== batch.length) throw new Error(`asked for ${batch.length} embeddings, got ${items.length}`);
     for (const item of items) {
@@ -198,11 +198,13 @@ export default function Embed() {
   const [turns, setTurns] = useState([]);
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [usage, setUsage] = useState(null);
   const turnState = useTurnState();
   const fileInput = useRef(null);
   const folderInput = useRef(null);
   const imageInput = useRef(null);
+  const indexRun = useRef(null);
 
   useEffect(() => {
     vectorstore.loadAll().then((stored) => {
@@ -222,7 +224,9 @@ export default function Embed() {
       : [...current, { name, ...fields }]
   ));
 
-  const indexOne = async ({ file, path }) => {
+  useEffect(() => () => indexRun.current?.controller.abort(), []);
+
+  const indexOne = async ({ file, path }, run) => {
     const kind = corpus.kindOf(file.name, file.type);
     const start = performance.now();
     let thumb = "";
@@ -234,11 +238,11 @@ export default function Embed() {
         thumb = await thumbnail.of(file);
         upsert(path, { thumb });
       }
-      const text = await extractText(file, kind);
+      const text = await extractText(file, kind, run);
       const pieces = corpus.chunkText(text);
       if (!pieces.length) throw new Error("no text found in this file");
       upsert(path, { status: "embedding", total: pieces.length });
-      const { vectors, tokens, model } = await embedAll(pieces, (done) => upsert(path, { done }));
+      const { vectors, tokens, model } = await embedAll(pieces, (done) => upsert(path, { done }), run);
       const ms = since(start);
       record("embed", 200, ms);
       const entries = pieces.map((piece, index) => ({ id: `${path}#${index}`, file: path, index, text: piece, embedding: vectors[index] }));
@@ -248,16 +252,33 @@ export default function Embed() {
       await vectorstore.putFile(stored, entries).catch(() => setUnsaved(true));
     } catch (failure) {
       record("embed", failure.status ?? 0, since(start));
-      upsert(path, { status: "error", error: failure.message });
+      upsert(path, { status: "error", error: failure.name === "AbortError" ? "stopped" : failure.message });
     }
   };
 
   const addItems = async (items) => {
-    if (indexing) return;
+    if (indexing) {
+      setNotice("Already embedding: wait for it to finish or stop it, then drop again.");
+      return;
+    }
+    setNotice("");
     const usable = items.filter(({ file, path }) => !corpus.isSkippedPath(path) && corpus.kindOf(file.name, file.type));
     setSkipped(items.length - usable.length);
     setIndexing(true);
-    for (const item of usable) await indexOne(item);
+    const run = {
+      controller: new AbortController(),
+      execId: null,
+      next() {
+        this.execId = newExecId();
+        return this.execId;
+      },
+    };
+    indexRun.current = run;
+    for (const item of usable) {
+      if (run.controller.signal.aborted) break;
+      await indexOne(item, run);
+    }
+    indexRun.current = null;
     setIndexing(false);
   };
 
@@ -316,7 +337,12 @@ export default function Embed() {
       <Panel
         title="Embedded data"
         meta={indexing ? "embedding…" : undefined}
-        tools={<ui.IconButton icon="trash" label="Clear embedded data" disabled={indexing || !jobs.length} onClick={clearIndex} />}
+        tools={(
+          <>
+            {indexing && <ui.Button variant="stop" onClick={() => cancelExec(indexRun.current?.controller, indexRun.current?.execId)}>Stop</ui.Button>}
+            <ui.IconButton icon="trash" label="Clear embedded data" disabled={indexing || !jobs.length} onClick={clearIndex} />
+          </>
+        )}
       >
         <div
           class={cx(styles.drop, over && styles.dropOver)}
@@ -325,7 +351,7 @@ export default function Embed() {
           onDrop={async (event) => {
             event.preventDefault();
             setOver(false);
-            try { addItems(await droppedFiles(event.dataTransfer)); } catch (failure) { setError(failure.message); }
+            try { await addItems(await droppedFiles(event.dataTransfer)); } catch (failure) { setError(failure.message); }
           }}
         >
           <span>Drop files, images or a folder here</span>
@@ -374,6 +400,7 @@ export default function Embed() {
           <ui.Notice tone="warn">No installed chat model supports vision, so images cannot be embedded. Install one in Settings.</ui.Notice>
         )}
         {unsaved && <ui.Notice tone="warn">This browser cannot save embedded data; it will be lost on reload.</ui.Notice>}
+        {notice && <ui.Notice tone="warn">{notice}</ui.Notice>}
         {skipped > 0 && <p class={styles.notes}>{skipped} unsupported or hidden {skipped === 1 ? "file" : "files"} skipped.</p>}
         {done.length > 0 && <Stats done={done} storedBytes={storage.total(footprints)} />}
         {jobs.length > 0
@@ -390,6 +417,7 @@ export default function Embed() {
         foot={(
           <form class={styles.ask} onSubmit={ask}>
             <input
+              aria-label="Search embedded data"
               value={query}
               placeholder={chunks.length ? "Ask something about your embedded data" : "Embed some files first"}
               disabled={!chunks.length}
@@ -402,7 +430,7 @@ export default function Embed() {
         {error && <ui.ErrorText>{error}</ui.ErrorText>}
         {turns.length
           ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            <div class={styles.turns}>
               {turns.map((turn, index) => (
                 <Turn
                   key={turn.id}

@@ -3,6 +3,7 @@
 The gateway imports from here; the submodules hold the runtime-specific detail.
 """
 import asyncio
+import time
 
 import httpx
 
@@ -96,13 +97,29 @@ __all__ = [
 ]
 
 
+CAPABILITY_TTL_SECONDS = 60.0
+_capability_cache: dict[str, tuple[float, list[str]]] = {}
+
+
+async def _ollama_capabilities(client: httpx.AsyncClient, models: list[dict]) -> list[list[str]]:
+    """Each model's Ollama capabilities, asking /api/show only for names not seen lately."""
+    now = time.monotonic()
+    stale = [model["name"] for model in models
+             if model["name"] not in _capability_cache or now - _capability_cache[model["name"]][0] >= CAPABILITY_TTL_SECONDS]
+    found = await asyncio.gather(*(capabilities(client, name) for name in stale))
+    for name, caps in zip(stale, found):
+        if caps:
+            _capability_cache[name] = (now, caps)
+    return [_capability_cache[model["name"]][1] if model["name"] in _capability_cache else [] for model in models]
+
+
 async def installed_for(role: str, client: httpx.AsyncClient) -> list[dict]:
     """Models this role could actually load: Ollama's list, or cached repos its runtime supports."""
     if runner(role) != "ollama":
         cached = await asyncio.to_thread(hf_installed)
         return [model for model in cached if supports(role, model["name"])]
     models = await ollama_installed(client)
-    found = await asyncio.gather(*(capabilities(client, model["name"]) for model in models))
+    found = await _ollama_capabilities(client, models)
     usable = []
     for model, caps in zip(models, found):
         if not caps:
