@@ -5,7 +5,7 @@
 .seedRow { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .seedRow input { flex: 1; min-width: 0; }
 .scale { display: flex; justify-content: space-between; width: 100%; font-variant-numeric: tabular-nums; }
-.link { color: var(--foreground); font-size: 13px; text-decoration: none; white-space: nowrap; }
+.link { color: var(--primary); font-size: 0.8125rem; font-weight: 500; text-decoration: none; text-underline-offset: 4px; white-space: nowrap; }
 .link:hover { text-decoration: underline; }
-.link:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
+.link:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
 .gallery { display: flex; flex-direction: column; gap: 16px; }

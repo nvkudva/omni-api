@@ -1,12 +1,12 @@
 /* Per-role live log at the foot of a model tab: a minimized bar that expands into a terminal window. */
-.logsCard { grid-column: 1 / -1; min-width: 0; background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.logsCard { grid-column: 1 / -1; min-width: 0; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-xl); box-shadow: var(--shadow-sm); overflow: hidden; }
 .logsHead { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 8px; background: none; border: none; cursor: pointer; text-align: left; color: inherit; }
-.logsHead:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; border-radius: var(--radius); }
-.logsHead:hover { background: var(--surface-2); }
+.logsHead:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; border-radius: var(--radius-xl); }
+.logsHead:hover { background: var(--accent); }
 .logsCaret { flex: none; display: inline-flex; color: var(--text-2); transform: rotate(-90deg); transition: transform 0.15s; }
 .logsCaretOpen { transform: rotate(0); }
-.logsTitle { font-size: 13px; font-weight: 600; }
-.logsMeta { font-family: var(--font); font-size: 11px; color: var(--text-2); }
-.logsState { margin-left: auto; font-family: var(--font); font-size: 11px; color: var(--text-2); }
-.terminal { border-top: 1px solid var(--hairline); background: #0c0e12; }
+.logsTitle { font-size: 0.875rem; font-weight: 600; }
+.logsMeta { font-family: var(--font); font-size: 0.75rem; color: var(--muted-foreground); }
+.logsState { margin-left: auto; font-family: var(--font); font-size: 0.75rem; color: var(--muted-foreground); }
+.terminal { border-top: 1px solid var(--border); background: #0c0e12; }
 .terminalBody { height: 300px; overflow: auto; margin: 0; padding: 8px; font-family: var(--mono); font-size: 12px; line-height: 1.5; color: #d7dde8; white-space: pre-wrap; word-break: break-word; }

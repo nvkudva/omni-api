@@ -168,7 +168,6 @@ export function Section({ title, meta, role, tools, warmToggle, health, children
       {(title || meta) && (
         <header
           class={roleMeta ? [styles.setupHead, styles.setupHeadColor].join(" ") : styles.setupHead}
-          style={roleMeta ? { background: `color-mix(in srgb, ${roleMeta.color} 13%, var(--surface))` } : undefined}
         >
           {roleMeta
             ? (

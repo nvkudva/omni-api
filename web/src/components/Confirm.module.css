@@ -1,57 +1,70 @@
+/* shadcn Dialog: centred, max-w, rounded-lg, 1px border, shadow-lg, p-6, gap-4. */
 .backdrop {
   position: fixed;
   inset: 0;
   z-index: 40;
   display: grid;
   place-items: center;
-  padding: 8px;
-  background: rgba(0, 0, 0, 0.28);
+  padding: 16px;
+  background: rgb(0 0 0 / 0.5);
   animation: fade 0.14s ease-out;
 }
 
 .dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   width: min(440px, 100%);
-  padding: 8px;
-  background: var(--surface);
-  border: 1px solid var(--hairline);
+  padding: 24px;
+  background: var(--background);
+  border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-pop);
+  box-shadow: var(--shadow-lg);
   animation: rise 0.16s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 
 .title {
-  font-size: 16px;
+  font-size: 1.125rem;
+  line-height: 1.35;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
 .message {
-  margin: 8px 0 0;
-  color: var(--text-2);
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
 }
 
 .reasons {
-  margin: 8px 0 0;
+  margin: 0;
+  padding: 12px;
   list-style-position: inside;
-  padding: 8px;
-  background: var(--surface-2);
-  border-radius: var(--radius-sm);
-  color: var(--text);
+  background: var(--muted);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  color: var(--foreground);
 }
 
 .reasons li + li { margin-top: 6px; }
 
 .advisory {
-  margin: 8px 0 0;
-  color: var(--text-3);
-  font-size: 13px;
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
 }
 
+/* footer: flex-col-reverse gap-2 sm:flex-row sm:justify-end */
 .actions {
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column-reverse;
   gap: 8px;
-  margin-top: 8px;
+}
+
+@media (min-width: 640px) {
+  .actions { flex-direction: row; justify-content: flex-end; }
 }
 
 @keyframes fade {

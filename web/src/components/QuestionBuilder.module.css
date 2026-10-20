@@ -2,21 +2,22 @@
 
 .question {
   display: flex; flex-direction: column;
-  border: 1px solid var(--hairline); border-radius: var(--radius-sm);
-  background: var(--surface-2); overflow: hidden;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--card); overflow: hidden;
 }
 /* A bar, not a field: the type names the card, flush to the card's edges. */
 .head {
   display: flex; align-items: center; gap: 6px;
-  padding: 0 4px 0 10px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--hairline);
+  min-height: 3rem;
+  padding: 0 8px 0 16px;
+  background: transparent;
+  border-bottom: 1px solid var(--border);
 }
-.title { flex: 1; font-size: 12px; font-weight: 600; color: var(--text); }
-.body { display: flex; flex-direction: column; gap: 6px; padding: 8px; }
+.title { flex: 1; font-size: 0.875rem; font-weight: 600; color: var(--foreground); }
+.body { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
 .question textarea { min-height: 40px; }
 
-.label { font-size: 11px; font-weight: 600; color: var(--text-2); }
+.label { font-size: 0.875rem; font-weight: 500; color: var(--foreground); }
 
 /* Every editable input is the full width of the card. The row's action floats over
    the field's trailing edge, so it never narrows the input or breaks the alignment. */
@@ -24,7 +25,7 @@
 .criterion input { padding-right: 38px; }
 .criterion > button {
   position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
-  width: 28px; height: 28px; border-radius: 6px;
+  width: 28px; height: 28px; border-radius: var(--radius-md);
 }
 
 /* A choice option reads as its name over its description — both full width. */
@@ -32,24 +33,24 @@
 
 /* The noul branch rides inside the field as a tag, keeping the input full width. */
 .tag {
-  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
-  font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
-  color: var(--text-3); pointer-events: none;
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  color: var(--muted-foreground); pointer-events: none;
 }
-.tagged input { padding-left: 54px; }
+.tagged input { padding-left: 56px; }
 
 .add { align-self: flex-start; }
 
 .remove {
   flex: none; width: 32px; height: 32px; align-self: center;
-  border: none; border-radius: 6px; background: transparent; cursor: pointer;
-  color: var(--text-2); font-size: 12px;
+  border: 1px solid transparent; border-radius: var(--radius-md); background: transparent; cursor: pointer;
+  color: var(--muted-foreground); font-size: 0.75rem;
 }
-.remove:hover { background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); }
-.remove:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.remove:hover { background: color-mix(in oklab, var(--destructive) 10%, transparent); color: var(--destructive); }
+.remove:focus-visible { outline: none; border-color: var(--ring); box-shadow: var(--focus-ring); }
 
 .adder {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  padding-top: 8px; border-top: 1px solid var(--hairline);
+  padding-top: 12px; border-top: 1px solid var(--border);
 }
 .adder .label { flex: 1 0 100%; }

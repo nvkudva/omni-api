@@ -1,117 +1,119 @@
-/* shadcn/ui zinc theme (new-york, radius 0.625rem).
-   Light/dark values mirror https://ui.shadcn.com/docs/theming tokens:
-   background, foreground, card, primary, secondary, muted, border, input,
-   ring. Legacy --accent/--surface names stay as aliases so existing
-   modules keep working. Primary actions are solid zinc-900 / zinc-50;
-   no brand gradient on surfaces. */
+/* shadcn/ui — new-york, neutral base.
+   Tokens mirror https://ui.shadcn.com/docs/theming so the primitives read as
+   the stock shadcn components:
+     · controls  h-9 (36px) · rounded-md (8px) · 1px --input border · shadow-xs
+     · cards     rounded-xl (14px) · shadow-sm
+     · focus     border flips to --ring plus a 3px ring at 50%
+   The radius scale is shadcn's: sm 6 · md 8 · lg 10 · xl 14 for --radius 0.625rem.
+   Legacy --bg / --surface / --text aliases stay so older modules keep working. */
 :root {
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
 
   --radius: 0.625rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 
-  --background: #ffffff;
-  --foreground: #09090b;
-  --card: #ffffff;
-  --card-foreground: #09090b;
-  --popover: #ffffff;
-  --popover-foreground: #09090b;
-  --primary: #18181b;
-  --primary-foreground: #fafafa;
-  --secondary: #f4f4f5;
-  --secondary-foreground: #18181b;
-  --muted: #f4f4f5;
-  --muted-foreground: #71717a;
-  --accent: #18181b;
-  --accent-hover: #27272a;
-  --accent-soft: #f4f4f5;
-  --accent-fg: #fafafa;
-  --accent-foreground: #18181b;
-  --destructive: #e7000b;
-  --destructive-fg: #ffffff;
-  --border: #e4e4e7;
-  --input: #e4e4e7;
-  --ring: #a1a1aa;
+  /* shadcn light theme. */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: #ffffff;
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+
   --green: #16a34a;
   --orange: #d97706;
   --red: #e7000b;
+
+  /* Control surfaces. Inputs are bg-transparent in shadcn light and
+     dark:bg-input/30 in dark; pills that sit on --muted use --raised. */
+  --field: transparent;
+  --raised: var(--background);
+
+  /* shadcn/Tailwind shadow scale. */
+  --shadow-2xs: 0 1px rgb(0 0 0 / 0.05);
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 
   /* Legacy aliases used across modules. */
   --bg: var(--background);
   --sidebar: var(--background);
   --surface: var(--card);
   --surface-2: var(--muted);
-  --field: var(--background);
   --text: var(--foreground);
   --text-2: var(--muted-foreground);
-  --text-3: #636369;
+  --text-3: #52525b;
   --hairline: var(--border);
   --hairline-strong: var(--input);
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.06);
+  --shadow: var(--shadow-sm);
+  --shadow-pop: var(--shadow-lg);
   --code-bg: var(--muted);
   --signal: var(--muted-foreground);
   --bubble-user: var(--primary);
   --bubble-user-text: var(--primary-foreground);
   --bubble-bot: var(--muted);
-
   --brand: var(--primary);
+  --accent-soft: var(--accent);
+  --accent-hover: color-mix(in oklab, var(--accent) 80%, var(--foreground));
+  --accent-fg: var(--accent-foreground);
+  --destructive-fg: var(--destructive-foreground);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-lg: var(--radius);
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px;
-  --control-h: 36px; --control-h-sm: 32px;
+  --control-h: 2.25rem; --control-h-sm: 2rem; --control-h-lg: 2.5rem;
   --focus-ring: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   color-scheme: light;
 }
 
 :root[data-theme="dark"] {
-  --background: #09090b;
-  --foreground: #fafafa;
-  --card: #18181b;
-  --card-foreground: #fafafa;
-  --popover: #18181b;
-  --popover-foreground: #fafafa;
-  --primary: #e4e4e7;
-  --primary-foreground: #18181b;
-  --secondary: #27272a;
-  --secondary-foreground: #fafafa;
-  --muted: #27272a;
-  --muted-foreground: #a1a1aa;
-  --accent: #e4e4e7;
-  --accent-hover: #fafafa;
-  --accent-soft: #27272a;
-  --accent-fg: #18181b;
-  --accent-foreground: #fafafa;
-  --destructive: #ff6467;
-  --destructive-fg: #ffffff;
-  --border: rgba(255, 255, 255, 0.1);
-  --input: rgba(255, 255, 255, 0.15);
-  --ring: #71717a;
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: #ffffff;
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+
   --green: #34d399;
   --orange: #fbbf24;
   --red: #ff6467;
 
-  --bg: var(--background);
-  --sidebar: var(--background);
-  --surface: var(--card);
-  --surface-2: var(--muted);
-  --field: var(--card);
-  --text: var(--foreground);
-  --text-2: var(--muted-foreground);
-  --text-3: #9d9da6;
-  --hairline: var(--border);
-  --hairline-strong: var(--input);
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.4);
-  --code-bg: var(--muted);
-  --signal: var(--muted-foreground);
-  --bubble-user: var(--primary);
-  --bubble-user-text: var(--primary-foreground);
-  --bubble-bot: var(--muted);
+  --field: color-mix(in oklab, var(--input) 30%, transparent);
+  --raised: color-mix(in oklab, var(--input) 30%, transparent);
 
-  --brand: var(--primary);
+  --text-3: #9f9fa6;
+  --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   color-scheme: dark;
 }
 
@@ -120,82 +122,166 @@
 html, body { margin: 0; height: 100%; }
 
 body {
-  font: 14px/1.5 var(--font);
-  letter-spacing: -0.01em;
-  color: var(--text);
-  background: var(--bg);
+  font-family: var(--font);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--foreground);
+  background: var(--background);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 #root { height: 100%; }
 
-h1, h2, h3 { font-family: var(--font-display); margin: 0; }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; letter-spacing: -0.015em; }
 
 button, input, select, textarea { font: inherit; color: inherit; letter-spacing: inherit; }
 
-input[type="text"], input[type="number"], input:not([type]), select, textarea {
+/* --- Input, select, textarea: shadcn h-9 · px-3 · rounded-md · shadow-xs --- */
+input[type="text"], input[type="number"], input[type="search"], input[type="url"],
+input[type="email"], input[type="password"], input[type="tel"], input:not([type]),
+select, textarea {
   width: 100%;
-  min-height: var(--control-h); padding: 8px 12px;
-  background: var(--field);
+  min-width: 0;
+  height: var(--control-h);
+  min-height: var(--control-h);
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--foreground);
+  background-color: var(--field);
   border: 1px solid var(--input);
-  border-radius: var(--radius-sm);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-textarea { resize: vertical; line-height: 1.5; }
+/* shadcn textarea: min-h-16 · px-3 · py-2, so multi-line text starts with air above it. */
+textarea {
+  height: auto;
+  min-height: 4rem;
+  padding: 0.5rem 0.75rem;
+  line-height: 1.5;
+  resize: vertical;
+}
 
 select {
   appearance: none;
-  padding-right: 30px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%2371717a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  -webkit-appearance: none;
+  padding-right: 2.25rem;
+  background-image: var(--chevron);
   background-repeat: no-repeat;
-  background-position: right 11px center;
+  background-position: right 0.75rem center;
+  background-size: 1rem 1rem;
+  cursor: pointer;
 }
 
-input:focus, select:focus, textarea:focus {
+input:focus-visible, select:focus-visible, textarea:focus-visible {
   border-color: var(--ring);
   box-shadow: var(--focus-ring);
 }
 
-input[type="range"] { accent-color: var(--primary); width: 100%; }
-input[type="checkbox"] { accent-color: var(--primary); width: 15px; height: 15px; margin: 0; }
+input:disabled, select:disabled, textarea:disabled { opacity: 0.5; cursor: not-allowed; }
+
+input[aria-invalid="true"], select[aria-invalid="true"], textarea[aria-invalid="true"] {
+  border-color: var(--destructive);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--destructive) 20%, transparent);
+}
+
+/* shadcn Slider: h-1.5 muted track, size-4 thumb with a 2px primary border. */
+input[type="range"] {
+  width: 100%;
+  height: 1.25rem;
+  margin: 0;
+  padding: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 0.375rem;
+  border-radius: 999px;
+  background: var(--muted);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 1rem; height: 1rem;
+  margin-top: calc((0.375rem - 1rem) / 2);
+  border-radius: 50%;
+  border: 2px solid var(--primary);
+  background: var(--background);
+  box-shadow: var(--shadow-sm);
+}
+input[type="range"]::-moz-range-track {
+  height: 0.375rem;
+  border-radius: 999px;
+  background: var(--muted);
+}
+input[type="range"]::-moz-range-progress {
+  height: 0.375rem;
+  border-radius: 999px;
+  background: var(--primary);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 0.75rem; height: 0.75rem;
+  border-radius: 50%;
+  border: 2px solid var(--primary);
+  background: var(--background);
+  box-shadow: var(--shadow-sm);
+}
+input[type="range"]:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 999px;
+}
+input[type="range"]:disabled { opacity: 0.5; cursor: not-allowed; }
+
+input[type="checkbox"], input[type="radio"] {
+  accent-color: var(--primary);
+  width: 1rem; height: 1rem;
+  margin: 0; padding: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
 
 ::placeholder { color: var(--muted-foreground); }
 
-a { color: var(--foreground); text-decoration: underline; text-underline-offset: 4px; }
-a:hover { color: var(--foreground); }
+a { color: var(--primary); text-decoration: underline; text-underline-offset: 4px; }
+a:hover { color: color-mix(in oklab, var(--primary) 80%, transparent); }
 
 ::selection { background: var(--primary); color: var(--primary-foreground); }
-a:focus-visible, summary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
+a:focus-visible, summary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
 * { scrollbar-width: thin; scrollbar-color: var(--input) transparent; }
 
-/* Separate borders so the frame can be rounded: only bottom hairlines are used,
-   so collapsing them made no visual difference. */
+/* --- Table: shadcn Table — no outer frame (it lives inside a Card), h-10 heads,
+       p-2 cells, muted header text, a hairline under every row. --- */
 table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  background: var(--card);
+  background: transparent;
+  font-size: 0.875rem;
 }
 th {
+  height: 2.5rem;
+  padding: 0 0.5rem;
   text-align: left;
+  vertical-align: middle;
   font-weight: 500;
-  font-size: 12px;
+  font-size: 0.875rem;
   color: var(--muted-foreground);
-  background: var(--muted);
-  padding: 8px 12px;
+  background: transparent;
   border-bottom: 1px solid var(--border);
+  white-space: nowrap;
 }
-td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+td { padding: 0.5rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
 tbody tr { transition: background-color 0.12s; }
-tbody tr:hover { background: var(--muted); }
+tbody tr:hover { background: color-mix(in oklab, var(--muted) 50%, transparent); }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }

@@ -9,19 +9,19 @@
 .bar {
   flex: none;
   border-bottom: 1px solid var(--hairline);
-  background: var(--surface);
-  padding: 14px 16px;
+  background: var(--background);
+  padding: 16px;
 }
 .barInner { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: flex-end; }
 .barHead { flex: 1 1 300px; min-width: 0; }
 /* Page-level controls, e.g. the role's model picker plus its settings gear:
    right edge of the title row, so the row is one control tall with or without a picker. */
 .barTools { margin-left: auto; display: flex; align-items: center; gap: 8px; min-width: 0; }
-.barTools select { width: auto; max-width: 220px; }
+.barTools select { width: auto; max-width: 280px; }
 .titleRow { display: flex; align-items: center; gap: 12px; min-height: var(--control-h); }
 .titleRow .title { flex: none; }
-.title { font-size: 20px; font-weight: 600; letter-spacing: -0.018em; }
-.subtitle { margin: 4px 0 0; color: var(--text-2); font-size: 13px; line-height: 1.5; max-width: 74ch; }
+.title { font-size: 1.25rem; font-weight: 600; letter-spacing: -0.018em; }
+.subtitle { margin: 4px 0 0; color: var(--muted-foreground); font-size: 0.875rem; line-height: 1.5; max-width: 74ch; }
 
 .readout {
   flex: 2 1 440px;
@@ -29,18 +29,17 @@
   gap: 8px 22px; margin: 0;
 }
 .readout > div { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.readout dt { color: var(--text-3); font-size: 11px; }
+.readout dt { color: var(--muted-foreground); font-size: 0.75rem; }
 .readout dd {
-  margin: 0; font-family: var(--font); font-size: 12px;
+  margin: 0; font-family: var(--font); font-size: 0.8125rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-/* The model picker lives in the readout on multi-model pages: compact,
-   and full-bleed like the values beside it. */
+/* The model picker lives in the readout on multi-model pages: the same
+   shadcn select as every other field (h-9 · rounded-md · text-sm). */
 .readout select {
   width: 100%;
-  font-family: var(--font); font-size: 12px;
-  padding: 4px 26px 4px 8px;
+  font-family: var(--font);
   text-overflow: ellipsis;
 }
 
@@ -48,8 +47,8 @@
 
 .main {
   flex: 1; min-height: 0; overflow: hidden;
-  padding: 12px 16px 16px;
-  display: grid; gap: 12px;
+  padding: 16px;
+  display: grid; gap: 16px;
   grid-template-columns: minmax(0, 47fr) minmax(0, 53fr);
   grid-template-rows: minmax(0, 1fr);
 }
@@ -66,41 +65,46 @@
 }
 .mainSingle {
   overflow: auto; align-content: start;
-  grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-auto-rows: auto;
+  grid-template-columns: minmax(0, 1fr); grid-template-rows: none;
+  /* Panels size to their content and the page scrolls. `auto` would let the grid
+     compress rows below their content height when the stack is taller than the
+     viewport, clipping the last line of every pinned-height panel. */
+  grid-auto-rows: max-content;
 }
 
 /* --- panel --------------------------------------------------------------- */
 
 .panel {
-  background: var(--surface);
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
   display: flex; flex-direction: column; min-width: 0; min-height: 0;
 }
 .panelHead {
   display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px;
-  padding: 12px; border-bottom: 1px solid var(--hairline);
+  padding: 16px; border-bottom: 1px solid var(--border);
 }
 .panelTitleGroup { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; }
-.panelTitle { font-size: 14px; font-weight: 600; }
-.panelMeta { font-family: var(--font); font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.panelTitle { font-size: 1rem; font-weight: 600; letter-spacing: -0.01em; }
+.panelMeta { font-family: var(--font); font-size: 0.75rem; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
 /* The wire path a panel talks to, e.g. /v1/chat/completions: a quiet chip, so
    the endpoint stays on the page the tab card no longer prints. */
+/* shadcn Badge (secondary): the wire path, quiet beside the panel title. */
 .panelEndpoint {
   align-self: center;
-  font: 11px/1 var(--mono); letter-spacing: 0;
-  color: var(--text-2); background: var(--code-bg);
-  border: 1px solid var(--hairline); border-radius: var(--radius-sm);
-  padding: 3px 8px; white-space: nowrap;
+  font: 500 0.75rem/1 var(--mono); letter-spacing: 0;
+  color: var(--secondary-foreground); background: var(--secondary);
+  border: 1px solid transparent; border-radius: var(--radius-md);
+  padding: 0.1875rem 0.5rem; white-space: nowrap;
 }
 .panelTools { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; margin-left: auto; }
-.panelTools select { width: auto; max-width: 150px; }
-.panelBody { flex: 1; min-height: 0; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
-.panelBodyFlush { padding: 12px; }
+.panelTools select { width: auto; max-width: 180px; }
+.panelBody { flex: 1; min-height: 0; overflow: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.panelBodyFlush { padding: 16px; }
 .panelFoot {
-  padding: 12px; border-top: 1px solid var(--hairline);
-  display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap;
+  padding: 16px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap;
 }
 /* stacked panels grow with their content; the page scrolls instead of each panel */
 @media (max-width: 1020px) {
@@ -122,13 +126,14 @@
 .log { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
 .turn {
-  border: 1px solid var(--hairline); border-radius: var(--radius-sm);
-  background: var(--surface); overflow: hidden; min-width: 0;
+  border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--card); box-shadow: var(--shadow-2xs);
+  overflow: hidden; min-width: 0;
 }
 .turnHead {
-  display: flex; align-items: baseline; gap: 8px; padding: 8px;
-  background: var(--surface-2); border-bottom: 1px solid var(--hairline);
-  font-size: 12px; color: var(--text-2);
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  background: var(--muted); border-bottom: 1px solid var(--border);
+  font-size: 0.75rem; color: var(--muted-foreground);
   font-variant-numeric: tabular-nums; cursor: pointer; user-select: none;
   flex-wrap: wrap;
 }
@@ -141,8 +146,8 @@
 .turnWarn { color: var(--orange); }
 
 .turnSummary {
-  padding: 8px; border-bottom: 1px solid var(--hairline);
-  font-size: 13px; line-height: 1.5; color: var(--text);
+  padding: 12px; border-bottom: 1px solid var(--border);
+  font-size: 0.875rem; line-height: 1.5; color: var(--foreground);
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
 .turn:not(.turnOpen) .turnSummary { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -205,7 +210,7 @@
 
 .jsonPane {
   width: 100%; min-height: 300px;
-  font: 12px/1.6 var(--mono); letter-spacing: 0;
+  font: 0.75rem/1.6 var(--mono); letter-spacing: 0;
   white-space: pre; overflow: auto; resize: vertical;
 }
 .kv { display: flex; flex-direction: column; }

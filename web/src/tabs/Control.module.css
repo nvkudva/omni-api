@@ -1,13 +1,13 @@
 .facts { margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px 24px; }
 .facts > div { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.facts dt { color: var(--text-3); font-size: 11px; }
-.facts dd { margin: 0; font-family: var(--font); font-size: 12px; overflow-wrap: anywhere; }
+.facts dt { color: var(--muted-foreground); font-size: 0.75rem; }
+.facts dd { margin: 0; font-family: var(--font); font-size: 0.8125rem; overflow-wrap: anywhere; }
 
-.logs { margin-top: 8px; border-top: 1px solid var(--hairline); padding-top: 8px; }
+.logs { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 8px; }
 .logs > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-2); list-style: none; }
 .logs > summary::-webkit-details-marker { display: none; }
 .logs > summary:hover { color: var(--text); }
-.logs > summary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
+.logs > summary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--radius-sm); }
 .logs > summary { min-height: 32px; }
 .logsPath { font-family: var(--font); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .logsTools { margin-left: auto; display: inline-flex; }

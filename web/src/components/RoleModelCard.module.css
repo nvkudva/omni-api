@@ -1,128 +1,135 @@
-/* Mini density: the top-strip navigation card. */
+/* Mini density: the top-strip navigation card — shadcn Card (rounded-xl, 1px border,
+   shadow-sm) at a compact padding so seven of them fit across the strip. */
 .card {
-  display: flex; flex-direction: column; gap: 8px;
-  padding: 12px;
-  border: 1px solid var(--hairline); border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border); border-radius: var(--radius-xl);
+  background: var(--card);
+  box-shadow: var(--shadow-sm);
   cursor: pointer; text-align: left; min-width: 0;
   transition: border-color 0.15s, background-color 0.15s;
 }
-.card:hover { border-color: var(--hairline-strong); }
+.card:hover { border-color: var(--ring); }
 .card:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.on { background: var(--muted); border-color: var(--foreground); }
+.on { background: var(--accent); border-color: var(--ring); }
 .off { opacity: 0.72; }
 
 .top { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .badge {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; border-radius: 6px; color: #fff; flex: none;
+  width: 20px; height: 20px; border-radius: var(--radius-sm); color: #fff; flex: none;
   box-shadow: inset 0 0 0 0.5px rgba(0, 0, 0, 0.12);
 }
-.name { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
-.runner { margin-left: auto; font: 500 10px var(--font); color: var(--text-3); text-transform: lowercase; white-space: nowrap; }
+.name { font-size: 0.875rem; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
+.runner { margin-left: auto; font: 500 0.6875rem var(--font); color: var(--muted-foreground); text-transform: lowercase; white-space: nowrap; }
 
 .endpoint {
-  font: 11px var(--font); color: var(--text-2);
+  font: 0.75rem var(--font); color: var(--muted-foreground);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 .modelRow { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
-.model { flex: 1; min-width: 0; font: 11px var(--font); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.memory { flex: none; font: 500 11px var(--font); color: var(--text); font-variant-numeric: tabular-nums; }
+.model { flex: 1; min-width: 0; font: 0.75rem var(--font); color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.memory { flex: none; font: 500 0.75rem var(--font); color: var(--foreground); font-variant-numeric: tabular-nums; }
 
 .foot { display: flex; align-items: center; gap: 6px; margin-top: 1px; }
-.status { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-2); min-width: 0; }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--muted-foreground); min-width: 0; }
 /* A download's progress line can be long; the light and the button keep their place regardless. */
 .word { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* shadcn Switch: h-5 w-9 track, size-4 thumb; checked track = primary. */
 .switch {
-  margin-left: auto; position: relative; width: 40px; height: 24px; flex: none; padding: 0;
-  border-radius: 999px; border: 1px solid var(--hairline-strong);
-  background: var(--surface-2); cursor: pointer;
+  margin-left: auto; position: relative; width: 2.25rem; height: 1.25rem; flex: none; padding: 0;
+  border-radius: 999px; border: 1px solid transparent;
+  background: var(--input); cursor: pointer;
+  box-shadow: var(--shadow-xs);
   transition: background-color 0.15s, border-color 0.15s;
 }
 .switch::after {
-  content: ""; position: absolute; top: 1px; left: 1px; width: 20px; height: 20px;
-  border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  content: ""; position: absolute; top: 50%; left: 2px; width: 1rem; height: 1rem;
+  border-radius: 50%; background: var(--background); box-shadow: var(--shadow-sm);
+  transform: translateY(-50%);
   transition: transform 0.16s cubic-bezier(0.3, 0.7, 0.3, 1);
 }
+:global(:root[data-theme="dark"]) .switch::after { background: var(--foreground); }
 .switchOn { background: var(--primary); border-color: var(--primary); }
-.switchOn::after { transform: translateX(16px); }
-.switch:disabled { opacity: 0.5; cursor: default; }
-.switch:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.switchOn::after { transform: translate(1rem, -50%); background: var(--primary-foreground); }
+.switch:disabled { opacity: 0.5; cursor: not-allowed; }
+.switch:focus-visible { outline: none; border-color: var(--ring); box-shadow: var(--focus-ring); }
+
+/* shadcn Button (sm): h-8 · px-3 · text-xs · rounded-md · shadow-xs. */
 .setupButton {
-  margin-left: auto; flex: none; min-height: 28px; padding: 4px 12px;
-  border: 1px solid var(--hairline-strong); border-radius: var(--radius-sm);
-  background: var(--surface); color: var(--text);
-  font-size: 11px; font-weight: 600; cursor: pointer;
+  margin-left: auto; flex: none; height: var(--control-h-sm); padding: 0 0.75rem;
+  border: 1px solid var(--input); border-radius: var(--radius-md);
+  background: var(--raised); color: var(--foreground);
+  font-size: 0.75rem; font-weight: 500; line-height: 1; cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
 }
-.setupButton:hover { border-color: var(--ring); background: var(--muted); }
-.setupButton:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.setupButton:hover { background: var(--accent); border-color: var(--ring); }
+.setupButton:focus-visible { outline: none; border-color: var(--ring); box-shadow: var(--focus-ring); }
 /* Starting a stopped worker is the card's only offered action, so it is the filled one. */
 .startButton {
-  margin-left: auto; flex: none; min-height: 28px; padding: 4px 12px;
-  border: 1px solid var(--primary); border-radius: var(--radius-sm);
+  margin-left: auto; flex: none; height: var(--control-h-sm); padding: 0 0.75rem;
+  border: 1px solid transparent; border-radius: var(--radius-md);
   background: var(--primary); color: var(--primary-foreground);
-  font-size: 11px; font-weight: 600; cursor: pointer;
+  font-size: 0.75rem; font-weight: 500; line-height: 1; cursor: pointer;
+  box-shadow: var(--shadow-xs);
+  transition: background-color 0.15s, border-color 0.15s;
 }
-.startButton:hover:not(:disabled) { background: color-mix(in srgb, var(--primary) 90%, transparent); }
-.startButton:disabled { opacity: 0.5; cursor: default; }
-.startButton:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.startButton:hover:not(:disabled) { background: color-mix(in oklab, var(--primary) 90%, transparent); }
+.startButton:disabled { opacity: 0.5; pointer-events: none; }
+.startButton:focus-visible { outline: none; border-color: var(--ring); box-shadow: var(--focus-ring); }
 .warnBadge {
   flex: none; display: inline-flex; align-items: center; justify-content: center;
   width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%;
-  background: color-mix(in srgb, var(--orange) 22%, transparent); color: var(--orange);
+  background: color-mix(in oklab, var(--orange) 20%, transparent); color: var(--orange);
   cursor: pointer;
 }
-.warnBadge:hover { background: color-mix(in srgb, var(--orange) 38%, transparent); }
+.warnBadge:hover { background: color-mix(in oklab, var(--orange) 38%, transparent); }
 .warnBadge:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 
 /* Detail density: the Settings card. Every card is the same size; body scrolls. */
 .setup {
   display: flex; flex-direction: column;
-  background: var(--surface);
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
   min-width: 0;
 }
 .setupHead {
   flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding: 7px 8px; border-bottom: 1px solid var(--hairline);
-  /* The header is the card's first child and can carry a tint, so its own top corners have to
-     follow the card's curve (inset by the card's 1px border) instead of squaring off over it. */
-  border-top-left-radius: calc(var(--radius) - 1px);
-  border-top-right-radius: calc(var(--radius) - 1px);
+  padding: 12px 16px; border-bottom: 1px solid var(--border);
+  /* The header is the card's first child, so its own top corners have to follow the
+     card's curve (inset by the card's 1px border) instead of squaring off over it. */
+  border-top-left-radius: calc(var(--radius-xl) - 1px);
+  border-top-right-radius: calc(var(--radius-xl) - 1px);
 }
 .setupTitleGroup { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; }
 .setupHeadColor { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 4px; }
 .setupHeadRow { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .setupHeadRow .setupTools { margin-left: auto; }
-.setupHeadSub { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; padding-left: 8px; }
-.setupEndpoint { font: 11px var(--font); color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.setupTitle { font-size: 13px; font-weight: 600; }
+.setupHeadSub { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; padding-left: 28px; }
+.setupEndpoint { font: 0.75rem var(--font); color: var(--muted-foreground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.setupTitle { font-size: 0.875rem; font-weight: 600; }
 .setupTools { flex: none; display: inline-flex; align-items: center; gap: 4px; }
 /* Header icon buttons read as secondary buttons: a hairline-bordered surface at
    the same height as the Add model button beside them. */
 .setupIcons { display: inline-flex; align-items: center; gap: 4px; }
 .setupIcons button {
   width: var(--control-h-sm); height: var(--control-h-sm);
-  background: var(--surface-2); color: var(--text);
-  box-shadow: inset 0 0 0 1px var(--hairline);
+  background: var(--raised); color: var(--foreground);
+  border-color: var(--input);
+  box-shadow: var(--shadow-xs);
 }
-.setupIcons button:hover:not(:disabled) { background: var(--hairline); }
+.setupIcons button:hover:not(:disabled) { background: var(--accent); color: var(--accent-foreground); border-color: var(--ring); }
 .tunable { display: flex; gap: 8px; align-items: center; }
 .tunable input, .tunable select { max-width: 260px; }
-.setupMeta { font-family: var(--font); font-size: 11px; color: var(--text-2); font-variant-numeric: tabular-nums; }
-.setupBody { flex: 1; min-height: 0; overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 12px; }
-.setupBody button { height: var(--control-h-sm); padding: 0 12px; font-size: 12px; }
-.setupBody select, .setupBody input:not([type]), .setupBody input[type="text"] { min-height: var(--control-h-sm); height: var(--control-h-sm); padding: 0 8px; font-size: 12px; }
-.setupBody select { padding-right: 24px; background-position: right 8px center; }
-.setupBody th { padding: 3px 6px; font-size: 11px; }
-.setupBody td { padding: 3px 6px; font-size: 12px; }
-.setupLog { padding: 8px 8px 0; }
+.setupMeta { font-family: var(--font); font-size: 0.75rem; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.setupBody { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; font-size: 0.875rem; }
+.setupLog { padding: 16px 16px 0; }
 .setupLog > section { box-shadow: none; }
-.line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.line { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .line > input, .line > select { flex: 1; min-width: 0; }
 .line > button { flex: none; }
-
