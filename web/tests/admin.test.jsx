@@ -15,6 +15,7 @@ const { health } = await import("../src/api/health.js");
 const Models = ModelsModule.default;
 const { RoleModelCard, Tunable } = await import("../src/components/RoleModelCard.jsx");
 const { FindAndInstall, InstallProgress, criteriaFor } = await import("../src/components/FindAndInstall.jsx");
+const { recommendedFor } = await import("../src/lib/recommended.js");
 const { runtime, ROLE_META, downloads, installs, downloadFor, pollDownloads } = await import("../src/api/roles.js");
 const { WorkerRows, ModelRows } = ModelsModule;
 const { models } = await import("../src/api/models.js");
@@ -148,6 +149,26 @@ describe("the Find and Install popup", () => {
     expect(stt).toContain("MLX · Parakeet speech-to-text");
     expect(stt).toContain("parakeet");
     expect(stt).toContain("mlx-community/parakeet-tdt-0.6b-v3");
+  });
+
+  test("a recommended table lists the role's candidates with their download state", () => {
+    models.value = { data: [], defaults: { chat: "qwen2.5:3b" } };
+    const html = render(<FindAndInstall role="chat" onClose={noop} onInstalled={noop} />);
+    expect(html).toContain("Recommended");
+    expect(html).toContain("qwen3.8:27b");
+    expect(html).toContain("17.7 GB");
+    expect(html).toContain("Downloaded");
+    // the configured default is always in the table, marked as such
+    expect(html).toContain("qwen2.5:3b");
+    expect(html).toContain("default");
+    models.value = { data: [], defaults: {} };
+  });
+
+  test("a role's recommended list never repeats its default", () => {
+    const stt = recommendedFor("stt", "mlx-community/parakeet-tdt-0.6b-v3");
+    expect(stt.filter((row) => row.model === "mlx-community/parakeet-tdt-0.6b-v3")).toHaveLength(1);
+    const added = recommendedFor("stt", "mlx-community/parakeet-tdt-0.6b-v3-other");
+    expect(added[0].model).toBe("mlx-community/parakeet-tdt-0.6b-v3-other");
   });
 
   test("criteria fall back by runner for an unknown role, and an unknown role opens nothing", () => {
