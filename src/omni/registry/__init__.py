@@ -58,6 +58,7 @@ from omni.registry.roles import (
     normalize_repo_id,
     runner,
     supports,
+    unavailable_reason,
 )
 
 __all__ = [
@@ -94,6 +95,7 @@ __all__ = [
     "search",
     "snapshot",
     "supports",
+    "unavailable_reason",
 ]
 
 

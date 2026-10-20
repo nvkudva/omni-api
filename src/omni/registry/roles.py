@@ -1,5 +1,7 @@
 """Roles, which runtime serves each, and what each runtime can actually load."""
+import importlib.util
 import re
+import sys
 
 from omni import config
 
@@ -8,6 +10,29 @@ ROLES = config.ROLES
 OLLAMA_ROLES = ("chat", "decide", "embed")
 HF_ROLES = ("stt", "tts", "image", "video")
 PYTHON_WORKERS = HF_ROLES
+
+# What each Python worker must be able to import to run at all. MLX has no Linux or Windows
+# build, and the image worker renders on Metal through torch's MPS backend, so outside macOS
+# on Apple Silicon these roles are unavailable rather than broken.
+MEDIA_DEPS = {
+    "stt": ("mlx", "parakeet_mlx"),
+    "tts": ("mlx", "mlx_audio"),
+    "video": ("mlx", "ltx_pipelines_mlx"),
+    "image": ("torch", "diffusers"),
+}
+
+
+def unavailable_reason(role: str) -> str | None:
+    """Why this worker cannot run on this machine, or None when it can."""
+    deps = MEDIA_DEPS.get(role)
+    if deps is None:
+        return None
+    if sys.platform != "darwin":
+        return f"{role} needs macOS on Apple Silicon (MLX and Metal); this is {sys.platform}"
+    missing = [dep for dep in deps if importlib.util.find_spec(dep) is None]
+    if missing:
+        return f"{role} is not installed here: {', '.join(missing)} missing (install the media extra)"
+    return None
 
 # A repo id must contain the role's family marker to be loadable by that role's runtime; the marker
 # lives in SEARCH_FILTERS below, so search and the cached-repo filter agree by construction.

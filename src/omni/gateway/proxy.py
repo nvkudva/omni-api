@@ -16,6 +16,7 @@ from starlette.background import BackgroundTask
 from omni import config
 from omni.errors import error_response
 from omni.gateway import executions
+from omni.registry import unavailable_reason
 from omni.supervisor.worker import Worker
 
 if TYPE_CHECKING:
@@ -82,6 +83,8 @@ class Proxy:
                       ready: Callable[[], Awaitable[str | None]] | None = None) -> Response:
         """Proxy one request. `ready` (downloading or waking the model) runs only when the request
         will actually run, never for a replay; a refusal it returns becomes a 502."""
+        if role not in self.clients:
+            return error_response(503, unavailable_reason(role) or f"{role} is not available")
         content = await self.read_body(request, max_bytes) if body is None else body
         if len(content) > max_bytes:
             raise HTTPException(413, f"body: larger than {max_bytes // 1024 // 1024} MB")

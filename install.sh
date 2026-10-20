@@ -37,7 +37,8 @@ Install the omni CLI.
 
 Options:
   --from SPEC      Install from a uv tool spec instead of the main branch
-                   (a local path, a git URL, or a package name).
+                   (a local path, a git URL, or a package name). A local
+                   checkout on macOS also gets the media extra.
   --version TAG    Install the release tag TAG (v0.2.0 counts as 0.2.0).
   --init           Run `omni init` afterwards: install Ollama and pull the
                    chat, decide and embed models (a few GB).
@@ -45,6 +46,9 @@ Options:
   --modify-path    Append that directory to your shell's startup file when it
                    is missing from PATH.
   -h, --help       Show this text.
+
+On Linux this installs chat, decide and embed. The stt, tts, image and video
+workers need macOS on Apple Silicon.
 EOF
 }
 
@@ -96,20 +100,32 @@ fi
 # --- platform ---------------------------------------------------------------
 os="$(uname -s)"
 arch="$(uname -m)"
-if [ "$os" != "Darwin" ]; then
-  die "omni needs macOS: its runtime is MLX, which has no Linux build. Nothing was changed." \
-    "run this on an Apple Silicon Mac; there is no Linux or Windows build yet"
-fi
-if [ "$arch" != "arm64" ]; then
-  die "omni needs Apple Silicon: MLX has no Intel-Mac build. Nothing was changed." \
-    "run this on an M-series Mac"
-fi
+EXTRAS=""
+case "$os" in
+  Darwin)
+    if [ "$arch" != "arm64" ]; then
+      die "omni needs Apple Silicon: MLX has no Intel-Mac build. Nothing was changed." \
+        "run this on an M-series Mac"
+    fi
+    EXTRAS="[media]"
+    minimum_kb=2097152
+    ;;
+  Linux)
+    say "Linux: installing chat, decide and embed. The stt, tts, image and video workers"
+    say "       need macOS on Apple Silicon (MLX and Metal), so they are left out."
+    minimum_kb=524288
+    ;;
+  *)
+    die "omni does not support $os" \
+      "run this on macOS (Apple Silicon) or Linux" \
+      "chat, decide and embed need only Ollama and Python 3.12"
+    ;;
+esac
 
-# --- disk, paths ------------------------------------------------------------
 available_kb="$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2 {print $4}')"
-if [ -n "${available_kb:-}" ] && [ "$available_kb" -lt 2097152 ]; then
+if [ -n "${available_kb:-}" ] && [ "$available_kb" -lt "$minimum_kb" ]; then
   available_gb="$(awk -v kb="$available_kb" 'BEGIN {printf "%.1f", kb / 1048576}')"
-  die "only ${available_gb} GB free in $HOME; the install needs about 2 GB" \
+  die "only ${available_gb} GB free in $HOME" \
     "free up space, then rerun" \
     "the models omni init pulls need another 20 GB afterwards"
 fi
@@ -170,8 +186,10 @@ if [ -n "$SOURCE" ]; then
       "point --from at the repository root" \
       "or drop --from to install the published main branch"
     SOURCE="$(cd "$SOURCE" && pwd)"
+    spec="omni-api$EXTRAS @ file://$SOURCE"
+  else
+    spec="$SOURCE"
   fi
-  spec="$SOURCE"
 else
   require_git
   if ! git ls-remote --exit-code "$REPO" HEAD > /dev/null 2>&1; then
@@ -190,9 +208,8 @@ else
         "or drop --version to install the latest main branch"
     fi
   fi
-  spec="git+$REPO@$ref"
+  spec="omni-api$EXTRAS @ git+$REPO@$ref"
 fi
-
 # --- install ----------------------------------------------------------------
 say "installing omni from $spec"
 export UV_TOOL_BIN_DIR="$BIN_DIR"

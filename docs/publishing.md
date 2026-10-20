@@ -50,7 +50,9 @@ brew audit --strict --formula Formula/omni.rb
 
 Before the first tap release the formula still carries `REPLACE_WITH_TARBALL_SHA256`; `script/release --push` fills it. `brew audit --strict` needs that sha256 and the `license "MIT"` line, both now in place.
 
-The formula requires macOS on Apple Silicon: `mlx` wheels are arm64-only, and the stt/tts/image/video workers need Metal. Intel and Linux users are out of luck for now — the package's dependencies cannot install there at all.
+The formula requires macOS on Apple Silicon: `mlx` wheels are arm64-only, and the stt/tts/image/video workers need Metal. It installs the `media` extra, since the tap is macOS-only.
+
+On Linux, `install.sh` installs the base package only — chat, decide and embed through Ollama. The media extra cannot install there: `mlx`, `parakeet-mlx`, `mlx-audio` and the ltx packages have no Linux wheels, so the four media workers are left out of the supervisor and their endpoints answer 503 with the reason.
 
 ## 3. PyPI — blocked on the source pins
 

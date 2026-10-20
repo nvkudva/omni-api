@@ -1,5 +1,6 @@
 """Which repos each role's runtime will accept: the cached-repo filter and the search filters agree."""
 import unittest
+import unittest.mock
 
 from omni.registry import roles
 
@@ -36,6 +37,27 @@ class Supports(unittest.TestCase):
 
     def test_an_unrelated_repo_is_refused(self):
         self.assertFalse(roles.supports("video", "Qwen/Qwen-Image-2.1"))
+
+
+class Workers(unittest.TestCase):
+    def test_a_role_that_is_not_a_python_worker_is_always_available(self):
+        self.assertIsNone(roles.unavailable_reason("chat"))
+
+    def test_every_media_role_states_the_dependencies_it_needs(self):
+        for role in roles.PYTHON_WORKERS:
+            self.assertIn(role, roles.MEDIA_DEPS)
+
+    def test_outside_macos_the_media_roles_say_why_and_name_the_platform(self):
+        with unittest.mock.patch.object(roles.sys, "platform", "linux"):
+            for role in roles.PYTHON_WORKERS:
+                reason = roles.unavailable_reason(role)
+                self.assertIn("macOS on Apple Silicon", reason)
+                self.assertIn("linux", reason)
+
+    def test_a_missing_dependency_reads_as_not_installed(self):
+        with unittest.mock.patch.object(roles.sys, "platform", "darwin"), \
+             unittest.mock.patch.object(roles.importlib.util, "find_spec", return_value=None):
+            self.assertIn("missing", roles.unavailable_reason("stt"))
 
 
 class Normalize(unittest.TestCase):

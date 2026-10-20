@@ -462,3 +462,31 @@ class TypeValidation(unittest.TestCase):
                                     content=b'{"messages":"' + b"x" * (9 * 1024 * 1024) + b'"}',
                                     headers={"content-type": "application/json"})
         self.assertEqual(response.status_code, 413)
+
+
+class WorkerAvailability(unittest.TestCase):
+    def test_a_role_whose_runtime_is_missing_is_not_supervised(self):
+        from omni.gateway import context
+
+        settings = config.load()
+        with patch("omni.gateway.context.unavailable_reason",
+                   side_effect=lambda role: "needs macOS on Apple Silicon" if role == "tts" else None):
+            built = context.build(settings)
+        self.assertNotIn("tts", built.workers)
+        self.assertIn("stt", built.workers)
+        self.assertNotIn("tts", built.clients)
+
+    def test_asking_for_a_role_with_no_worker_is_503_not_a_crash(self):
+        from omni.gateway import context
+
+        settings = config.load()
+
+        def reason(role):
+            return "needs macOS on Apple Silicon" if role == "tts" else None
+
+        with patch("omni.gateway.context.unavailable_reason", side_effect=reason), \
+             patch("omni.gateway.proxy.unavailable_reason", side_effect=reason):
+            built = context.build(settings)
+            response = asyncio.run(built.proxy.forward(Mock(), "tts", "/v1/audio/speech"))
+        self.assertEqual(response.status_code, 503)
+        self.assertIn("macOS on Apple Silicon", response.body.decode())

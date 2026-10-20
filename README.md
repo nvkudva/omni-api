@@ -132,13 +132,13 @@ Measured on Apple Silicon:
 
 ## Install
 
-Requires macOS on Apple Silicon (MLX and MPS) and [Ollama](https://ollama.com) (`omni init` installs it if missing). Python and [uv](https://docs.astral.sh/uv/) come with the install script:
+On macOS (Apple Silicon) this installs every role. On Linux it installs chat, decide and embed; the stt, tts, image and video workers need MLX and Metal, so they are left out there. [Ollama](https://ollama.com) comes with `omni init` if missing, and Python plus [uv](https://docs.astral.sh/uv/) come with the script:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/nvkudva/omni-api/main/install.sh | sh
 ```
 
-That installs the global `omni` command. Homebrew users can tap this repo instead:
+That installs the global `omni` command. Homebrew users on macOS can tap this repo instead:
 
 ```sh
 brew tap nvkudva/omni
@@ -149,7 +149,8 @@ brew install omni
 From a clone, for development (`-e` makes edits take effect immediately):
 
 ```sh
-uv tool install -e .
+uv tool install -e ".[media]"    # macOS: every role
+uv tool install -e .             # Linux: chat, decide, embed
 # or run it without installing
 uv run omni serve
 ```

@@ -7,7 +7,7 @@ import httpx
 from omni import config, supervisor
 from omni.gateway.keepwarm import KeepWarm
 from omni.gateway.proxy import Proxy, timeout, uds_client
-from omni.registry import PYTHON_WORKERS
+from omni.registry import PYTHON_WORKERS, unavailable_reason
 
 
 @dataclass
@@ -45,6 +45,10 @@ def build(settings: dict) -> Context:
         ))
 
     for role in PYTHON_WORKERS:
+        # A worker whose runtime is not on this machine (Linux, Windows, or a base install
+        # without the media extra) would only crash-loop; leave it out and let the proxy say why.
+        if unavailable_reason(role) is not None:
+            continue
         socket = config.socket_path(role)
         # the client always dials the stable link; spawn repoints it at each generation's socket
         clients[role] = uds_client(role)
