@@ -65,8 +65,12 @@
   &.large { height: var(--control-h-lg); padding: 0 1.5rem; }
 
   /* default: bg-primary text-primary-foreground shadow-xs hover:bg-primary/90 */
-  &.primary { background: var(--primary); color: var(--primary-foreground); box-shadow: var(--shadow-xs); }
-  &.primary:hover:not(:disabled) { background: color-mix(in oklab, var(--primary) 90%, transparent); }
+  &.primary {
+    background: var(--brand-gradient);
+    color: var(--primary-foreground);
+    box-shadow: var(--shadow-xs), var(--brand-glow);
+  }
+  &.primary:hover:not(:disabled) { filter: brightness(1.08); }
 
   /* outline: border bg-background shadow-xs hover:bg-accent
      (dark:bg-input/30 — --raised carries the light/dark difference). */
@@ -149,26 +153,36 @@
     transform: translateY(-50%);
     transition: transform 0.16s cubic-bezier(0.3, 0.7, 0.3, 1);
   }
-  &.on { background: var(--primary); border-color: var(--primary); }
-  &.on::after { transform: translate(1rem, -50%); background: var(--primary-foreground); }
+  &.on {
+    background: var(--brand-gradient);
+    border-color: transparent;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-ink) 30%, transparent), var(--shadow-xs);
+  }
+  &.on::after { transform: translate(1rem, -50%); background: #fff; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 
 /* --- Card, and the details shared by page furniture ------------------------ */
 
-/* shared: the shadcn Card surface. A component composes its own layout on top. */
+/* shared: the shadcn Card surface — glass over the page gradient. */
 .card {
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-sm);
+  backdrop-filter: var(--surface-blur);
+  -webkit-backdrop-filter: var(--surface-blur);
 }
 
-/* shared: the role's colour chip with its icon, in a card header. */
+/* shared: the role's colour chip with its icon, in a card header.
+   The role colour arrives as --role-color, so the chip is one tinted surface
+   with the accent on it in either theme. */
 .roleGlyph {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; border-radius: var(--radius-sm); color: #fff; flex: none;
-  box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.12);
+  width: 20px; height: 20px; border-radius: var(--radius-sm); flex: none;
+  background: color-mix(in srgb, var(--role-color) 16%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--role-color) 38%, transparent);
+  color: var(--role-color);
 }
 
 /* --- Code ------------------------------------------------------------------ */
@@ -202,7 +216,7 @@
   background: color-mix(in oklab, var(--primary) 20%, transparent);
 
   & .fill {
-    display: block; height: 100%; background: var(--primary); border-radius: 999px;
+    display: block; height: 100%; background: var(--brand-gradient); border-radius: 999px;
     transition: width 0.25s;
   }
 }

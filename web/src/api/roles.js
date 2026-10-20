@@ -6,16 +6,18 @@ import { gb } from "../lib/format.js";
 
 // One line per role: what it is, where its endpoint lives, which runtime serves
 // it, and the accent its icon wears. This is presentation metadata, not config.
-// The literal order IS the role order: the mini cards' tabs, the Settings list
-// and the Models page all read it back through ROLE_ORDER below.
+// The accent is a token, so one role reads as a vivid cyan on the dark page
+// and a deep teal in daylight. The literal order IS the role order: the mini
+// cards' tabs, the Settings list and the Models page all read it back through
+// ROLE_ORDER below.
 export const ROLE_META = {
-  chat: { label: "Chat", endpoint: "/v1/chat/completions", runner: "ollama", color: "#0a84ff" },
-  decide: { label: "Decide", endpoint: "/v1/systemone", runner: "ollama", color: "#bf5af2" },
-  embed: { label: "Embed", endpoint: "/v1/embeddings", runner: "ollama", color: "#30b0c7" },
-  image: { label: "Image", endpoint: "/v1/images/generations", runner: "diffusers", color: "#ff9f0a" },
-  video: { label: "Video", endpoint: "/v1/videos", runner: "ltx-mlx", color: "#ff375f" },
-  stt: { label: "Speech to text", endpoint: "/v1/audio/transcriptions", runner: "parakeet-mlx", color: "#ff453a" },
-  tts: { label: "Text to speech", endpoint: "/v1/audio/speech", runner: "mlx-audio", color: "#30d158" },
+  chat: { label: "Chat", endpoint: "/v1/chat/completions", runner: "ollama", color: "var(--role-chat)" },
+  decide: { label: "Decide", endpoint: "/v1/systemone", runner: "ollama", color: "var(--role-decide)" },
+  embed: { label: "Embed", endpoint: "/v1/embeddings", runner: "ollama", color: "var(--role-embed)" },
+  image: { label: "Image", endpoint: "/v1/images/generations", runner: "diffusers", color: "var(--role-image)" },
+  video: { label: "Video", endpoint: "/v1/videos", runner: "ltx-mlx", color: "var(--role-video)" },
+  stt: { label: "Speech to text", endpoint: "/v1/audio/transcriptions", runner: "parakeet-mlx", color: "var(--role-stt)" },
+  tts: { label: "Text to speech", endpoint: "/v1/audio/speech", runner: "mlx-audio", color: "var(--role-tts)" },
 };
 
 export const ROLE_ORDER = Object.keys(ROLE_META);

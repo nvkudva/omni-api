@@ -167,7 +167,7 @@ export function Section({ title, meta, role, tools, warmToggle, health, children
             ? (
               <>
                 <div class={styles.headRow}>
-                  <span class={ui.css.roleGlyph} style={{ background: roleMeta.color }}><Icon name={role} /></span>
+                  <span class={ui.css.roleGlyph} style={{ "--role-color": roleMeta.color }}><Icon name={role} /></span>
                   {title && <h2 class={styles.title}>{title}</h2>}
                   <div class={styles.tools}>
                     {tools}
@@ -389,11 +389,12 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
   return (
     <div
       class={cx(styles.miniCard, active && styles.on, !running && !active && styles.off)}
+      style={{ "--role-color": state.color }}
       aria-current={active ? "page" : undefined}
       onClick={open}
     >
       <span class={styles.top}>
-        <span class={ui.css.roleGlyph} style={{ background: state.color }}><Icon name={role} /></span>
+        <span class={ui.css.roleGlyph} style={{ "--role-color": state.color }}><Icon name={role} /></span>
         <button type="button" class={styles.name} aria-label={`Open ${state.label}`} title={state.label} onClick={() => onOpen(role)}>{MINI_TITLE[role] ?? state.label}</button>
         {(needsSetup || trouble) && (
           <button

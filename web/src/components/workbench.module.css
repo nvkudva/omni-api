@@ -11,7 +11,9 @@
   & .bar {
     flex: none;
     border-bottom: 1px solid var(--border);
-    background: var(--background);
+    background: var(--glass);
+    backdrop-filter: var(--surface-blur);
+    -webkit-backdrop-filter: var(--surface-blur);
     padding: 16px;
   }
   & .barInner { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: flex-end; }
@@ -140,7 +142,7 @@
   }
   & .progress::after {
     content: ""; position: absolute; inset: 0 auto 0 0; width: 35%;
-    background: var(--primary); border-radius: 2px;
+    background: var(--brand-gradient); border-radius: 2px;
     animation: turn-progress 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   }
 }
@@ -174,7 +176,7 @@
 
       &.top {
         & .label, & .value { color: var(--foreground); font-weight: 500; }
-        & .fill { background: var(--primary); }
+        & .fill { background: var(--brand-gradient); }
       }
       &:hover {
         & .label, & .value { color: var(--foreground); }
