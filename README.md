@@ -142,6 +142,7 @@ That installs the global `omni` command. Homebrew users can tap this repo instea
 
 ```sh
 brew tap nvkudva/omni
+brew trust nvkudva/omni      # Homebrew 7+ refuses untrusted third-party taps
 brew install omni
 ```
 

@@ -22,6 +22,7 @@ The formula lives in its own repo, [nvkudva/homebrew-omni](https://github.com/nv
 
 ```sh
 brew tap nvkudva/omni
+brew trust nvkudva/omni      # Homebrew 7+ refuses untrusted third-party taps
 brew install omni
 ```
 
