@@ -319,14 +319,14 @@ describe("the sidebar card", () => {
     // The old card took its word from the process and its light from memory, so a live tts worker
     // with an unloaded model said "running" beside a red dot.
     const html = sidebar("tts", { status: "ready" });
-    expect(html).toContain(">not running<");
-    expect(html).not.toContain(">running<");
+    expect(html).toContain(">idle · not loaded<");
+    expect(html).not.toContain(">loaded<");
     expect(html).toContain('role="switch"');
   });
 
   test("a stopped worker offers Start, not a keep-warm switch", () => {
     const html = sidebar("tts", { status: "stopped" });
-    expect(html).toContain(">stopped<");
+    expect(html).toContain(">off<");
     expect(html).toContain(">Start<");
     expect(html).not.toContain('role="switch"');
   });
@@ -339,7 +339,7 @@ describe("the sidebar card", () => {
 
   test("an unreachable Ollama reads stopped and points at the server controls", () => {
     const html = sidebar("chat", { status: "unavailable", engineUrl: "127.0.0.1:11434" });
-    expect(html).toContain(">stopped<");
+    expect(html).toContain(">off<");
     expect(html).toContain(">Server<");
     expect(html).toContain("127.0.0.1:11434");
     // nothing here can start an Ollama omni does not own, so no switch and no Start
@@ -349,18 +349,18 @@ describe("the sidebar card", () => {
 
   test("warm and running differ only in whether the model is held", () => {
     const warm = sidebar("chat", { status: "loaded", loaded: true, pinned: true, memoryBytes: 2_000_000_000 });
-    expect(warm).toContain(">warm<");
+    expect(warm).toContain(">loaded · kept<");
     expect(warm).toContain('aria-checked="true"');
 
     const running = sidebar("chat", { status: "loaded", loaded: true, memoryBytes: 2_000_000_000 });
-    expect(running).toContain(">running<");
+    expect(running).toContain(">loaded<");
     expect(running).toContain('aria-checked="false"');
   });
 
   test("a pinned role still loading says so", () => {
     const html = sidebar("chat", { pinned: true, status: "idle" });
-    expect(html).toContain(">loading…<");
-    expect(html).not.toContain(">not running<");
+    expect(html).toContain(">loading model…<");
+    expect(html).not.toContain(">idle · not loaded<");
   });
 
   test("mini density shows no detail controls, detail header mirrors mini", () => {

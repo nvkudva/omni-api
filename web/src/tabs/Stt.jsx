@@ -1,18 +1,16 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { transcribe } from "../api/endpoints.js";
-import { cancelExec } from "../api/execs.js";
 import { models } from "../api/models.js";
 import { ORIGIN } from "../api/client.js";
 import { clock } from "../lib/format.js";
-import { uid } from "../lib/uid.js";
 import * as ui from "../components/ui.jsx";
 import { Panel, Pending, RequestBody, Turn, TurnError, UiJson, Workbench, useTurnState } from "../components/workbench.jsx";
 import { LogsCard } from "../components/LogsCard.jsx";
 import { useJsonRequest } from "../hooks/useJsonRequest.js";
+import { useRunHistory } from "../hooks/useRunHistory.js";
 import styles from "./Stt.module.css";
 
 const SILENT_PEAK = 0.01;
-const MAX_TURNS = 20;
 const FORMATS = ["verbose_json", "json", "text"];
 
 function drawWave(canvas, analyser) {
@@ -115,8 +113,6 @@ export function Transcript({ turn }) {
 export default function Stt() {
   const [format, setFormat] = useState("verbose_json");
   const [clip, setClip] = useState(null);
-  const [turns, setTurns] = useState([]);
-  const [busy, setBusy] = useState(false);
   const [meta, setMeta] = useState("");
   const [recording, setRecording] = useState(false);
   const [elapsed, setElapsed] = useState(0);
@@ -127,39 +123,16 @@ export default function Stt() {
   const clipRef = useRef(null);
   // Every turn owns its audio URL. Sharing the preview clip's URL broke older
   // turns: applying the next clip revoked it out from under them.
-  const turnUrls = useRef(new Map());
-  const dropTurnUrls = () => {
-    for (const url of turnUrls.current.values()) URL.revokeObjectURL(url);
-    turnUrls.current.clear();
-  };
-  const turnsRef = useRef([]);
-  // Cap retained turns and revoke the audio URLs we drop.
-  const commit = (update) => {
-    const kept = update(turnsRef.current).slice(-MAX_TURNS);
-    const keptIds = new Set(kept.map((turn) => turn.id));
-    for (const [id, url] of turnUrls.current) {
-      if (!keptIds.has(id)) {
-        URL.revokeObjectURL(url);
-        turnUrls.current.delete(id);
-      }
-    }
-    turnsRef.current = kept;
-    setTurns(kept);
-  };
+  const { entries: turns, busy, start: startRun, stop, finish, add, update, clear } = useRunHistory();
   const starting = useRef(false);
-  const busyRef = useRef(false);
   const formatRef = useRef(format);
   formatRef.current = format;
-  const abort = useRef(null);
-  const execId = useRef(null);
   const alive = useRef(true);
   const turnState = useTurnState();
 
   useEffect(() => () => {
     alive.current = false;
     recorder.current?.stop();
-    abort.current?.abort();
-    dropTurnUrls();
     if (clipRef.current?.url) URL.revokeObjectURL(clipRef.current.url);
   }, []);
 
@@ -171,37 +144,25 @@ export default function Stt() {
   };
 
   const run = async (blob, name, responseFormat) => {
-    if (!blob || busyRef.current) return;
-    busyRef.current = true;
-    const controller = new AbortController();
-    abort.current = controller;
-    const id = uid();
-    execId.current = id;
-    const at = Date.now();
-    const url = URL.createObjectURL(blob);
-    turnUrls.current.set(id, url);
-    setBusy(true);
-    commit((current) => [...current, { id, at, url, request: { file: name, response_format: responseFormat }, pending: true }]);
+    if (!blob) return;
+    const started = startRun();
+    if (!started) return;
+    const { signal, execId: id } = started;
+    add({ id, at: Date.now(), url: URL.createObjectURL(blob), request: { file: name, response_format: responseFormat }, pending: true });
     setMeta("transcribing…");
     try {
-      const { result, elapsed: ms } = await transcribe(blob, name, responseFormat, controller.signal, id);
+      const { result, elapsed: ms } = await transcribe(blob, name, responseFormat, signal, id);
       const duration = result?.duration;
       const caption = duration
         ? `${ms} ms · ${duration.toFixed(1)} s audio · ${(duration / (ms / 1000)).toFixed(1)}× realtime`
         : `${ms} ms`;
-      commit((current) => current.map((turn) => (turn.id === id
-        ? { ...turn, pending: false, result, format: responseFormat, meta: caption }
-        : turn)));
+      update(id, { pending: false, result, format: responseFormat, meta: caption });
       setMeta(caption);
     } catch (error) {
-      commit((current) => current.map((turn) => (turn.id === id
-        ? { ...turn, pending: false, error: error.name === "AbortError" ? "stopped" : error.message }
-        : turn)));
+      update(id, { pending: false, error: error.name === "AbortError" ? "stopped" : error.message });
       setMeta("");
     } finally {
-      abort.current = null;
-      busyRef.current = false;
-      setBusy(false);
+      finish();
     }
   };
 
@@ -299,7 +260,7 @@ export default function Stt() {
           <>
             <span class={styles.foot}>{recording ? clock(elapsed) : format}</span>
             {busy
-              ? <ui.Button variant="stop" onClick={() => cancelExec(abort.current, execId.current)}>Stop</ui.Button>
+              ? <ui.Button variant="stop" onClick={stop}>Stop</ui.Button>
               : <ui.Button variant="primary" disabled={!canTranscribe} onClick={() => run(clip.blob, clip.name, sendFormat)}>Transcribe</ui.Button>}
           </>
         )}
@@ -324,7 +285,7 @@ export default function Stt() {
       <Panel
         title="Transcripts"
         meta={meta}
-        tools={<ui.IconButton icon="trash" label="Clear history" disabled={!turns.length || busy} onClick={() => { dropTurnUrls(); commit(() => []); setMeta(""); }} />}
+        tools={<ui.IconButton icon="trash" label="Clear history" disabled={!turns.length || busy} onClick={() => { clear(); setMeta(""); }} />}
       >
         {turns.length
           ? (

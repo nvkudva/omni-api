@@ -33,18 +33,18 @@
   transition: background-color 0.15s, color 0.15s;
 }
 .icon:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
-.icon:disabled { opacity: 0.4; cursor: default; }
+.icon:disabled { color: var(--text-3); cursor: default; }
 .icon:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .iconDanger:hover:not(:disabled) { background: color-mix(in srgb, var(--red) 12%, transparent); color: var(--red); }
 .stop { background: #dc2626; color: #fff; }
 
 .segmented {
-  display: inline-flex; padding: 4px; gap: 2px;
+  display: inline-flex; max-width: 100%; padding: 4px; gap: 2px;
   background: var(--muted); border-radius: var(--radius-lg);
   border: none;
 }
 .segment {
-  border: none; background: transparent; cursor: pointer;
+  flex: 1 1 auto; border: none; background: transparent; cursor: pointer;
   min-height: 28px; padding: 6px 12px; border-radius: var(--radius-sm);
   font-size: 12px; font-weight: 500; color: var(--text-2);
   transition: background-color 0.15s, color 0.15s;

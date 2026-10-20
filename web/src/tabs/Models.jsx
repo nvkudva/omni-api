@@ -9,7 +9,7 @@ import {
   workerAction,
   workersAction,
 } from "../api/endpoints.js";
-import { downloads, installs, matchesModel, ROLE_ORDER, runtime } from "../api/roles.js";
+import { downloads, installs, matchesModel, ROLE_META, ROLE_ORDER, runtime } from "../api/roles.js";
 import { pollHealth } from "../api/health.js";
 import { gb } from "../lib/format.js";
 import { ask, withForce } from "../components/Confirm.jsx";
@@ -106,7 +106,7 @@ export function GlobalControls({ managed, tunables, onChanged, onSaved }) {
     <Section title="Workers" meta="every role's runtime at once">
       <ui.Row>
         <ui.Button small disabled={busy} onClick={() => run("restart", "Restart all")}>Restart all</ui.Button>
-        <ui.Button small variant="danger" disabled={busy} onClick={() => run("stop", "Stop all", true)}>Stop all</ui.Button>
+        <ui.Button small disabled={busy} onClick={() => run("stop", "Stop all", true)}>Stop all</ui.Button>
         <ui.Button small disabled={busy || !managed} onClick={restartOllama} title={managed ? "Restart the Ollama engine" : "Ollama is not managed by omni on this machine"}>Restart Ollama</ui.Button>
       </ui.Row>
       {tunables && <Tunable spec={GATEWAY_TUNABLE} stored={tunables[GATEWAY_TUNABLE.key]} onSaved={onSaved} />}
@@ -150,21 +150,32 @@ export function OllamaRow({ model, roles, onChanged }) {
   );
 }
 
-export function WorkerRow({ name, worker, onChanged }) {
+export function WorkerRow({ name, worker, model, onChanged }) {
   const [busy, run] = useAction(onChanged);
+  const label = ROLE_META[name]?.label ?? name;
   const control = (action) => run(() => workerAction(name, action), `${name}: ${action} sent`);
+  const stop = async () => {
+    const confirmed = await ask({
+      title: `Stop ${label}?`,
+      message: `In-flight ${label} requests will be interrupted.`,
+      confirmLabel: "Stop",
+      tone: "danger",
+    });
+    if (confirmed) control("stop");
+  };
   const stopped = worker.status === "stopped";
   return (
     <tr>
-      <td><span class={styles.nameCell}><ui.Dot status={worker.status} />{name}</span></td>
-      <td class={styles.numeric}>{worker.status}</td>
+      <td>{label}</td>
+      <td>{worker.model || model || "—"}</td>
+      <td><span class={styles.nameCell}><ui.Dot status={worker.status} />{worker.status}</span></td>
       <td class={styles.numeric}>{worker.cpu_percent.toFixed(0)}%</td>
       <td class={styles.numeric}>{gb(worker.rss_bytes)}</td>
       <td class={styles.actionCell}>
         <span class={styles.buttons}>
           {stopped
             ? <ui.Button small disabled={busy} onClick={() => control("start")}>Start</ui.Button>
-            : <ui.Button small variant="danger" disabled={busy} onClick={() => control("stop")}>Stop</ui.Button>}
+            : <ui.Button small disabled={busy} onClick={stop}>Stop</ui.Button>}
           <ui.Button small disabled={busy} onClick={() => control("restart")}>Restart</ui.Button>
         </span>
       </td>
@@ -172,24 +183,54 @@ export function WorkerRow({ name, worker, onChanged }) {
   );
 }
 
+// a worker with no model loaded still holds ~0.1 GB; unloading it frees nothing worth suggesting
+const RECLAIMABLE_MIN_BYTES = 512 * 1024 * 1024;
+
+/** What is holding memory and could be freed, largest first. */
+function reclaimable(memory) {
+  const items = memory.ollama.map((model) => ({ label: model.name, bytes: model.size_bytes ?? 0 }));
+  for (const [name, worker] of Object.entries(memory.workers ?? {})) {
+    if (worker.status !== "stopped" && worker.rss_bytes > 0) {
+      items.push({ label: ROLE_META[name]?.label ?? name, bytes: worker.rss_bytes });
+    }
+  }
+  return items
+    .filter((item) => item.bytes >= RECLAIMABLE_MIN_BYTES)
+    .sort((a, b) => b.bytes - a.bytes)
+    .slice(0, 3)
+    .map((item) => `${item.label} (${gb(item.bytes)})`)
+    .join(", ");
+}
+
 export function Memory({ memory, roles, onChanged }) {
   if (!memory) return <Section title="Memory"><ui.Empty>Reading memory…</ui.Empty></Section>;
   const used = memory.total_bytes - memory.available_bytes;
   const fraction = used / memory.total_bytes;
+  const pinned = (runtime.value.pins ?? []).length > 0;
+  const largest = reclaimable(memory);
+  const advise = (warning) => (/swap/i.test(warning) && largest
+    ? `${warning}. Unload${pinned ? " or unpin" : ""}: ${largest}`
+    : warning);
   const [load1, load5, load15] = (memory.load_average ?? [0, 0, 0]).map((value) => (value ?? 0).toFixed(2));
   return (
     <Section title="Memory" meta={`${gb(used)} of ${gb(memory.total_bytes)} used`}>
       <div class={setup.meters}>
         <div>
-          <ui.Meter fraction={fraction} high={fraction > 0.85} />
+          <div class={setup.meterRow}>
+            <span class={setup.meterLabel}>RAM</span>
+            <ui.Meter fraction={fraction} high={fraction > 0.85} />
+          </div>
           <ui.Meta>RAM {gb(memory.available_bytes)} free · swap {gb(memory.swap_used_bytes)} used · disk {gb(memory.disk_free_bytes)} free</ui.Meta>
         </div>
         <div>
-          <ui.Meter fraction={memory.cpu_percent / 100} high={memory.cpu_percent > 90 || memory.load_average[0] > memory.cpu_count} />
+          <div class={setup.meterRow}>
+            <span class={setup.meterLabel}>CPU</span>
+            <ui.Meter fraction={memory.cpu_percent / 100} high={memory.cpu_percent > 90 || memory.load_average[0] > memory.cpu_count} />
+          </div>
           <ui.Meta>CPU {(memory.cpu_percent ?? 0).toFixed(0)}% · load {load1} / {load5} / {load15} on {memory.cpu_count ?? "?"} cores</ui.Meta>
         </div>
       </div>
-      {(memory.warnings ?? []).map((warning, index) => <ui.Notice key={index}>{warning}</ui.Notice>)}
+      {(memory.warnings ?? []).filter(Boolean).map((warning, index) => <ui.Notice key={index}>{advise(warning)}</ui.Notice>)}
       <h3 class={styles.subhead}>Loaded in Ollama</h3>
       {memory.ollama.length
         ? (
@@ -203,16 +244,16 @@ export function Memory({ memory, roles, onChanged }) {
         : <ui.Meta>none loaded</ui.Meta>}
       <h3 class={styles.subhead}>Workers</h3>
       <table>
-        <thead><tr><th>Worker</th><th>Status</th><th>CPU</th><th>Memory</th><th /></tr></thead>
+        <thead><tr><th>Worker</th><th>Model</th><th>Status</th><th>CPU</th><th>Memory</th><th /></tr></thead>
         <tbody>
-          {Object.entries(memory.workers).map(([name, worker]) => <WorkerRow key={name} name={name} worker={worker} onChanged={onChanged} />)}
+          {Object.entries(memory.workers).map(([name, worker]) => <WorkerRow key={name} name={name} worker={worker} model={roles?.[name]?.default} onChanged={onChanged} />)}
         </tbody>
       </table>
     </Section>
   );
 }
 
-export default function Models() {
+export default function Models({ role: filterRole = null, onRole }) {
   const [status, setStatus] = useState(null);
   const [managed, setManaged] = useState(false);
   const [tunables, setTunables] = useState(null);
@@ -254,7 +295,8 @@ export default function Models() {
 
   // Cards read in the mini tabs' order, not the API's; the picked role is
   // highlighted in the nav rather than pulled to the front.
-  const entries = status ? orderRoles(status.roles) : [];
+  const allEntries = status ? orderRoles(status.roles) : [];
+  const entries = filterRole ? allEntries.filter(([role]) => role === filterRole) : allEntries;
   const downloadedTotal = entries.reduce((total, [, entry]) => total + (entry.total_bytes ?? 0), 0);
   const ramUsed = memory ? memory.total_bytes - memory.available_bytes : null;
 
@@ -272,6 +314,14 @@ export default function Models() {
       {!status && !error && <Section title="Roles"><ui.Empty><ui.Spinner /> loading models…</ui.Empty></Section>}
       {status && (
         <>
+          {onRole && (
+            <ui.Segmented
+              label="Show role"
+              value={filterRole ?? "all"}
+              options={[{ value: "all", label: "All" }, ...allEntries.map(([role]) => ({ value: role, label: ROLE_META[role]?.label ?? role }))]}
+              onChange={(value) => onRole(value === "all" ? null : value)}
+            />
+          )}
           <GlobalControls managed={managed} tunables={tunables} onChanged={changed} onSaved={refresh} />
           <div class={setup.cards}>
             {entries.map(([role, entry]) => (

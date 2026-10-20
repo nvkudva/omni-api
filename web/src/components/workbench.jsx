@@ -36,22 +36,22 @@ export function Workbench({ title, subtitle, readout, single, modelRole, headerT
           <div class={styles.barHead}>
             <div class={styles.titleRow}>
               <h1 class={styles.title}>{title}</h1>
+              {(headerTools || modelRole) && (
+                <div class={styles.barTools}>
+                  {headerTools}
+                  {modelRole && (
+                    <ui.IconButton
+                      icon="settings"
+                      label={roleLabel ? `Open ${roleLabel} model settings` : "Open model settings"}
+                      title={roleLabel ? `${roleLabel} model settings` : "Model settings"}
+                      onClick={() => setSettingsOpen(true)}
+                    />
+                  )}
+                </div>
+              )}
             </div>
             {subtitle && <p class={styles.subtitle}>{subtitle}</p>}
           </div>
-          {(headerTools || modelRole) && (
-            <div class={styles.barTools}>
-              {headerTools}
-              {modelRole && (
-                <ui.IconButton
-                  icon="settings"
-                  label={roleLabel ? `Open ${roleLabel} model settings` : "Open model settings"}
-                  title={roleLabel ? `${roleLabel} model settings` : "Model settings"}
-                  onClick={() => setSettingsOpen(true)}
-                />
-              )}
-            </div>
-          )}
           {readout && <Readout fields={readout} />}
         </div>
       </header>

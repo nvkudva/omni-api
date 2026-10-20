@@ -1,4 +1,5 @@
 import { health, healthError } from "../api/health.js";
+import { ROLE_META, runtime } from "../api/roles.js";
 import { lastRequest } from "../api/client.js";
 import * as ui from "./ui.jsx";
 import styles from "../App.module.css";
@@ -10,12 +11,10 @@ export function GatewayStatus() {
       ? <span class={styles.status}><ui.Dot status="down" /> gateway down</span>
       : <span class={styles.status}><ui.Spinner /> connecting</span>;
   }
-  if (!value.ok) return <span class={styles.status}><ui.Dot status="down" /> gateway down</span>;
-  const workers = Object.values(value.workers ?? {});
-  if (workers.length === 0) return <span class={styles.status}><ui.Dot status="starting" /> no workers</span>;
-  const ready = workers.filter((worker) => worker.status === "ready" || worker.status === "external").length;
-  const status = ready === workers.length ? "ready" : "starting";
-  return <span class={styles.status}><ui.Dot status={status} /> {ready} of {workers.length} workers ready</span>;
+  const roles = Object.keys(ROLE_META).map((role) => runtime.value.roles[role]);
+  const loaded = roles.filter((state) => state?.loaded).length;
+  const status = loaded === roles.length ? "ready" : "starting";
+  return <span class={styles.status}><ui.Dot status={status} /> {loaded} of {roles.length} models loaded · gateway ok</span>;
 }
 
 export function LastRequest() {

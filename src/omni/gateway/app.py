@@ -20,6 +20,9 @@ log = logging.getLogger("omni.gateway")
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 PLAYGROUND_INDEX = STATIC_DIR / "app" / "index.html"
+PLAYGROUND_PATHS = tuple(
+    f"/{tab}" for tab in ("chat", "decide", "embed", "image", "video", "stt", "tts", "settings", "settings/server", "settings/models")
+)
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
 
@@ -87,11 +90,14 @@ def create() -> FastAPI:
     for module in routes.MODULES:
         module.register(app, ctx)
 
-    @app.get("/", include_in_schema=False)
     def playground() -> Response:
         if not PLAYGROUND_INDEX.is_file():
             return error_response(503, "the playground is not built; run `bun run build` in web/")
         return FileResponse(PLAYGROUND_INDEX)
+
+    # the playground routes its tabs client-side; only these exact paths serve the page
+    for path in ("/", *PLAYGROUND_PATHS, "/settings/models/{role}"):
+        app.add_api_route(path, playground, methods=["GET"], include_in_schema=False)
 
     @app.get("/playground", include_in_schema=False)
     def old_playground() -> RedirectResponse:

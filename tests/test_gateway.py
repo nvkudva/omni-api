@@ -49,6 +49,17 @@ class Gateway(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/html", response.headers["content-type"])
 
+    def test_playground_tab_paths_serve_the_page(self):
+        for path in ("/image", "/settings/models", "/settings/models/chat"):
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 200, path)
+            self.assertIn("text/html", response.headers["content-type"])
+
+    def test_unknown_api_paths_stay_json_404(self):
+        response = self.client.get("/v1/nope")
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("json", response.headers["content-type"])
+
     def test_health_lists_every_worker(self):
         body = self.client.get("/health").json()
         self.assertIn("ok", body)

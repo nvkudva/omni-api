@@ -120,6 +120,7 @@ function imagesOf(message) {
 export default function Chat() {
   const [model, setModel] = useState(() => store.get("omni.chat.model", ""));
   const [system, setSystem] = useState("");
+  const [systemOpen, setSystemOpen] = useState(false);
   const [input, setInput] = useState("");
   const [images, setImages] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -141,6 +142,7 @@ export default function Chat() {
 
   useEffect(() => () => abort.current?.abort(), []);
   useEffect(() => { if (!vision) setImages([]); }, [vision]);
+  useEffect(() => { if (system.trim()) setSystemOpen(true); }, [system]);
 
   const draft = input ? [{ id: "draft", role: "user", content: input, images }] : [];
   const preview = useMemo(
@@ -295,9 +297,13 @@ export default function Chat() {
         )}
       >
         <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error} curl={curl}>
-          <ui.Field label="System prompt" class={styles.system}>
-            <textarea placeholder="optional" value={system} onInput={(event) => setSystem(event.currentTarget.value)} />
-          </ui.Field>
+          <details class={styles.system} open={systemOpen} onToggle={(event) => setSystemOpen(event.currentTarget.open)}>
+            <summary class={styles.systemSummary}>
+              <span class={styles.systemLabel}>System prompt</span>
+              {!systemOpen && system && <span class={styles.systemPreview}>{system}</span>}
+            </summary>
+            <textarea class={styles.systemText} placeholder="optional" aria-label="System prompt" value={system} onInput={(event) => setSystem(event.currentTarget.value)} />
+          </details>
           {images.length > 0 && (
             <div class={styles.thumbs}>
               {images.map((url, index) => (

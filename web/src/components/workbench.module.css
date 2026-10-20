@@ -15,10 +15,10 @@
 .barInner { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: flex-end; }
 .barHead { flex: 1 1 300px; min-width: 0; }
 /* Page-level controls, e.g. the role's model picker plus its settings gear:
-   right side of the bar, vertically centered. */
-.barTools { margin-left: auto; align-self: center; display: flex; align-items: center; gap: 8px; }
+   right edge of the title row, so the row is one control tall with or without a picker. */
+.barTools { margin-left: auto; display: flex; align-items: center; gap: 8px; min-width: 0; }
 .barTools select { width: auto; max-width: 220px; }
-.titleRow { display: flex; align-items: center; gap: 4px; }
+.titleRow { display: flex; align-items: center; gap: 12px; min-height: var(--control-h); }
 .titleRow .title { flex: none; }
 .title { font-size: 20px; font-weight: 600; letter-spacing: -0.018em; }
 .subtitle { margin: 4px 0 0; color: var(--text-2); font-size: 13px; line-height: 1.5; max-width: 74ch; }
@@ -57,6 +57,8 @@
   .bar { padding: 8px; }
   .main { padding: 8px; }
   .barHead { flex-basis: 100%; }
+  .titleRow { flex-wrap: wrap; }
+  .barTools select { max-width: 160px; }
   .readout { flex-basis: 100%; }
 }
 @media (max-width: 1020px) {
@@ -77,7 +79,7 @@
   display: flex; flex-direction: column; min-width: 0; min-height: 0;
 }
 .panelHead {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px;
   padding: 12px; border-bottom: 1px solid var(--hairline);
 }
 .panelTitleGroup { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; }
@@ -92,13 +94,26 @@
   border: 1px solid var(--hairline); border-radius: var(--radius-sm);
   padding: 3px 8px; white-space: nowrap;
 }
-.panelTools { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.panelTools { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; margin-left: auto; }
 .panelTools select { width: auto; max-width: 150px; }
 .panelBody { flex: 1; min-height: 0; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .panelBodyFlush { padding: 12px; }
 .panelFoot {
   padding: 12px; border-top: 1px solid var(--hairline);
   display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap;
+}
+/* stacked panels grow with their content; the page scrolls instead of each panel */
+@media (max-width: 1020px) {
+  .main:not(.mainSingle) { display: flex; flex-direction: column; }
+  .main:not(.mainSingle) > .panel { flex: none; }
+  .panelBody { flex: none; overflow: visible; }
+}
+@media (max-width: 520px) {
+  .panelHead { flex-direction: column; align-items: stretch; }
+  .panelTitleGroup { flex-wrap: nowrap; align-items: center; }
+  .panelTitleGroup .panelEndpoint { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .panelTools { margin-left: 0; width: 100%; flex-wrap: wrap; justify-content: flex-end; }
+  .panelTools > :not(button) { flex: 1 1 auto; }
 }
 .panelFootStart { justify-content: flex-start; }
 

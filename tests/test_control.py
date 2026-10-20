@@ -1,6 +1,7 @@
 """The /admin controls for the process: server status, restart and stop, runtime settings, logs."""
 import copy
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
@@ -33,6 +34,8 @@ class Control(unittest.TestCase):
     def test_server_reports_gateway_ollama_and_tunables(self):
         body = self.client.get("/admin/server").json()
         self.assertIsInstance(body["gateway"]["pid"], int)
+        self.assertIsInstance(body["gateway"]["version"], str)
+        self.assertLessEqual(body["gateway"]["started_at"], time.time())
         self.assertIn("reachable", body["ollama"])
         self.assertIn("video.fps", body["tunables"])
 

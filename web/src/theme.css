@@ -45,7 +45,7 @@
   --field: var(--background);
   --text: var(--foreground);
   --text-2: var(--muted-foreground);
-  --text-3: var(--ring);
+  --text-3: #636369;
   --hairline: var(--border);
   --hairline-strong: var(--input);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
@@ -100,7 +100,7 @@
   --field: var(--card);
   --text: var(--foreground);
   --text-2: var(--muted-foreground);
-  --text-3: var(--ring);
+  --text-3: #9d9da6;
   --hairline: var(--border);
   --hairline-strong: var(--input);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);

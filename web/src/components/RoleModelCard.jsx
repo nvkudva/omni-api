@@ -42,17 +42,17 @@ const CARD_STATUS = {
   installing: { tone: "busy", word: "installing…", hint: (state, download) => download?.error || `downloading ${download?.model ?? state.model}` },
   stopped: {
     tone: "bad",
-    word: "stopped",
+    word: "off",
     hint: (state) => state.engineUrl
       ? `Ollama at ${state.engineUrl} is not answering, so this model cannot run`
       : "the worker is not running",
   },
   failed: { tone: "bad", word: "failed", hint: () => "the worker keeps failing; its log has the reason" },
   starting: { tone: "busy", word: "starting…", hint: () => "the worker is coming up" },
-  loading: { tone: "busy", word: "loading…", hint: (state) => `loading ${state.model} into memory` },
-  warm: { tone: "ok", word: "warm", hint: (state) => `${state.runningModel ?? state.model} is in memory and stays loaded` },
-  running: { tone: "ok", word: "running", hint: (state) => `${state.runningModel ?? state.model} is in memory; it unloads once it has been idle` },
-  idle: { tone: "idle", word: "not running", hint: (state) => `${state.model} is not in memory; the next request loads it` },
+  loading: { tone: "busy", word: "loading model…", hint: (state) => `loading ${state.model} into memory` },
+  warm: { tone: "ok", word: "loaded · kept", hint: (state) => `${state.runningModel ?? state.model} is in memory and kept loaded` },
+  running: { tone: "ok", word: "loaded", hint: (state) => `${state.runningModel ?? state.model} is in memory; it unloads once it has been idle` },
+  idle: { tone: "idle", word: "idle · not loaded", hint: (state) => `the worker is up but ${state.model} is not in memory; the next request loads it` },
 };
 
 const UNKNOWN = {
@@ -64,6 +64,8 @@ const UNKNOWN = {
   status: "unknown",
   held: false,
 };
+
+const MINI_TITLE = { stt: "STT", tts: "TTS" };
 
 const STATE_LABEL = { ready: "ready", missing: "needs setup", incompatible: "needs setup", unknown: "checking…" };
 
@@ -399,7 +401,7 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
     >
       <span class={styles.top}>
         <span class={styles.badge} style={{ background: state.color }}><Icon name={role} /></span>
-        <button type="button" class={styles.name} aria-label={`Open ${state.label}`} onClick={() => onOpen(role)}>{state.label}</button>
+        <button type="button" class={styles.name} aria-label={`Open ${state.label}`} title={state.label} onClick={() => onOpen(role)}>{MINI_TITLE[role] ?? state.label}</button>
         {(needsSetup || trouble) && (
           <button
             type="button"
@@ -461,7 +463,7 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
             disabled={checking}
             label={`${pinned ? "stop keeping warm" : "keep warm"} ${state.label}`}
             title={checking ? "waiting for the gateway"
-              : pinned ? `Stop keeping ${shownModel} warm` : `Keep ${state.model} warm (loads it now and holds it)`}
+              : pinned ? `Stop keeping ${shownModel} loaded` : `Keep model loaded: loads ${state.model} now and holds it in memory`}
             onClick={flip}
           />
         )}

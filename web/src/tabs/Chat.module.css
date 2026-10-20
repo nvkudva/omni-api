@@ -20,10 +20,16 @@
 .thumbButton:hover { opacity: 0.6; }
 .thumbButton:focus-visible { outline: none; box-shadow: var(--focus-ring); opacity: 1; }
 
-.input { flex: 1; min-height: 44px; max-height: 200px; resize: none; field-sizing: content; }
+.input { flex: 1; min-height: 3lh; max-height: 10lh; resize: none; field-sizing: content; }
 .footHint { margin-right: auto; color: var(--text-3); font-size: 12px; }
 
-/* The system prompt fills the request panel; the message composer sits in the
-   foot beside Send, so the thread tail stays next to the action. */
-.system { flex: 1; min-height: 120px; }
-.system textarea { flex: 1; resize: none; }
+/* The system prompt is a closed disclosure; its text previews on one line when shut. */
+.system { min-width: 0; }
+.systemSummary { display: flex; align-items: center; gap: 8px; min-width: 0; cursor: pointer; list-style: none; font-size: 12px; font-weight: 500; color: var(--text-2); }
+.systemSummary::-webkit-details-marker { display: none; }
+.systemSummary::before { content: "▸"; flex: none; transition: transform 0.15s; }
+.system[open] > .systemSummary::before { transform: rotate(90deg); }
+.systemSummary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: 4px; }
+.systemLabel { flex: none; }
+.systemPreview { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 400; color: var(--text-3); }
+.systemText { display: block; width: 100%; min-height: 80px; margin-top: 8px; resize: vertical; }
