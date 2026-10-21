@@ -2,15 +2,29 @@
 
 **Every local model your app needs, behind one port.**
 
-omni is a local CLI. It runs, supervises and serves the models an app needs (chat, decisions, embeddings, speech-to-text and text-to-speech) on `127.0.0.1:10000`. Apps call a *role* such as `chat` or `tts`, never a model name or an engine port. Wherever an OpenAI format exists, omni uses it, so any OpenAI SDK works once you change its `base_url`.
+omni is a local CLI. It runs, supervises and serves the models an app needs (chat, decisions, embeddings, images, video, speech-to-text and text-to-speech) on `127.0.0.1:10000`. Apps call a *role* such as `chat` or `tts`, never a model name or an engine port. Wherever an OpenAI format exists, omni uses it, so any OpenAI SDK works once you change its `base_url`.
 
 The first client is Hyperlight.
 
 ## Screenshots
 
-![Playground — Chat tab, dark theme](docs/screenshots/playground-chat.png)
+![Playground — chat tab, dark theme](docs/screenshots/playground-chat.png)
 
-The playground at `/`: every role is a card on top (runner, endpoint, one status that says what its runtime is doing, and the single action that follows from it), and each tab is a workbench with a UI / JSON / cURL view of the same request.
+The playground at `/`: every role is a card in the left rail (runtime, model, one status that says what it is doing, and the switch that keeps it loaded), each role page is a workbench with a UI / JSON / cURL view of the same request, and that role's live request log sits under it.
+
+| ![Decide — probability bars](docs/screenshots/playground-decide.png) | ![Embed — semantic search over your own files](docs/screenshots/playground-embed.png) |
+|---|---|
+| **Decide** — noul, choice and score questions answered as probability distributions, in one forward pass. | **Embed** — index files, folders, images and audio, then search them by meaning. |
+
+![Models — every role's models, in Settings](docs/screenshots/playground-models.png)
+
+**Settings → Models** lists every role's models, what is on disk, what is loaded and how to add more. **Settings → Server** holds the gateway, Ollama and worker controls plus the memory and CPU meters.
+
+![Server — the gateway, Ollama, the workers and the memory meters](docs/screenshots/playground-server.png)
+
+It fits a phone as well: the role cards become a strip and the panels stack.
+
+![Playground on a phone](docs/screenshots/playground-mobile.png)
 
 ---
 
@@ -22,20 +36,21 @@ apps ──► 127.0.0.1:10000  omni gateway (FastAPI + httpx streaming proxy)
            /v1/systemone             ──► Ollama          same instance, scored in the gateway
            /v1/embeddings            ──► Ollama          same instance, EmbeddingGemma task prompts added in the gateway
            /v1/images/generations    ──► image worker    unix:~/.omni-api/run/image.sock
+           /v1/videos                ──► video worker    unix:~/.omni-api/run/video.sock
            /v1/audio/transcriptions  ──► stt worker      unix:~/.omni-api/run/stt.sock
            /v1/audio/speech          ──► tts worker      unix:~/.omni-api/run/tts.sock
            /, /static            ──► built playground (src/omni/static/app)
 ```
 
-- **Gateway** (`gateway/`): the FastAPI app (`gateway/app.py`) builds the shared context and mounts one module per route family (`gateway/routes/`). `gateway/proxy.py` streams each request through to its worker with httpx, filling in the default chat model when the request leaves `model` out.
-- **Supervisor** (`supervisor/`):
+- **Gateway** (`src/omni/gateway/`): the FastAPI app (`app.py`) builds the shared context and mounts one module per route family (`routes/`). `proxy.py` streams each request through to its worker with httpx, filling in the default chat model when the request leaves `model` out.
+- **Supervisor** (`src/omni/supervisor/`):
   - `pool.py` spawns each worker in its own process group and probes `/health` every 2 s.
   - Restarts failed workers with exponential backoff, one lock per worker so a restart and the watch loop never overlap.
   - `process.py` records each child's pid and command line, so on `down` only a pid that is still ours is signalled; leftover workers from an earlier run are cleaned up on start.
-- **Workers** (`workers/`): each role runs in its own uvicorn process, so a crash or memory spike in one model never takes down the others. Each loads its model on first use behind one lock and unloads it when idle.
+- **Workers** (`src/omni/workers/`): each role runs in its own uvicorn process, so a crash or memory spike in one model never takes down the others. Each loads its model on first use behind one lock and unloads it when idle.
 - **Chat, decide and embed** use the machine's own Ollama address (`OLLAMA_HOST`, else `127.0.0.1:11434`). If nothing answers there, omni spawns `ollama serve` on that same address; it never moves Ollama to another port.
-- **Decide** (`inference/decide.py`) turns each question into a lettered multiple-choice prompt, asks Ollama for one token with `top_logprobs`, and turns the option-letter probabilities into noul / choice / score answers. The prompt is OneJev's `qev-labels-v2` format, rendered as raw Qwen ChatML with thinking off. Models with Ollama's `decision` capability (for example `d1-omni`) cannot generate text, so they answer through Ollama's native `/v1/systemone`, which scores the options directly; the gateway keeps the same response shape for both.
-- **Image** (`workers/image.py`) runs `QwenImage21Pipeline` from diffusers on MPS in bf16. `[image] steps` sets the default step count.
+- **Decide** (`src/omni/inference/decide.py`) turns each question into a lettered multiple-choice prompt, asks Ollama for one token with `top_logprobs`, and turns the option-letter probabilities into noul / choice / score answers. The prompt is OneJev's `qev-labels-v2` format, rendered as raw Qwen ChatML with thinking off. Models with Ollama's `decision` capability (for example `d1-omni`) cannot generate text, so they answer through Ollama's native `/v1/systemone`, which scores the options directly; the gateway keeps the same response shape for both.
+- **Image** (`src/omni/workers/image.py`) runs `QwenImage21Pipeline` from diffusers on MPS in bf16. `[image] steps` sets the default step count.
 
 ---
 
@@ -50,7 +65,7 @@ omni serve       # foreground: gateway + all workers
 omni up          # same, in the background, and opens the playground (`--no-browser` skips that)
 omni up --foreground  # what `serve` does, if you would rather not remember two verbs
 omni status      # worker health as a table; `--json` for the raw report
-omni logs        # the gateway log; `-f` follows it, `omni logs stt` shows one worker's
+omni logs        # the gateway log; `-f` follows it, `omni logs stt` shows one worker's, `omni logs ollama` the engine's
 omni restart     # stop and start again on the same address, rereading the config
 omni down        # stop the gateway and every worker
 omni config      # show the effective settings; `config set`, `config check` also exist
@@ -71,17 +86,19 @@ cd web && bun install && bun run build   # rebuild into src/omni/static/app
 bun run dev                              # hot-reload dev server on :5180, proxies the API to :10000
 ```
 
-Light, dark or system theme, picked in the sidebar. Its tabs:
+Light, dark or system theme, cycled from the header. The left rail holds one card per role — runtime, model, one status word, and the switch that keeps it loaded — and the header counts what is resident (`3 of 7 loaded`). Each role page is a workbench with the request on the left, the result on the right, and that role's live request log underneath:
 
-- **Chat**: streaming replies with a token rate. An attach button appears when the model has Ollama's `vision` capability.
-- **Decide**: yes/no (noul), choice and score questions, with probability bars.
+- **Chat**: streaming replies with time-to-first-token, total time and a token rate. An attach button appears when the model has Ollama's `vision` capability.
+- **Decide**: yes/no (noul), choice and score questions, answered as probability distributions. The example dropdown fills in a whole question set.
+- **Embed**: drop files, images, audio or a whole folder, and they are embedded and searchable by meaning. The index lives in the browser (IndexedDB), so it survives a reload.
 - **Image**: prompt, size, steps, seed and negative prompt; shows and downloads PNGs.
 - **Video**: prompt, size, length, seed and an optional first frame; queues a job, polls it and plays the mp4.
-- **Models**: per-role default picker, installed models with delete, install from Ollama or Hugging Face with progress, and memory with warnings.
-- **Embed**: rank documents against a query by cosine similarity.
 - **STT**: record from the mic or upload a file; shows a transcript with segment timings.
 - **TTS**: pick a voice and speed, play the result, and run a round trip back through stt.
-- **Health**: worker status and loaded models.
+- **Settings → Server**: the gateway (restart, shutdown), Ollama, the workers, the memory and CPU meters, and the gateway and engine logs.
+- **Settings → Models**: every role's models, what is on disk, what is loaded, the idle-unload window, and Find & Install for more.
+
+A request that is still running can be stopped, and a finished one is kept by the server: close the tab and the work still completes, and its result is there when you come back.
 
 ---
 
@@ -89,8 +106,11 @@ Light, dark or system theme, picked in the sidebar. Its tabs:
 
 - **Decide without generation:** `/v1/systemone` scores yes/no, choice and score questions from one token's logprobs — no generated text to parse, with calibrated probabilities per option.
 - **Keep-warm pins:** pin a role and its model stays loaded (Ollama `keep_alive = -1`, workers re-loaded before idle unload). Pins persist across restarts.
-- **Three views, one request:** every playground tab shows UI, raw JSON and a copyable cURL command for the exact body it sends.
-- **Find & Install:** per-role Hugging Face / Ollama search filtered to what that role's runtime can actually run, with gated-repo "accept terms" handling and live download progress.
+- **Three views, one request:** every playground page shows UI, raw JSON and a copyable cURL command for the exact body it sends.
+- **Runs survive a closed tab:** the gateway keeps the request and its result, so closing the browser does not cancel the work — reopen it and the answer is there. A running request can also be stopped.
+- **Live per-role logs:** the request log of every role, tailed in the playground and in `omni logs`.
+- **Search your own files:** the embed role indexes text, code, images (captioned by a vision model) and audio (transcribed by stt) in the browser, then ranks the chunks against a query.
+- **Find & Install:** per-role Hugging Face / Ollama search filtered to what that role's runtime can actually run, with gated-repo "accept terms" handling, live download progress and a stop button.
 - **Self-healing workers:** per-worker locks, exponential-backoff restarts, pid + argv verification so a recycled pid is never signalled, and no orphan processes on `omni down`.
 - **One error shape everywhere:** gateway, workers, routing 404/405 and validation 422 all return `{"error": {"message", "type"}}`.
 - **Hardened local surface:** 8 MB JSON body caps (413), finite upstream timeouts, loopback-only by default — a non-loopback `--host` is refused unless `OMNI_ALLOW_NON_LOOPBACK=1` (admin routes have no auth, by design for a local-only tool).
@@ -122,20 +142,24 @@ omni brings all of that together:
 
 | Role | Endpoint | Default model | Engine |
 |---|---|---|---|
-| **chat** | `POST /v1/chat/completions` (streaming) | `qwen2.5:3b` | Ollama |
+| **chat** | `POST /v1/chat/completions` (streaming) | `qwen2.5:0.5b` | Ollama |
 | **decide** | `POST /v1/systemone` | `hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0` | Ollama (option-letter logprobs) |
-| **embed** | `POST /v1/embeddings` | `embeddinggemma-2` (text) | Ollama |
+| **embed** | `POST /v1/embeddings` | `embeddinggemma-2:270m` (text) | Ollama |
 | **image** | `POST /v1/images/generations` | `unsloth/Qwen-Image-2.1-Turbo-GGUF` | diffusers (MPS, Q8_0) |
 | **video** | `POST /v1/videos`, `GET /v1/videos/{id}`, `GET /v1/videos/{id}/content` | `baa-ai/LTX-2.3-22B-RAM-12GB-MLX` | ltx-2-mlx (LTX-2.3 distilled, RAM-quantized) |
 | **stt** | `POST /v1/audio/transcriptions` | `mlx-community/parakeet-tdt-0.6b-v3` | parakeet-mlx |
-| **tts** | `POST /v1/audio/speech`, `GET /v1/audio/voices` | `prince-canuma/Kokoro-82M-4bit` (27 voices) | mlx-audio |
+| **tts** | `POST /v1/audio/speech`, `GET /v1/audio/voices` | `mlx-community/Kokoro-82M-8bit` (27 voices) | mlx-audio |
 | — | `GET /health`, `GET /v1/models` | | |
-| — | `GET /admin/models`, `GET /admin/models/search`, `POST /admin/models/{pull,delete,default,load,unload}`, `POST /admin/workers/{name}/{start,stop,restart}`, `GET /admin/memory` | list, search Hugging Face (per-role filter), install, delete, switch, load and unload models; start, stop and restart workers; memory, CPU and load with overload warnings | |
+| — | `GET /admin/models`, `GET /admin/models/{search,status,downloads,check}`, `POST /admin/models/{pull,pull/stop,delete,default,load,unload}` | list, search Hugging Face (per-role filter), check a model id, install (with progress), delete, switch, load and unload | |
+| — | `GET /admin/pins`, `POST /admin/pins` | keep a role's model resident, and re-apply that on the next start | |
+| — | `POST /admin/workers/{name}/{start,stop,restart}`, `GET /admin/memory` | start, stop and restart the workers; RAM, swap, disk, CPU, load average and per-worker RSS | |
+| — | `GET /admin/requests`, `GET /admin/requests/{id}`, `GET /admin/requests/{id}/result`, `DELETE /admin/requests/{id}` | the running and recently finished requests, kept on the server | |
+| — | `GET /admin/server`, `POST /admin/server/{restart,stop}`, `POST /admin/settings`, `GET /admin/logs`, `GET /admin/logs/{role}` | the gateway's own state and controls, one persisted setting, the logs | |
 | — | `GET /` | browser playground for every endpoint (`/playground` redirects here) | |
 
 Measured on Apple Silicon:
 
-- chat streams at about 140 tok/s.
+- chat streams at about 140 tok/s with `qwen2.5:3b`, and faster with the shipped 0.5b default.
 - A warm embed takes 0.03–0.15 s.
 - tts runs at about 12× realtime: 8 s of audio in 0.64 s.
 
@@ -188,8 +212,8 @@ from openai import OpenAI
 
 client = OpenAI(base_url="http://127.0.0.1:10000/v1", api_key="local")
 
-client.chat.completions.create(model="qwen2.5:3b", messages=[{"role": "user", "content": "hi"}])
-client.embeddings.create(model="embed", input=["refund policy", "shipping times"])
+client.chat.completions.create(model="qwen2.5:0.5b", messages=[{"role": "user", "content": "hi"}])
+client.embeddings.create(model="embed", input=["refund policy", "shipping times"])  # "embed" = the role's model
 client.images.generate(model="image", prompt="a lighthouse at dawn", size="1024x1024")
 client.audio.speech.create(model="tts", voice="af_heart", input="Hello from omni.").write_to_file("out.wav")
 client.audio.transcriptions.create(model="stt", file=open("out.wav", "rb"))
@@ -241,7 +265,19 @@ curl localhost:10000/admin/models/load -H 'content-type: application/json' -d '{
 curl localhost:10000/admin/models/unload -H 'content-type: application/json' -d '{"role": "chat"}'
 curl localhost:10000/admin/pins -H 'content-type: application/json' -d '{"role": "stt", "pinned": true}'  # keep it loaded
 curl -X POST localhost:10000/admin/workers/tts/stop    # start | stop | restart; ollama runs outside omni
+
+# voices and logs
+curl localhost:10000/v1/audio/voices                   # 27 Kokoro voices, with the default one
+curl 'localhost:10000/admin/logs/stt?lines=50'        # one role's log; /admin/logs is the gateway's
+
+# requests kept by the server — running now, and the ones just finished
+curl localhost:10000/admin/requests
+curl localhost:10000/admin/requests/exec_abc123/result
 ```
+
+Send your own `x-omni-exec: <id>` header with a request and the gateway keeps that request and its
+result, so `GET /admin/requests/<id>/result` replays it later — the work does not stop when the
+client goes away. Re-posting a finished id replays it instead of running it again.
 
 Every error uses the same shape: `{"error": {"message": "...", "type": "..."}}`. A `load` or a `pin`
 that is refused because of something about *that* model answers `409` with `type: "overload"` and the
@@ -282,7 +318,7 @@ port = 10000
 idle_unload_minutes = 10
 
 [chat]
-model = "qwen2.5:3b"
+model = "qwen2.5:0.5b"   # the shipped default; a bigger one is one click away
 
 [tts]
 voice = "af_heart"
@@ -327,13 +363,14 @@ Ports:
   TCP/IP > Configure IPv6.
 - **Background runs inside agent sandboxes** may be stopped after a time limit. For long sessions, run `omni serve` in your own terminal.
 - **tts voices:** American and British English only, since misaki[en] covers just those two.
-- **Not yet built:** `pull`, `logs`, `test`, `bench`, and the WebSocket `/v1/realtime` (wake word, VAD and streaming speech).
+- **embed reads text.** Images are embedded as a vision-model caption and audio as its stt transcript; PDFs are not supported yet. The index itself lives in the browser (IndexedDB), not on the server, so it is per-browser and per-address.
+- **Not yet built:** `omni pull`, `omni test`, `omni bench`, and the WebSocket `/v1/realtime` (wake word, VAD and streaming speech).
 
 ## Project docs
 
 - [`PLAN.md`](PLAN.md): architecture, decisions and rejected alternatives.
 - [`TODO.md`](TODO.md): milestone checklist.
-- [`REVIEW.md`](REVIEW.md): the 2026-10-16 architecture review and what it changed.
+- [`REVIEW.md`](REVIEW.md): the architecture review and what it changed.
 
 `web/` holds the playground source (Preact + CSS modules + Vite): `bun run build` writes
 `src/omni/static/app`, and `bun test` renders every page headlessly so a page that only

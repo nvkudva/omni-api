@@ -106,12 +106,13 @@ describe("pages render before the first poll", () => {
     for (const word of ["Runtime", "Appearance", ">Logs<", ">Health<"]) expect(html).not.toContain(word);
   });
 
-  test("each page shows its own endpoint", () => {
-    for (const [name, endpoint] of Object.entries(ENDPOINTS)) {
-      const Page = pages[name];
+  test("a role page hides its request until the model can serve", () => {
+    for (const [name, Page] of Object.entries(pages)) {
+      if (name === "Models" || name === "Settings") continue;
       const html = render(<Page active />);
-      expect(html).toContain(endpoint);
-      expect(html).not.toContain("POST /v1/");
+      // nothing is known yet: the page waits instead of offering a request
+      expect(html).not.toContain(ENDPOINTS[name]);
+      expect(html).toContain("is getting ready");
     }
   });
 

@@ -351,12 +351,25 @@ export default function Embed() {
     >
       <Panel
         title="Embedded data"
+        endpoint="/v1/embeddings"
         meta={indexing ? "embedding…" : undefined}
         tools={(
           <>
             {indexing && <ui.Button variant="stop" onClick={stopIndexing}>Stop</ui.Button>}
             <ui.IconButton icon="trash" label="Clear embedded data" disabled={indexing || !jobs.length} onClick={clearIndex} />
           </>
+        )}
+        foot={(
+          <form class={cx(ui.css.inputRow, styles.ask)} onSubmit={ask}>
+            <input
+              aria-label="Search embedded data"
+              value={query}
+              placeholder={chunks.length ? "Ask something about your embedded data" : "Embed some files first"}
+              disabled={!chunks.length}
+              onInput={(event) => setQuery(event.currentTarget.value)}
+            />
+            <ui.Button variant="primary" type="submit" disabled={asking || !query.trim() || !chunks.length}>{asking ? "Searching…" : "Search"}</ui.Button>
+          </form>
         )}
       >
         <div
@@ -426,22 +439,9 @@ export default function Embed() {
       </Panel>
 
       <Panel
-        title="Ask"
-        endpoint="/v1/embeddings"
+        title="Results"
         meta={turns.at(-1)?.meta}
         tools={<ui.IconButton icon="trash" label="Clear history" disabled={!turns.length} onClick={() => setTurns([])} />}
-        foot={(
-          <form class={cx(ui.css.inputRow, styles.ask)} onSubmit={ask}>
-            <input
-              aria-label="Search embedded data"
-              value={query}
-              placeholder={chunks.length ? "Ask something about your embedded data" : "Embed some files first"}
-              disabled={!chunks.length}
-              onInput={(event) => setQuery(event.currentTarget.value)}
-            />
-            <ui.Button variant="primary" type="submit" disabled={asking || !query.trim() || !chunks.length}>{asking ? "Searching…" : "Search"}</ui.Button>
-          </form>
-        )}
       >
         {error && <ui.ErrorText>{error}</ui.ErrorText>}
         {turns.length

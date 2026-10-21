@@ -178,21 +178,20 @@
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-sm);
+  /* No shadow: on a light page it doubles the hairline and the border reads thick.
+     The border alone draws the edge, sharp in both themes. */
+  box-shadow: none;
   backdrop-filter: var(--surface-blur);
   -webkit-backdrop-filter: var(--surface-blur);
 }
 
-/* shared: the role's colour chip with its icon, in a card header.
-   The role colour arrives as --role-color, so the chip is one tinted surface
-   with the accent on it in either theme. */
+/* shared: the role's icon, in a card header. The role colour arrives as
+   --role-color, so the icon itself wears the accent; no chip around it. */
 .roleGlyph {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; border-radius: var(--radius-sm); flex: none;
-  background: color-mix(in srgb, var(--role-color) 16%, var(--card));
-  border: 1px solid color-mix(in srgb, var(--role-color) 38%, transparent);
+  display: inline-flex; align-items: center; justify-content: center; flex: none;
   color: var(--role-color);
 }
+.roleGlyph svg { width: 16px; height: 16px; }
 
 /* --- Code ------------------------------------------------------------------ */
 

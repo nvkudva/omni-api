@@ -5,7 +5,7 @@
 
   & .question {
     display: flex; flex-direction: column;
-    background: var(--card); border: 1px solid var(--border); box-shadow: var(--shadow-sm);
+    background: var(--card); border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     overflow: hidden;
 

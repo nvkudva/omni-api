@@ -7,7 +7,7 @@
      · --brand-gradient is the site's cyan → indigo → pink sweep
      · --role-* is each role's accent, deeper in daylight so it keeps contrast
      · controls  h-9 (36px) · rounded-md · 1px --input border · shadow-xs
-     · cards     rounded-xl · shadow-sm
+     · cards     rounded-xl · 1px border, no shadow (a shadow doubles the hairline)
      · focus     border flips to --ring plus a 3px ring at 50% */
 :root {
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;

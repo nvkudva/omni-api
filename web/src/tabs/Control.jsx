@@ -100,24 +100,12 @@ function Gateway({ info, onReconnected }) {
 
   const working = phase === "restarting" || phase === "stopping";
   const started = info ? duration(Date.now() / 1000 - info.gateway.started_at) : "";
-  const url = window.location.origin;
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch {
-      setError("could not copy the URL");
-    }
-  };
   return (
     <Panel
       title="Gateway"
       meta={info ? `pid ${info.gateway.pid} · port ${info.gateway.port}${info.gateway.version ? ` · v${info.gateway.version}` : ""} · up ${started}` : ""}
       tools={(
         <>
-          <ui.Button small onClick={copy}>{copied ? "Copied" : "Copy URL"}</ui.Button>
           <ui.Button small disabled={working || phase === "stopped"} onClick={() => run("restart")}>Restart</ui.Button>
           <ui.Button small disabled={working || phase === "stopped"} onClick={() => run("stop")}>Shutdown</ui.Button>
         </>

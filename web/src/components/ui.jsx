@@ -62,7 +62,7 @@ export function IconButton({ icon, label, danger, active, size = 16, class: extr
   );
 }
 
-export function Segmented({ options, value, onChange, label, compact }) {
+export function Segmented({ options, value, onChange, label, compact, full }) {
   const move = (current, key) => {
     const index = options.findIndex((option) => option.value === current);
     const next = key === "ArrowRight" || key === "ArrowDown" ? index + 1
@@ -72,7 +72,7 @@ export function Segmented({ options, value, onChange, label, compact }) {
     onChange(target.value);
   };
   return (
-    <div class={cx(styles.segmented, compact && styles.compact)} role="radiogroup" aria-label={label}>
+    <div class={cx(styles.segmented, compact && styles.compact, full && styles.full)} role="radiogroup" aria-label={label}>
       {options.map((option) => (
         <button
           type="button"

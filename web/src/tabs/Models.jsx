@@ -149,7 +149,7 @@ export function OllamaRow({ model, roles, onChanged }) {
   );
 }
 
-export function WorkerRow({ name, worker, model, onChanged }) {
+export function WorkerRow({ name, state, worker, model, onChanged }) {
   const [busy, run] = useAction(onChanged);
   const label = ROLE_META[name]?.label ?? name;
   const control = (action) => run(() => workerAction(name, action), `${name}: ${action} sent`);
@@ -162,14 +162,22 @@ export function WorkerRow({ name, worker, model, onChanged }) {
     });
     if (confirmed) control("stop");
   };
-  const stopped = worker.status === "stopped";
+  // The role's own state is what the cards show, so this table cannot drift from them.
+  const status = state?.status ?? worker?.status ?? "unknown";
+  const stopped = status === "stopped" || status === "failed";
+  const loaded = state ? state.loaded : Boolean(worker?.loaded);
+  const word = loaded ? "loaded" : stopped ? "stopped" : status === "starting" ? "starting…" : "idle";
+  const dot = loaded ? "loaded" : stopped ? "stopped" : status === "starting" ? "unknown" : "idle";
+  const shownModel = state?.runningModel ?? worker?.model ?? model ?? "—";
+  const memory = state ? (loaded ? gb(state.memoryBytes) : "—") : gb(worker?.rss_bytes ?? 0);
+  const cpu = state?.cpuPercent ?? worker?.cpu_percent ?? 0;
   return (
     <tr>
       <td>{label}</td>
-      <td>{worker.model || model || "—"}</td>
-      <td><span class={ui.css.nameCell}><ui.Dot status={worker.status} />{worker.status}</span></td>
-      <td class={ui.css.numeric}>{worker.cpu_percent.toFixed(0)}%</td>
-      <td class={ui.css.numeric}>{gb(worker.rss_bytes)}</td>
+      <td>{shownModel}</td>
+      <td><span class={ui.css.nameCell}><ui.Dot status={dot} />{word}</span></td>
+      <td class={ui.css.numeric}>{cpu.toFixed(0)}%</td>
+      <td class={ui.css.numeric}>{memory}</td>
       <td class={ui.css.actionCell}>
         <span class={styles.buttons}>
           {stopped
@@ -219,7 +227,7 @@ export function Memory({ memory, roles, onChanged }) {
             <span class={styles.meterLabel}>RAM</span>
             <ui.Meter fraction={fraction} />
           </div>
-          <ui.Meta>RAM {gb(memory.available_bytes)} free · swap {gb(memory.swap_used_bytes)} used · disk {gb(memory.disk_free_bytes)} free</ui.Meta>
+          <ui.Meta>RAM {gb(memory.available_bytes)} free · disk {gb(memory.disk_free_bytes)} free</ui.Meta>
         </div>
         <div>
           <div class={styles.meterRow}>
@@ -243,9 +251,18 @@ export function Memory({ memory, roles, onChanged }) {
         : <ui.Meta>none loaded</ui.Meta>}
       <h3 class={styles.subhead}>Workers</h3>
       <table>
-        <thead><tr><th>Worker</th><th>Model</th><th>Status</th><th>CPU</th><th>Memory</th><th /></tr></thead>
+        <thead><tr><th>Worker</th><th>Model</th><th>State</th><th>CPU</th><th>Memory</th><th /></tr></thead>
         <tbody>
-          {Object.entries(memory.workers).map(([name, worker]) => <WorkerRow key={name} name={name} worker={worker} model={roles?.[name]?.default} onChanged={onChanged} />)}
+          {ROLE_ORDER.filter((name) => memory.workers?.[name]).map((name) => (
+            <WorkerRow
+              key={name}
+              name={name}
+              state={runtime.value.roles?.[name]}
+              worker={memory.workers[name]}
+              model={roles?.[name]?.default}
+              onChanged={onChanged}
+            />
+          ))}
         </tbody>
       </table>
     </Section>
@@ -313,15 +330,16 @@ export default function Models({ role: filterRole = null, onRole }) {
       {!status && !error && <Section title="Roles"><ui.Empty><ui.Spinner /> loading models…</ui.Empty></Section>}
       {status && (
         <>
+          <GlobalControls managed={managed} tunables={tunables} onChanged={changed} onSaved={refresh} />
           {onRole && (
             <ui.Segmented
+              full
               label="Show role"
               value={filterRole ?? "all"}
               options={[{ value: "all", label: "All" }, ...allEntries.map(([role]) => ({ value: role, label: ROLE_META[role]?.label ?? role }))]}
               onChange={(value) => onRole(value === "all" ? null : value)}
             />
           )}
-          <GlobalControls managed={managed} tunables={tunables} onChanged={changed} onSaved={refresh} />
           <div class={styles.cards}>
             {entries.map(([role, entry]) => (
               <RoleModelCard key={role} density="detail" role={role} entry={entry} pinned={pins.includes(role)} tunables={tunables} onChanged={changed} onSaved={refresh} onAdd={setAddRole} />

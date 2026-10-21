@@ -64,7 +64,7 @@
     <div class="hero-copy">
       <p class="eyebrow reveal">
         <span class="dot"></span>
-        v0.4.0 · local-first · MIT
+        v0.5.1 · local-first · MIT
       </p>
 
       <h1 class="reveal">
@@ -311,11 +311,11 @@
       <article class="role-card reveal" style="--c:var(--violet)">
         <header>
           <span class="role-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2-5 3 10 2.5-5H21"/></svg></span>
-          <h3>health</h3><span class="role-engine">gateway</span>
+          <h3>settings</h3><span class="role-engine">playground</span>
         </header>
-        <p>Every worker's status and the model it has loaded, plus the model list.</p>
-        <code class="role-endpoint">GET /health · /v1/models</code>
-        <p class="role-model">also · <span>/admin/memory</span></p>
+        <p>The gateway, Ollama and every worker under your hand, with the memory and CPU meters next to them.</p>
+        <code class="role-endpoint">GET /admin/server · /admin/memory</code>
+        <p class="role-model">also · <span>/health · /v1/models</span></p>
       </article>
     </div>
   </div>
@@ -329,23 +329,38 @@
         <header class="section-head section-head-left">
           <p class="kicker">Playground</p>
           <h2>A workbench for every endpoint</h2>
-          <p class="sub">omni ships a browser playground at <code>/</code>. Every tab is a workbench with a UI view, a raw JSON view and a copyable cURL for the exact request it sends.</p>
+          <p class="sub">omni ships a browser playground at <code>/</code>. Every role is a card in the left rail — runtime, model, one status word, and the switch that keeps it loaded — and every page is a workbench with a UI view, a raw JSON view and a copyable cURL for the exact request it sends.</p>
         </header>
 
         <ul class="feature-list">
-          <li><b>Chat</b> — streaming replies with a live token rate; attach images when the model supports vision.</li>
-          <li><b>Decide</b> — yes/no, choice and score questions with probability bars.</li>
+          <li><b>Chat</b> — streaming replies with time-to-first-token, total time and a token rate; attach images when the model supports vision.</li>
+          <li><b>Decide</b> — yes/no, choice and score questions answered as probability distributions.</li>
+          <li><b>Embed</b> — index files, folders, images and audio, then search them by meaning.</li>
           <li><b>Image &amp; Video</b> — prompts, sizes, steps, seeds; PNG download and mp4 playback.</li>
-          <li><b>Models</b> — install from Ollama or Hugging Face, switch defaults, watch memory.</li>
-          <li><b>Embed</b> — rank documents against a query by cosine similarity.</li>
           <li><b>STT &amp; TTS</b> — record from the mic, round-trip audio back through speech-to-text.</li>
-          <li><b>Health</b> — every worker, its status and the model it has loaded.</li>
+          <li><b>Settings</b> — the gateway, Ollama and the workers, the memory and CPU meters, and every role's models.</li>
+          <li><b>Live logs</b> — each role's request log, tailed under the page that produced it.</li>
         </ul>
       </div>
 
       <figure class="shot reveal">
-        <img src="assets/playground-chat.png" alt="The omni playground showing the chat tab in dark theme" width="1200" height="750">
-        <figcaption>The chat tab — dark theme</figcaption>
+        <img src="assets/playground-chat.png" alt="The omni playground: role cards in the left rail and a chat request on the right" width="1600" height="1000">
+        <figcaption>Chat — a streaming reply, its token rate and the role's live log</figcaption>
+      </figure>
+    </div>
+
+    <div class="shots reveal">
+      <figure class="shot">
+        <img src="assets/playground-decide.png" alt="The decide page scoring a support ticket as probability bars" width="1600" height="1000" loading="lazy">
+        <figcaption>Decide — probabilities per option, no text to parse</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="assets/playground-embed.png" alt="The embed page searching indexed files by meaning" width="1600" height="1000" loading="lazy">
+        <figcaption>Embed — your own files, searchable by meaning</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="assets/playground-models.png" alt="The models settings page listing every role's models, what is on disk and what is loaded" width="1600" height="1000" loading="lazy">
+        <figcaption>Settings — every role's models, what is on disk, what is loaded</figcaption>
       </figure>
     </div>
   </div>
@@ -393,6 +408,22 @@
         <h3>Survives a closed tab</h3>
         <p>Requests are retained server-side, so closing the browser never cancels the work — reopen it and the result is there.</p>
       </article>
+      <article class="feature reveal" style="--c:var(--sky)">
+        <h3>Live per-role logs</h3>
+        <p>Each role's request log, tailed in the playground and in <code>omni logs</code>, so you see what a model was asked.</p>
+      </article>
+      <article class="feature reveal" style="--c:var(--lime)">
+        <h3>Search your own files</h3>
+        <p>The embed role indexes text, code, images and audio, then ranks the chunks against your query by meaning.</p>
+      </article>
+      <article class="feature reveal" style="--c:var(--indigo)">
+        <h3>Server controls</h3>
+        <p>Restart the gateway, start and stop a worker, and watch RAM, CPU and load average from the same page.</p>
+      </article>
+      <article class="feature reveal" style="--c:var(--amber)">
+        <h3>Stop anything</h3>
+        <p>Cancel a running request or a running download. A download that failed while you were away is waiting when you come back.</p>
+      </article>
     </div>
   </div>
 </section>
@@ -418,6 +449,7 @@
 
 # or, with Homebrew on macOS
 brew tap nvkudva/omni
+brew trust nvkudva/omni    # Homebrew 7+ refuses untrusted third-party taps
 brew install omni</code></pre>
           </div>
         </div>
@@ -555,7 +587,10 @@ curl localhost:10000/v1/videos/video_abc123/content -o clip.mp4</code></pre>
 
     <p class="api-note reveal">
       Every endpoint, including the admin routes, answers errors as
-      <code>{"error": {"message": "...", "type": "..."}}</code>.
+      <code>{"error": {"message": "...", "type": "..."}}</code>. The admin routes
+      (<code>/admin/models</code>, <code>/admin/workers</code>, <code>/admin/pins</code>,
+      <code>/admin/memory</code>, <code>/admin/server</code>, <code>/admin/logs</code> and
+      <code>/admin/requests</code>) are what the playground itself uses.
     </p>
   </div>
 </section>
@@ -617,6 +652,14 @@ curl localhost:10000/v1/videos/video_abc123/content -o clip.mp4</code></pre>
       <details class="reveal">
         <summary>Can I use it with my own app?</summary>
         <p>Point any OpenAI client at <code>http://127.0.0.1:10000/v1</code> and change <code>base_url</code>. Roles that OpenAI does not model — decide, video — have their own small endpoints with the same error shape.</p>
+      </details>
+      <details class="reveal">
+        <summary>What is the playground for?</summary>
+        <p>It is a workbench for every endpoint: a form, the raw JSON and a copyable cURL for the exact request, plus the answer, its timing and the role's log. You can change a role's model, install another one and restart a worker without touching your app.</p>
+      </details>
+      <details class="reveal">
+        <summary>Can I swap a model later?</summary>
+        <p>Yes. Every role maps to a model in your config, and the playground changes that mapping in one click — search Hugging Face or Ollama for a model the role can actually run, install it, make it the default. Your app still calls the role.</p>
       </details>
       <details class="reveal">
         <summary>Which platforms are supported?</summary>

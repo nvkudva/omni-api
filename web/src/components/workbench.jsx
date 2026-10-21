@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 import { cx } from "../lib/cx.js";
-import { ROLE_META } from "../api/roles.js";
+import { ROLE_META, WORKER_ROLES, pollRuntime, runtime } from "../api/roles.js";
+import { loadRole, workerAction } from "../api/endpoints.js";
 import * as ui from "./ui.jsx";
 import { ModelSettingsPopup } from "./ModelSettings.jsx";
 import { ExecStrip } from "./ActivityStrips.jsx";
@@ -31,9 +32,63 @@ export function useTurnState() {
   };
 }
 
+/**
+ * A model page is only useful once its model can answer: until then the request
+ * and the response stay hidden, and this card says what is missing and offers the
+ * one action that fixes it.
+ */
+function NotReady({ role, state }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const label = ROLE_META[role]?.label ?? role;
+  const model = state?.model ?? "";
+  const status = state?.status ?? "checking";
+  const stopped = status === "stopped" || status === "failed";
+  const starting = status === "starting" || status === "loading" || status === "checking";
+  const start = stopped && WORKER_ROLES.has(role);
+
+  const run = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      if (start) await workerAction(role, "start");
+      else await loadRole({ role, model });
+      await pollRuntime();
+    } catch (failure) {
+      setError(failure.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const message = starting
+    ? `${label} is getting ready…`
+    : stopped && WORKER_ROLES.has(role)
+      ? `The ${label.toLowerCase()} worker is not running.`
+      : stopped
+        ? `${label} is not running.`
+        : `${label} is not loaded yet.`;
+
+  return (
+    <div class={styles.notReady}>
+      <div class={styles.notReadyCard}>
+        <p class={styles.notReadyText}>{message}</p>
+        {!starting && (
+          <ui.Button variant="primary" disabled={busy} onClick={run}>
+            {busy ? "Working…" : start ? "Start" : "Load"}
+          </ui.Button>
+        )}
+        {error && <ui.ErrorText>{error}</ui.ErrorText>}
+      </div>
+    </div>
+  );
+}
+
 export function Workbench({ title, subtitle, readout, single, modelRole, headerTools, class: pageClass, children }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const roleLabel = (modelRole && ROLE_META[modelRole]?.label) ?? modelRole;
+  const state = modelRole ? runtime.value.roles[modelRole] : null;
+  const ready = !modelRole || Boolean(state?.loaded);
   return (
     <div class={cx(styles.workbench, pageClass)}>
       <header class={styles.bar}>
@@ -60,7 +115,9 @@ export function Workbench({ title, subtitle, readout, single, modelRole, headerT
           {readout && <Readout fields={readout} />}
         </div>
       </header>
-      <main class={cx(styles.main, single && styles.single)}>{children}</main>
+      {ready
+        ? <main class={cx(styles.main, single && styles.single)}>{children}</main>
+        : <NotReady role={modelRole} state={state} />}
       {SHOW_ACTIVITY && modelRole && <ExecStrip role={modelRole} exceptRole="embed" />}
       {settingsOpen && modelRole && <ModelSettingsPopup role={modelRole} onClose={() => setSettingsOpen(false)} />}
     </div>
@@ -73,7 +130,7 @@ export function Readout({ fields }) {
   const shown = (fields ?? []).filter(Boolean);
   if (!shown.length) return null;
   return (
-    <dl class={cx(ui.css.facts, styles.readout)}>
+    <dl class={styles.readout}>
       {shown.map((field) => (
         <div key={field.label}>
           <dt>{field.label}</dt>

@@ -803,6 +803,14 @@ code {
   background: rgba(8, 10, 24, 0.8);
 }
 
+.shots {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-top: 46px;
+}
+.shots .shot:last-child { grid-column: 1 / -1; max-width: 720px; justify-self: center; }
+
 /* ───────────── features ───────────── */
 
 .feature-grid {
@@ -1063,6 +1071,8 @@ code {
   .hero-inner { grid-template-columns: 1fr; gap: 46px; }
   .hero-visual { max-width: 560px; }
   .split-wide, .playground-grid { grid-template-columns: 1fr; }
+  .shots { grid-template-columns: 1fr; }
+  .shots .shot:last-child { max-width: none; }
   .flow { grid-template-columns: 1fr; gap: 10px; }
   .flow-arrow { transform: rotate(90deg); height: 34px; }
 }
