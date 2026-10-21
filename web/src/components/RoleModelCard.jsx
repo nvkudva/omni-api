@@ -394,7 +394,7 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
 
   return (
     <div
-      class={cx(styles.miniCard, active && styles.on, !running && !active && styles.off)}
+      class={cx(styles.miniCard, active && styles.on)}
       aria-current={active ? "page" : undefined}
       onClick={open}
     >
@@ -414,9 +414,9 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
         )}
         <span class={styles.runner}>{state.runner}</span>
       </span>
-      <span class={ui.css.endpoint} title={state.endpoint}>{state.endpoint}</span>
       <span class={styles.modelRow}>
         <span class={styles.model} title={shownModel}>{shortModel(shownModel)}</span>
+        <span class={styles.route} title={state.endpoint}>{state.endpoint}</span>
         {running && <span class={styles.memory}>{gb(state.memoryBytes)}</span>}
       </span>
       <span class={styles.foot}>
@@ -466,6 +466,7 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
 
 function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }) {
   const meta = ROLE_META[role];
+  const label = meta?.label ?? role;
   const names = entry.installed.map((model) => model.name);
   if (!names.includes(entry.default)) names.unshift(entry.default);
   const current = entry.installed.find((model) => model.name === entry.default);
@@ -479,6 +480,17 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
   const installDefault = async () => {
     if (await install(role, entry.default)) onChanged(`installed ${entry.default}`);
   };
+
+  // A model can be on disk and still serve nothing: its worker may be stopped, or
+  // Ollama may be down. Say which, and offer the one fix this card owns. A missing
+  // model is already the install notice's story, so it wins over a stopped worker.
+  const status = runtime.value.roles[role]?.status;
+  const workerDown = (status === "stopped" || status === "failed") && entry.state !== "missing";
+  const engineDown = status === "unavailable";
+  const startWorker = () => run(async () => {
+    await workerAction(role, "start");
+    await pollRuntime();
+  }, `started the ${label} worker`);
 
   const choose = async (model) => {
     try {
@@ -508,6 +520,15 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
       meta={`${entry.runner} · ${entry.installed.length} downloaded · ${gb(entry.total_bytes)} · ${STATE_LABEL[entry.state] ?? entry.state}`}
     >
       {entry.reason && <ui.Notice tone={entry.state === "missing" ? "warn" : "error"}>{entry.reason}</ui.Notice>}
+      {workerDown && (
+        <div class={styles.standing}>
+          <ui.Notice tone="warn">{`The ${label} worker is not running, so ${entry.default} cannot be served.`}</ui.Notice>
+          <ui.Button small variant="primary" disabled={busy} onClick={startWorker}>Start</ui.Button>
+        </div>
+      )}
+      {engineDown && (
+        <ui.Notice tone="warn">{`Ollama is not answering, so ${label} cannot serve ${entry.default}. Restart it from the Workers section above.`}</ui.Notice>
+      )}
       {entry.state === "missing" && (
         <ui.Row>
           <ui.Button small variant="primary" disabled={installing} onClick={installDefault}>
@@ -530,7 +551,7 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
 }
 
 /**
- * One role, two densities. Mini: top-strip navigation card, opens the role's
+ * One role, two densities. Mini: sidebar navigation card, opens the role's
  * tab, one status and the action that follows from it (Setup, Start, Server or
  * keep-warm). Detail: Settings card with current model, downloads, health and
  * per-role tunables. Both share keep-warm, install progress and setup state

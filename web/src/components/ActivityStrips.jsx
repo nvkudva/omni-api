@@ -64,7 +64,7 @@ export function ExecStrip({ role, exceptRole }) {
   const word = (entry) => entry.error ? "failed"
     : entry.finished_at ? `done · ${size(entry.size)}` : `running · ${size(entry.bytes)}`;
   return (
-    <div class={cx(styles.downloads, !role && styles.global)} aria-label="Recent requests">
+    <div class={cx(styles.downloads, (!role || exceptRole) && styles.global)} aria-label="Recent requests">
       <span class={styles.srOnly} role="status">{running.length ? `${running.length} running` : ""}</span>
       {entries.map((entry) => (
         <div key={entry.id} class={styles.download}>

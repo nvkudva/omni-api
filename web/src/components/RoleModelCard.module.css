@@ -1,13 +1,13 @@
-/* One role, two densities. MiniCard is the top-strip navigation card: a compact
-   shadcn Card so seven of them fit across the strip. Section is the Settings
-   card: same surface, every card the same size, its body scrolls. */
+/* One role, two densities. MiniCard is the sidebar navigation card: a compact
+   shadcn Card, wide enough for the model and its endpoint on one line. Section
+   is the Settings card: same surface, every card the same size, its body scrolls. */
 
 /* --- MiniCard ------------------------------------------------------------- */
 
 .miniCard {
   composes: card from "./ui.module.css";
-  display: flex; flex-direction: column; gap: 10px;
-  padding: 14px;
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 12px 14px;
   position: relative; overflow: hidden;
   cursor: pointer; text-align: left; min-width: 0;
   transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
@@ -20,7 +20,6 @@
     border-color: transparent;
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-ink) 55%, transparent), var(--brand-glow);
   }
-  &.off { opacity: 0.72; }
 
   & .top { display: flex; align-items: center; gap: 8px; min-width: 0; }
   & .name {
@@ -35,9 +34,10 @@
 
   & .modelRow { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
   & .model {
-    flex: 1; min-width: 0; font: 0.75rem var(--font); color: var(--muted-foreground);
+    flex: 0 1 auto; min-width: 0; font: 0.75rem var(--font); color: var(--muted-foreground);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
+  /* The endpoint keeps the right edge, so the meta line reads model → route. */
   & .memory { flex: none; font: 500 0.75rem var(--font); color: var(--foreground); font-variant-numeric: tabular-nums; }
 
   /* The light and the word hold the left edge, the action the right, whatever the
@@ -69,6 +69,19 @@
 
     &:hover { background: color-mix(in oklab, var(--orange) 38%, transparent); }
   }
+}
+
+/* The meta line's right edge: the same muted mono as every other endpoint. */
+.route {
+  composes: endpoint from "./ui.module.css";
+  flex: 1; min-width: 0; text-align: right;
+}
+
+/* A role that cannot serve: the reason fills the line, its fix keeps the right. */
+.standing {
+  display: flex; align-items: center; gap: 8px;
+
+  & > p { flex: 1; min-width: 0; }
 }
 
 /* --- Section (the Settings card) ------------------------------------------ */

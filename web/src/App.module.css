@@ -68,18 +68,24 @@
 
   & .actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 
-  /* The seven model cards double as the page tabs. Every card stretches to the
-     row's height, so the strip never steps where one footer differs. */
+  /* The role cards are the page tabs, stacked down a sidebar beside the page. */
+  & .body {
+    flex: 1; min-height: 0; display: flex; align-items: stretch;
+  }
   & .cards {
-    flex: none; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(196px, 1fr);
-    gap: 12px; padding: 12px 16px;
-    overflow-x: auto;
-    border-bottom: 1px solid var(--border);
+    flex: none; display: flex; flex-direction: column;
+    gap: 8px; width: 288px; padding: 12px;
+    overflow-y: auto; border-right: 1px solid var(--border);
 
     &.more {
-      mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
-      -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+      mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
+      -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 40px), transparent);
     }
+  }
+  /* Everything beside the rail: the request strip over the page. */
+  & .content {
+    flex: 1; min-width: 0; min-height: 0;
+    display: flex; flex-direction: column;
   }
 
   & .main { flex: 1; min-height: 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
@@ -93,7 +99,20 @@
 @media (max-width: 700px) {
   .app .header { padding: 8px; gap: 12px; }
   .app .lastRequest { display: none; }
-  .app .cards { padding: 8px; }
+  /* A phone has no width to spare for a rail: the cards go back over the page. */
+  .app .body { flex-direction: column; }
+  .app .cards {
+    flex-direction: row; width: auto; padding: 8px;
+    overflow-x: auto; overflow-y: hidden;
+    border-right: none; border-bottom: 1px solid var(--border);
+
+    & > * { min-width: 208px; }
+
+    &.more {
+      mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+      -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+    }
+  }
 }
 
 /* The aurora drifts. */

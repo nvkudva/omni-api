@@ -120,6 +120,7 @@ export function UiJson({ view, onChange, label = "view" }) {
 export function TurnView({ view, onChange, label = "view" }) {
   return (
     <ui.Segmented
+      compact
       label={label}
       options={[{ value: "ui", label: "UI" }, { value: "json", label: "JSON" }]}
       value={view}

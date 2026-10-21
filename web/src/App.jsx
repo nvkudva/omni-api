@@ -94,7 +94,7 @@ export default function App() {
   useEffect(() => {
     const row = cardsRef.current;
     if (!row) return undefined;
-    const measure = () => setMoreCards(row.scrollLeft + row.clientWidth < row.scrollWidth - 4);
+    const measure = () => setMoreCards(row.scrollTop + row.clientHeight < row.scrollHeight - 4);
     measure();
     row.addEventListener("scroll", measure, { passive: true });
     window.addEventListener("resize", measure);
@@ -141,29 +141,33 @@ export default function App() {
           />
         </div>
       </header>
-      {!settingsOpen && (
-        <nav ref={cardsRef} class={cx(styles.cards, moreCards && styles.more)} aria-label="Models">
-          {ROLE_ORDER.map((role) => (
-            <RoleModelCard key={role} density="mini" role={role} active={role === tab} onOpen={choose} onSetup={openSetup} onServer={openServer} />
-          ))}
-        </nav>
-      )}
-      <ExecStrip exceptRole="embed" />
-      <main class={styles.main}>
-        {/* Every page stays mounted so an in-flight request survives a tab
-            switch; the inactive ones just hide. */}
-        {ROLE_ORDER.map((role) => {
-          const RolePage = COMPONENTS[role];
-          return (
-            <div key={role} class={role === tab && !settingsOpen ? styles.page : styles.pageHidden} aria-hidden={role === tab && !settingsOpen ? undefined : true}>
-              <PageActive.Provider value={role === tab && !settingsOpen}>
-                <RolePage active={role === tab && !settingsOpen} />
-              </PageActive.Provider>
-            </div>
-          );
-        })}
-        {settingsOpen && <Settings key="settings" section={route.section} role={route.role} backTo={lastRole} onNavigate={go} onBack={() => choose(lastRole)} />}
-      </main>
+      <div class={styles.body}>
+        {!settingsOpen && (
+          <nav ref={cardsRef} class={cx(styles.cards, moreCards && styles.more)} aria-label="Models">
+            {ROLE_ORDER.map((role) => (
+              <RoleModelCard key={role} density="mini" role={role} active={role === tab} onOpen={choose} onSetup={openSetup} onServer={openServer} />
+            ))}
+          </nav>
+        )}
+        <div class={styles.content}>
+          {!settingsOpen && <ExecStrip role={tab} exceptRole="embed" />}
+          <main class={styles.main}>
+            {/* Every page stays mounted so an in-flight request survives a tab
+                switch; the inactive ones just hide. */}
+            {ROLE_ORDER.map((role) => {
+              const RolePage = COMPONENTS[role];
+              return (
+                <div key={role} class={role === tab && !settingsOpen ? styles.page : styles.pageHidden} aria-hidden={role === tab && !settingsOpen ? undefined : true}>
+                  <PageActive.Provider value={role === tab && !settingsOpen}>
+                    <RolePage active={role === tab && !settingsOpen} />
+                  </PageActive.Provider>
+                </div>
+              );
+            })}
+            {settingsOpen && <Settings key="settings" section={route.section} role={route.role} backTo={lastRole} onNavigate={go} onBack={() => choose(lastRole)} />}
+          </main>
+        </div>
+      </div>
       <ConfirmHost />
     </div>
   );
