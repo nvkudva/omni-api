@@ -28,6 +28,9 @@
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   }
 
+  /* The request and the response, greyed out until the model can serve. */
+  & .disabled { opacity: 0.45; filter: saturate(0.5); }
+
   /* grid */
   & .main {
     flex: 1; min-height: 0; overflow: hidden;
@@ -75,18 +78,14 @@
 }
 .readout select { width: auto; max-width: 160px; text-overflow: ellipsis; }
 
-/* --- NotReady: the model page before its model can answer -------------------- */
+/* --- NotReady: the page before its model can answer ------------------------ */
 
+/* The header's line: what is missing, and the one action that fixes it. */
 .notReady {
-  flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center;
-  padding: 16px;
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-top: 10px;
 }
-.notReadyCard {
-  composes: card from "./ui.module.css";
-  width: min(420px, 100%); padding: 24px;
-  display: flex; flex-direction: column; align-items: flex-start; gap: 12px;
-}
-.notReadyText { margin: 0; color: var(--muted-foreground); font-size: 0.875rem; line-height: 1.5; }
+.notReadyText { color: var(--muted-foreground); font-size: 0.875rem; line-height: 1.5; }
 
 /* --- Panel: a shadcn Card with a header, a scrolling body and a footer ----- */
 

@@ -106,13 +106,14 @@ describe("pages render before the first poll", () => {
     for (const word of ["Runtime", "Appearance", ">Logs<", ">Health<"]) expect(html).not.toContain(word);
   });
 
-  test("a role page hides its request until the model can serve", () => {
+  test("a role page greys out its request until the model can serve", () => {
     for (const [name, Page] of Object.entries(pages)) {
       if (name === "Models" || name === "Settings") continue;
       const html = render(<Page active />);
-      // nothing is known yet: the page waits instead of offering a request
-      expect(html).not.toContain(ENDPOINTS[name]);
+      // nothing is known yet: the header says so, and the request sits there disabled
+      expect(html).toContain(ENDPOINTS[name]);
       expect(html).toContain("is getting ready");
+      expect(html).toContain("inert");
     }
   });
 

@@ -33,9 +33,8 @@ export function useTurnState() {
 }
 
 /**
- * A model page is only useful once its model can answer: until then the request
- * and the response stay hidden, and this card says what is missing and offers the
- * one action that fixes it.
+ * The page cannot serve yet: the header says what is missing and offers the one
+ * action that fixes it, while the request and the response sit there greyed out.
  */
 function NotReady({ role, state }) {
   const [busy, setBusy] = useState(false);
@@ -71,15 +70,13 @@ function NotReady({ role, state }) {
 
   return (
     <div class={styles.notReady}>
-      <div class={styles.notReadyCard}>
-        <p class={styles.notReadyText}>{message}</p>
-        {!starting && (
-          <ui.Button variant="primary" disabled={busy} onClick={run}>
-            {busy ? "Working…" : start ? "Start" : "Load"}
-          </ui.Button>
-        )}
-        {error && <ui.ErrorText>{error}</ui.ErrorText>}
-      </div>
+      <span class={styles.notReadyText}>{message}</span>
+      {!starting && (
+        <ui.Button small variant="primary" disabled={busy} onClick={run}>
+          {busy ? "Working…" : start ? "Start" : "Load"}
+        </ui.Button>
+      )}
+      {error && <ui.ErrorText>{error}</ui.ErrorText>}
     </div>
   );
 }
@@ -111,13 +108,17 @@ export function Workbench({ title, subtitle, readout, single, modelRole, headerT
               )}
             </div>
             {subtitle && <p class={styles.subtitle}>{subtitle}</p>}
+            {!ready && <NotReady role={modelRole} state={state} />}
           </div>
           {readout && <Readout fields={readout} />}
         </div>
       </header>
-      {ready
-        ? <main class={cx(styles.main, single && styles.single)}>{children}</main>
-        : <NotReady role={modelRole} state={state} />}
+      <main
+        class={cx(styles.main, single && styles.single, !ready && styles.disabled)}
+        inert={!ready}
+      >
+        {children}
+      </main>
       {SHOW_ACTIVITY && modelRole && <ExecStrip role={modelRole} exceptRole="embed" />}
       {settingsOpen && modelRole && <ModelSettingsPopup role={modelRole} onClose={() => setSettingsOpen(false)} />}
     </div>
