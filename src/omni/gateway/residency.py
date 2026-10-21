@@ -8,7 +8,6 @@ import logging
 from typing import NamedTuple
 
 import httpx
-from huggingface_hub.errors import HfHubHTTPError
 
 from omni import config, logs, registry
 from omni.registry import pulling
@@ -27,8 +26,6 @@ UNLOAD_TIMEOUT_SECONDS = 5.0
 # server omni does not own.
 _loaded_ollama: dict[str, str] = {}
 
-HF_ERRORS = (HfHubHTTPError, OSError)
-
 
 class Plan(NamedTuple):
     """What loading `model` would involve: machine-wide advice, model-specific obstacles, and whether
@@ -43,7 +40,7 @@ async def installed(ctx, role: str) -> list[dict]:
     """What this role has on disk right now; an unreachable runtime reads as "nothing installed"."""
     try:
         return await registry.installed_for(role, ctx.clients["chat"])
-    except (httpx.HTTPError, *HF_ERRORS):
+    except (httpx.HTTPError, *registry.HF_ERRORS):
         return []
 
 

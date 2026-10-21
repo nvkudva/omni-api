@@ -35,6 +35,7 @@ def note(role: str, message: str) -> None:
     try:
         path = path_for(role)
         path.parent.mkdir(parents=True, exist_ok=True)
+        config.trim_log(path)
         with path.open("a") as file:
             file.write(f"{datetime.now().isoformat(timespec='seconds')} {message}\n")
     except OSError:

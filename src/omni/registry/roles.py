@@ -96,6 +96,12 @@ def bare_repo_id(name: str) -> str:
     return text.split(":")[0]
 
 
+def repo_name(role: str, model: str) -> str:
+    """The id a role's runtime takes for a pasted model name: Ollama keeps `hf.co/` and `:tag`, the rest do not."""
+    name = normalize_repo_id(model)
+    return name if runner(role) == "ollama" else bare_repo_id(name)
+
+
 def supports(role: str, name: str) -> bool:
     """Whether this role's runtime can load a repo by name (used to filter cached repos).
 

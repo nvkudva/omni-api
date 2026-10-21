@@ -68,13 +68,7 @@ def register(app: FastAPI, ctx: Context) -> None:
             config.validate(candidate)
             if (section, key) == ("tts", "voice") and value not in schemas.TTS_VOICES:
                 raise config.ConfigError(f"tts.voice: one of {', '.join(schemas.TTS_VOICES)}")
-            if (section, key) == ("image", "steps") and not 1 <= value <= schemas.IMAGE_MAX_STEPS:
-                raise config.ConfigError(f"image.steps: 1..{schemas.IMAGE_MAX_STEPS}")
-            if (section, key) == ("video", "fps") and not 1 <= value <= 60:
-                raise config.ConfigError("video.fps: 1..60")
-            if (section, key) == ("video", "frames") and not 1 <= value <= 1000:
-                raise config.ConfigError("video.frames: 1..1000")
-        except (config.ConfigError, TypeError) as error:
+        except config.ConfigError as error:
             return error_response(400, str(error), "invalid_request_error")
         config.save_override(section, key, value)
         settings[section][key] = value

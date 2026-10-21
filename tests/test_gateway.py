@@ -46,12 +46,16 @@ class Gateway(unittest.TestCase):
         # never spawn real worker processes; the app under test is only the HTTP surface
         cls.spawn = patch("omni.supervisor.pool.Supervisor.start", new=AsyncMock())
         cls.spawn.start()
+        # the media workers exist only where their runtimes are installed; tests need them everywhere
+        cls.runtimes = patch("omni.gateway.context.unavailable_reason", return_value=None)
+        cls.runtimes.start()
         cls.client = TestClient(gateway.create(), base_url="http://localhost")
         cls.client.__enter__()
 
     @classmethod
     def tearDownClass(cls):
         cls.client.__exit__(None, None, None)
+        cls.runtimes.stop()
         cls.spawn.stop()
 
     def test_old_playground_path_redirects_to_the_root(self):
@@ -167,7 +171,7 @@ class Gateway(unittest.TestCase):
         self.assertEqual(response.json()["worker"], "all")
 
     def test_admin_pull_rejects_a_repo_the_role_cannot_run(self):
-        with patch("omni.gateway.routes.admin.registry.ensure_started") as started:
+        with patch("omni.gateway.routes.admin_models.registry.ensure_started") as started:
             response = self.client.post("/admin/models/pull", json={"role": "video", "model": "Qwen/Qwen-Image-2.1"})
         self.assertEqual(response.status_code, 400)
         self.assertIn("cannot run", _error(response)["message"])
@@ -176,7 +180,7 @@ class Gateway(unittest.TestCase):
     def test_admin_delete_refuses_a_model_that_is_downloading(self):
         pulling.track("stt", "mlx/parakeet", 100, 25)
         self.addCleanup(pulling.ACTIVE.clear)
-        with patch("omni.gateway.routes.admin.registry.hf_delete") as deleted:
+        with patch("omni.gateway.routes.admin_models.registry.hf_delete") as deleted:
             response = self.client.post("/admin/models/delete", json={"role": "stt", "model": "mlx/parakeet"})
         self.assertEqual(response.status_code, 409)
         self.assertIn("downloading", _error(response)["message"])
@@ -429,6 +433,16 @@ class Gateway(unittest.TestCase):
                                     headers={"origin": "tauri://localhost"})
         self.assertEqual(response.status_code, 400)
 
+    def test_a_web_page_cannot_start_inference(self):
+        response = self.client.post("/v1/images/generations", content=b"{}",
+                                    headers={"origin": "https://evil.example", "content-type": "text/plain"})
+        self.assertEqual(response.status_code, 403)
+
+    def test_the_playground_itself_may_post(self):
+        response = self.client.post("/v1/embeddings", content=b"[",
+                                    headers={"origin": "http://localhost"})
+        self.assertEqual(response.status_code, 400)
+
     def test_unknown_request_ids_are_404(self):
         self.assertEqual(self.client.get("/admin/requests/nope").status_code, 404)
         self.assertEqual(self.client.get("/admin/requests/nope/result").status_code, 404)
@@ -468,12 +482,16 @@ class TypeValidation(unittest.TestCase):
     def setUpClass(cls):
         cls.spawn = patch("omni.supervisor.pool.Supervisor.start", new=AsyncMock())
         cls.spawn.start()
+        # the media workers exist only where their runtimes are installed; tests need them everywhere
+        cls.runtimes = patch("omni.gateway.context.unavailable_reason", return_value=None)
+        cls.runtimes.start()
         cls.client = TestClient(gateway.create(), base_url="http://localhost", raise_server_exceptions=False)
         cls.client.__enter__()
 
     @classmethod
     def tearDownClass(cls):
         cls.client.__exit__(None, None, None)
+        cls.runtimes.stop()
         cls.spawn.stop()
 
     def test_chat_non_string_model_is_400_not_500(self):

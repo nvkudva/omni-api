@@ -8,15 +8,15 @@ The first client is Hyperlight.
 
 ## Screenshots
 
-![Playground — chat tab, dark theme](docs/screenshots/playground-chat.png)
+![Playground — chat tab, dark theme](site/assets/playground-chat.png)
 
 The playground at `/`: every role is a card in the left rail (runtime, model, one status that says what it is doing, and the switch that keeps it loaded), each role page is a workbench with a UI / JSON / cURL view of the same request, and that role's live request log sits under it.
 
-| ![Decide — probability bars](docs/screenshots/playground-decide.png) | ![Embed — semantic search over your own files](docs/screenshots/playground-embed.png) |
+| ![Decide — probability bars](site/assets/playground-decide.png) | ![Embed — semantic search over your own files](site/assets/playground-embed.png) |
 |---|---|
 | **Decide** — noul, choice and score questions answered as probability distributions, in one forward pass. | **Embed** — index files, folders, images and audio, then search them by meaning. |
 
-![Models — every role's models, in Settings](docs/screenshots/playground-models.png)
+![Models — every role's models, in Settings](site/assets/playground-models.png)
 
 **Settings → Models** lists every role's models, what is on disk, what is loaded and how to add more. **Settings → Server** holds the gateway, Ollama and worker controls plus the memory and CPU meters.
 
@@ -370,7 +370,6 @@ Ports:
 
 - [`PLAN.md`](PLAN.md): architecture, decisions and rejected alternatives.
 - [`TODO.md`](TODO.md): milestone checklist.
-- [`REVIEW.md`](REVIEW.md): the architecture review and what it changed.
 
 `web/` holds the playground source (Preact + CSS modules + Vite): `bun run build` writes
 `src/omni/static/app`, and `bun test` renders every page headlessly so a page that only

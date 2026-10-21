@@ -23,12 +23,16 @@ class Control(unittest.TestCase):
     def setUpClass(cls):
         cls.spawn = patch("omni.supervisor.pool.Supervisor.start", new=AsyncMock())
         cls.spawn.start()
+        # the media workers exist only where their runtimes are installed; tests need them everywhere
+        cls.runtimes = patch("omni.gateway.context.unavailable_reason", return_value=None)
+        cls.runtimes.start()
         cls.client = TestClient(gateway.create(), base_url="http://localhost")
         cls.client.__enter__()
 
     @classmethod
     def tearDownClass(cls):
         cls.client.__exit__(None, None, None)
+        cls.runtimes.stop()
         cls.spawn.stop()
 
     def test_server_reports_gateway_ollama_and_tunables(self):

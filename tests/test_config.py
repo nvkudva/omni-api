@@ -147,3 +147,23 @@ class OllamaUrl(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TrimLog(unittest.TestCase):
+    def test_a_log_past_the_limit_keeps_only_its_newest_whole_lines(self):
+        with tempfile.TemporaryDirectory() as folder:
+            log = Path(folder) / "w.log"
+            line = b"x" * 99 + b"\n"
+            log.write_bytes(line * (config.LOG_MAX_BYTES // len(line) + 10) + b"last\n")
+            config.trim_log(log)
+            data = log.read_bytes()
+            self.assertLessEqual(len(data), config.LOG_KEEP_BYTES)
+            self.assertTrue(data.endswith(b"last\n"))
+            self.assertTrue(data.startswith(b"x" * 99 + b"\n"))
+
+    def test_a_small_log_is_left_alone(self):
+        with tempfile.TemporaryDirectory() as folder:
+            log = Path(folder) / "w.log"
+            log.write_bytes(b"a\nb\n")
+            config.trim_log(log)
+            self.assertEqual(log.read_bytes(), b"a\nb\n")

@@ -36,16 +36,6 @@ def port_in_use(host: str, port: int) -> bool:
         return probe.connect_ex((host, port)) == 0
 
 
-def _alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    return True
-
-
 def _read_record() -> dict:
     """The gateway pidfile as a dict. Current files hold pid/host/port; older ones held a bare pid."""
     try:
@@ -70,7 +60,7 @@ def gateway_pid() -> int | None:
     pid = record.get("pid")
     if not isinstance(pid, int) or pid <= 0 or pid == os.getpid():
         return None
-    if not _alive(pid):
+    if not supervisor.pid_alive(pid):
         return None
     command = supervisor.command_line(pid)
     if not command or not supervisor.is_ours(pid, list(GATEWAY_MARKERS)):
@@ -82,10 +72,10 @@ def gateway_pid() -> int | None:
 def _wait_gone(pid: int, timeout: float) -> bool:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if not _alive(pid):
+        if not supervisor.pid_alive(pid):
             return True
         time.sleep(POLL_SECONDS)
-    return not _alive(pid)
+    return not supervisor.pid_alive(pid)
 
 
 def address(gateway: dict) -> tuple[str, int]:
@@ -203,6 +193,7 @@ def up(host: str, port: int, open_browser: bool = False) -> int:
         return 0
     config.ensure_dirs()
     log_path = config.LOG_DIR / "omni.log"
+    config.trim_log(log_path)
     with log_path.open("ab") as logfile:
         process = subprocess.Popen(
             [sys.executable, "-m", "omni.cli", "serve", "--host", host, "--port", str(port)],
