@@ -393,7 +393,7 @@ describe("the sidebar card", () => {
     expect(detail).toContain("Add model");
     expect(detail).not.toContain("Find &amp; install");
     // same colourful header as mini: role colour badge, label, endpoint, warm switch
-    expect(detail).toContain("#0a84ff");
+    expect(detail).toContain("--role-color:var(--role-chat)");
     expect(detail).toContain("Chat");
     expect(detail).toContain("/v1/chat/completions");
     expect(detail).toContain("warm");

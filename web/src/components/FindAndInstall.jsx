@@ -297,7 +297,7 @@ export function FindAndInstall({ role, onClose, onInstalled }) {
       class={styles.findAndInstall}
     >
       <header class={styles.head} style={{ background: `color-mix(in srgb, ${meta.color} 13%, var(--card))` }}>
-        <span class={ui.css.roleGlyph} style={{ background: meta.color }}><Icon name={role} /></span>
+        <span class={ui.css.roleGlyph} style={{ "--role-color": meta.color }}><Icon name={role} /></span>
         <div class={styles.headText}>
           <h2 class={styles.title}>Find &amp; install — {meta.label}</h2>
           <span class={ui.css.endpoint}>{meta.endpoint}</span>

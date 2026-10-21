@@ -28,6 +28,7 @@ SWEEP_SECONDS = 60
 JOB_ID_PATTERN = re.compile(r"^video_[0-9a-f]{16}$")
 QUANT_GROUP_SIZE = 64
 QUANT_BIT_WIDTHS = (2, 3, 4, 5, 6, 8)
+_QUANTIZATION_PATCHED = False
 
 settings = config.load()
 model_name = settings["video"]["model"]
@@ -64,6 +65,9 @@ def _install_per_layer_quantization() -> None:
     import ltx_pipelines_mlx.utils._orchestration as orchestration
     from mlx import nn
 
+    global _QUANTIZATION_PATCHED
+    if _QUANTIZATION_PATCHED:
+        return
     stock = weights_module.apply_quantization
 
     def apply_per_layer(model, weights, group_size: int = QUANT_GROUP_SIZE, bits=None):
@@ -80,6 +84,7 @@ def _install_per_layer_quantization() -> None:
     weights_module.apply_quantization = apply_per_layer
     orchestration.apply_quantization = apply_per_layer
     base_module.apply_quantization = apply_per_layer
+    _QUANTIZATION_PATCHED = True
 
 
 def _load():

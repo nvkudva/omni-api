@@ -22,3 +22,4 @@
 - [ ] Embed tab: optional "write an answer" step (RAG): pass top chunks to the chat model for a grounded answer with citations; opt-in, disabled when no chat model is loaded
 - [ ] Embed tab: PDF support (needs a text-extraction dependency; PDFs are shown as unsupported for now)
 - [x] Product website in site/, published by the GitHub Pages workflow on push to main
+- [x] Playground wears the site's brand theme: navy canvas, cyan→indigo→pink sweep, glass surfaces, per-role accents, aurora background, matching light theme
