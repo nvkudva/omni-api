@@ -10,6 +10,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+import httpx
+
 from omni import config
 from omni.gateway import keepwarm, residency
 
@@ -157,6 +159,62 @@ class SetResidency(unittest.TestCase):
         self.assertEqual(len(entries), 1)
         self.assertEqual(entries[0]["role"], "stt")
         self.assertEqual(entries[0]["completed"], 10)
+
+
+class UnloadOllamaModels(unittest.TestCase):
+    """Stopping must hand back the models omni loaded into an Ollama it does not own."""
+
+    def setUp(self):
+        residency._loaded_ollama.clear()
+        self.addCleanup(residency._loaded_ollama.clear)
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        patcher = patch.object(config, "PINS", Path(directory.name) / "pins.json")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def load(self, ctx, role, model):
+        with patch.object(residency.registry, "ollama_load", AsyncMock()):
+            asyncio.run(residency.set_residency(ctx, role, model, True))
+
+    def test_unloads_a_model_this_gateway_loaded(self):
+        ctx = FakeContext()
+        with (
+            patch.object(residency, "ollama_resident", AsyncMock(return_value={"qwen2.5:3b"})),
+            patch.object(residency.registry, "ollama_unload", AsyncMock()) as unload,
+        ):
+            self.load(ctx, "chat", "qwen2.5:3b")
+            self.assertEqual(asyncio.run(residency.unload_ollama_models(ctx)), ["qwen2.5:3b"])
+        unload.assert_awaited_once_with(ctx.clients["chat"], "chat", "qwen2.5:3b")
+
+    def test_leaves_a_model_this_gateway_did_not_load(self):
+        ctx = FakeContext()
+        with (
+            patch.object(residency, "ollama_resident", AsyncMock(return_value={"someone-elses:7b"})),
+            patch.object(residency.registry, "ollama_unload", AsyncMock()) as unload,
+        ):
+            self.load(ctx, "chat", "qwen2.5:3b")
+            self.assertEqual(asyncio.run(residency.unload_ollama_models(ctx)), [])
+        unload.assert_not_called()
+
+    def test_unloads_a_pinned_model_an_earlier_gateway_left_held(self):
+        ctx = FakeContext()
+        config.save_pins(["chat"])
+        with (
+            patch.object(residency, "ollama_resident", AsyncMock(return_value={"chat-model"})),
+            patch.object(residency.registry, "ollama_unload", AsyncMock()) as unload,
+        ):
+            self.assertEqual(asyncio.run(residency.unload_ollama_models(ctx)), ["chat-model"])
+        unload.assert_called_once()
+
+    def test_a_failed_unload_does_not_break_the_shutdown(self):
+        ctx = FakeContext()
+        with (
+            patch.object(residency, "ollama_resident", AsyncMock(return_value={"qwen2.5:3b"})),
+            patch.object(residency.registry, "ollama_unload", AsyncMock(side_effect=httpx.ConnectError("gone"))),
+        ):
+            self.load(ctx, "chat", "qwen2.5:3b")
+            self.assertEqual(asyncio.run(residency.unload_ollama_models(ctx)), [])
 
 
 class KeepWarmLoop(unittest.TestCase):

@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from omni import config
 from omni.errors import error_response, install_error_handlers
-from omni.gateway import executions, routes
+from omni.gateway import executions, residency, routes
 from omni.gateway.context import build
 from omni.registry import pulling
 
@@ -67,6 +67,7 @@ def create() -> FastAPI:
         finally:
             if ctx.keepwarm is not None:
                 await ctx.keepwarm.stop()
+            await residency.unload_ollama_models(ctx)
             await executions.shutdown()
             await pulling.shutdown()
             await ctx.pool.stop()
