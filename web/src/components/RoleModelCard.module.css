@@ -9,24 +9,16 @@
   display: flex; flex-direction: column; gap: 10px;
   padding: 14px;
   cursor: pointer; text-align: left; min-width: 0;
-  position: relative; overflow: hidden;
   transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
 
-  /* The role's accent, as a hairline along the card's top edge. */
-  &::before {
-    content: ""; position: absolute; inset: 0 0 auto; height: 2px;
-    background: var(--role-color); opacity: 0.85;
-  }
-
   &:hover { border-color: var(--ring); }
-  /* The open role wears the brand sweep: a tinted surface, a gradient hairline
-     and the brand glow, so the tab you are on is obvious at a glance. */
+  /* The open role wears the brand sweep: a tinted surface, a ring in the brand
+     ink and the brand glow, so the tab you are on is obvious at a glance. */
   &.on {
     background: var(--accent);
     border-color: transparent;
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-ink) 55%, transparent), var(--brand-glow);
   }
-  &.on::before { background: var(--brand-gradient); opacity: 1; height: 3px; }
   &.off { opacity: 0.72; }
 
   & .top { display: flex; align-items: center; gap: 8px; min-width: 0; }

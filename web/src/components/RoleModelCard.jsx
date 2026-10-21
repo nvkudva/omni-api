@@ -389,7 +389,6 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
   return (
     <div
       class={cx(styles.miniCard, active && styles.on, !running && !active && styles.off)}
-      style={{ "--role-color": state.color }}
       aria-current={active ? "page" : undefined}
       onClick={open}
     >
