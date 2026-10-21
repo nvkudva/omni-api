@@ -16,6 +16,7 @@ from starlette.background import BackgroundTask
 from omni import config
 from omni.errors import error_response
 from omni.gateway import executions
+from omni.gateway.http import body_chunks
 from omni.registry import unavailable_reason
 from omni.supervisor.worker import Worker
 
@@ -71,7 +72,7 @@ class Proxy:
         if declared.isdigit() and int(declared) > max_bytes:
             raise HTTPException(413, f"body: larger than {limit}")
         chunks, total = [], 0
-        async for chunk in request.stream():
+        async for chunk in body_chunks(request):
             total += len(chunk)
             if total > max_bytes:
                 raise HTTPException(413, f"body: larger than {limit}")
