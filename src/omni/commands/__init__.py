@@ -13,7 +13,7 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 10000
 
 COMMANDS = (
-    ("init", "ask before installing ollama, then pull the chat, decide and embed models"),
+    ("init", "ask before installing ollama, then pull the chat, decide and embed models and load stt and tts"),
     ("doctor", "report what works and what to fix, without changing anything"),
     ("serve", "run the gateway and its workers in the foreground"),
     ("up", "start omni in the background"),
@@ -29,15 +29,15 @@ GUIDE = """\
 omni - local models behind one gateway port
 
 getting started
-  omni init                  ask before installing ollama, pull the chat/decide/embed models
-  omni init --media          also load the stt, tts, image and video models now
+  omni init                  ask before installing ollama, pull chat/decide/embed, download and start stt/tts
+  omni init --media          also load the image and video models now
   omni doctor                check the install read-only and say what to fix
   omni config                show the effective settings
   omni config set SECTION.KEY VALUE
   omni config check          validate the config file without starting anything
 
 running
-  omni up                    start in the background; prints the pid and the log path
+  omni up                    start in the background and open the playground; --no-browser skips that
   omni up --foreground       run in this terminal instead
   omni serve                 the same as `omni up --foreground`
   omni restart               stop and start again, rereading the config
@@ -87,9 +87,11 @@ def build_parser(gateway: dict | None = None) -> argparse.ArgumentParser:
         if name == "up":
             command.add_argument("--foreground", action="store_true",
                                  help="run in this terminal instead of the background")
+            command.add_argument("--no-browser", action="store_true",
+                                 help="do not open the playground in the browser")
         if name == "init":
             command.add_argument("--media", action="store_true",
-                                 help="also load the stt, tts, image and video models now")
+                                 help="also load the image and video models now (stt and tts always load)")
         if name == "status":
             command.add_argument("--json", action="store_true", help="print the raw health report")
         if name == "logs":
@@ -120,13 +122,13 @@ def main() -> None:
         print(GUIDE, end="")
         sys.exit(0)
     if args.command == "init":
-        sys.exit(init.run(warm=args.media))
+        sys.exit(init.run(all_media=args.media))
     if args.command == "doctor":
         sys.exit(doctor.run())
     if args.command == "serve":
         sys.exit(lifecycle.serve(args.host, args.port))
     if args.command == "up":
-        sys.exit(lifecycle.serve(args.host, args.port) if args.foreground else lifecycle.up(args.host, args.port))
+        sys.exit(lifecycle.serve(args.host, args.port) if args.foreground else lifecycle.up(args.host, args.port, open_browser=not args.no_browser))
     if args.command == "restart":
         sys.exit(lifecycle.restart(*lifecycle.address(gateway)))
     if args.command == "down":

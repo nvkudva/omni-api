@@ -62,5 +62,28 @@ class PortInUse(unittest.TestCase):
         self.assertFalse(lifecycle.port_in_use("127.0.0.1", port))
 
 
+class OpenPlayground(unittest.TestCase):
+    def test_up_opens_the_playground_when_the_gateway_is_already_running(self):
+        record = {"pid": 123, "host": "127.0.0.1", "port": 10000}
+        with patch.object(lifecycle, "gateway_pid", return_value=123), \
+             patch.object(lifecycle, "_read_record", return_value=record), \
+             patch.object(lifecycle.webbrowser, "open") as browser:
+            self.assertEqual(lifecycle.up("127.0.0.1", 10000, open_browser=True), 0)
+        browser.assert_called_once_with("http://127.0.0.1:10000/")
+
+    def test_up_without_the_flag_leaves_the_browser_alone(self):
+        record = {"pid": 123, "host": "127.0.0.1", "port": 10000}
+        with patch.object(lifecycle, "gateway_pid", return_value=123), \
+             patch.object(lifecycle, "_read_record", return_value=record), \
+             patch.object(lifecycle.webbrowser, "open") as browser:
+            self.assertEqual(lifecycle.up("127.0.0.1", 10000), 0)
+        browser.assert_not_called()
+
+    def test_a_wildcard_bind_opens_loopback(self):
+        with patch.object(lifecycle.webbrowser, "open") as browser:
+            lifecycle.open_playground("0.0.0.0", 10000)
+        browser.assert_called_once_with("http://127.0.0.1:10000/")
+
+
 if __name__ == "__main__":
     unittest.main()

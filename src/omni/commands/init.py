@@ -1,9 +1,11 @@
-"""``omni init``: check the setup, install Ollama if it is missing, then pull the models it serves.
+"""``omni init``: check the setup, install Ollama if it is missing, pull the models it serves, then load stt and tts.
 
 Every step states its own precondition and, when it fails, the one thing to fix — the command to run
 and a link — so a fresh machine can go from clone to ``omni up`` without reading the source.
 """
+import os
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -11,15 +13,20 @@ import time
 import httpx
 
 from omni import config
+from omni.supervisor import guard
 
 # chat, decide and embed run in the machine's Ollama; the MLX roles download on first use instead.
 OLLAMA_ROLES = ("chat", "decide", "embed")
-MEDIA_ROLES = ("stt", "tts", "image", "video")
+# speech models are small and every install wants them; image and video weigh tens of GB, so `--media` opts in
+SPEECH_ROLES = ("stt", "tts")
+MEDIA_ROLES = (*SPEECH_ROLES, "image", "video")
 # a first load reads or downloads weights from Hugging Face, which is slow but not endless
 MEDIA_LOAD_TIMEOUT = httpx.Timeout(10.0, read=1800.0)
 # how long a freshly started server gets to answer, and how often it is asked
 SERVER_START_SECONDS = 20.0
 PROBE_SECONDS = 0.5
+# the guard gives ollama this long to exit before it kills it, so wait a little longer than that
+STOP_SERVER_SECONDS = guard.GRACE_SECONDS + 3.0
 
 OLLAMA_DOWNLOAD_URL = "https://ollama.com/download"
 OLLAMA_INSTALL_SCRIPT = "https://ollama.com/install.sh"
@@ -104,17 +111,33 @@ def answering(url: str) -> bool:
     return True
 
 
-def start_ollama() -> None:
-    """Start the server the way this machine manages it; `check_ollama` explains it when that fails."""
+def start_ollama() -> subprocess.Popen | None:
+    """Start the server the way this machine manages it; `check_ollama` explains it when that fails.
+
+    Returns the server omni itself started, which omni stops again; a Homebrew service belongs to the
+    machine and is left running.
+    """
     if shutil.which("brew") and _brew_has_ollama():
         subprocess.run(["brew", "services", "start", "ollama"], check=False)
-        return
+        return None
     if not shutil.which("ollama"):
-        return
+        return None
     config.ensure_dirs()
     with (config.LOG_DIR / "ollama.log").open("ab") as logfile:
-        subprocess.Popen(["ollama", "serve"], stdin=subprocess.DEVNULL, stdout=logfile,
-                         stderr=subprocess.STDOUT, start_new_session=True)
+        return subprocess.Popen(guard.command(["ollama", "serve"]), stdin=subprocess.DEVNULL, stdout=logfile,
+                                stderr=subprocess.STDOUT, start_new_session=True)
+
+
+def stop_started_ollama(server: subprocess.Popen | None) -> None:
+    """Stop the server `start_ollama` launched, so the gateway's supervisor owns the one that keeps running."""
+    if server is None or server.poll() is not None:
+        return
+    server.terminate()
+    try:
+        server.wait(timeout=STOP_SERVER_SECONDS)
+    except subprocess.TimeoutExpired:
+        os.killpg(server.pid, signal.SIGKILL)
+        server.wait()
 
 
 def _brew_has_ollama() -> bool:
@@ -192,8 +215,8 @@ def installed(url: str) -> set[str] | None:
     return {model["name"] for model in models if isinstance(model, dict) and model.get("name")}
 
 
-def warm_media(host: str, port: int) -> int:
-    """Load each media model the gateway serves, so the download is not paid by the first request.
+def warm_media(host: str, port: int, wanted_roles: tuple[str, ...]) -> int:
+    """Load each of `wanted_roles` the gateway serves, so the download is not paid by the first request.
 
     The gateway is started when it is not running: a worker only downloads its weights once it loads
     them, and nothing loads them without a request.
@@ -208,7 +231,7 @@ def warm_media(host: str, port: int) -> int:
         served = httpx.get(f"http://{host}:{port}/health", timeout=5.0).json().get("workers", {})
     except (httpx.HTTPError, ValueError):
         return error(f"omni is running but /health does not answer on {host}:{port}")
-    roles = [role for role in MEDIA_ROLES if role in served]
+    roles = [role for role in wanted_roles if role in served]
     if not roles:
         print("no media role is served by this install; nothing to warm")
         return 0
@@ -230,8 +253,21 @@ def warm_media(host: str, port: int) -> int:
     return 1 if failed else 0
 
 
-def run(warm: bool = False) -> int:
-    """Check the config, install Ollama if missing, then pull chat, decide and embed. Non-zero on failure."""
+def run(all_media: bool = False) -> int:
+    """Check the config, install Ollama if missing, pull chat, decide and embed, then load stt and tts.
+
+    `all_media` loads image and video as well. Non-zero on failure. An Ollama this run started is
+    stopped before it returns: the gateway starts and supervises its own.
+    """
+    started: list[subprocess.Popen] = []
+    try:
+        return _run(all_media, started)
+    finally:
+        for server in started:
+            stop_started_ollama(server)
+
+
+def _run(all_media: bool, started: list[subprocess.Popen]) -> int:
     try:
         settings = config.load()
     except config.ConfigError as failure:
@@ -249,7 +285,9 @@ def run(warm: bool = False) -> int:
     # a fresh install is a fresh server: start it, so `omni init` can finish pulling in one go
     if installed_now and not answering(url):
         print(f"ollama is not answering at {url} yet; starting it", flush=True)
-        start_ollama()
+        server = start_ollama()
+        if server is not None:
+            started.append(server)
         wait_for_server(url)
     if not check_ollama(url):
         return 1
@@ -274,12 +312,14 @@ def run(warm: bool = False) -> int:
     if host in ("0.0.0.0", "::"):
         host = "127.0.0.1"
     port = settings["gateway"]["port"]
-    if warm:
-        code = warm_media(host, port)
-        if code:
-            return code
-        print("media models warmed")
+    # before the gateway starts: it supervises ollama itself when none answers
+    for server in started:
+        stop_started_ollama(server)
+    code = warm_media(host, port, MEDIA_ROLES if all_media else SPEECH_ROLES)
+    if code:
+        return code
     print(f"ready: {', '.join(models)}")
-    print(f"next: `omni up`, then open http://{host}:{port}/")
-    print("  (the stt, tts, image and video models download on first use; `omni init --media` warms them now)")
+    print(f"omni is running: open http://{host}:{port}/")
+    if not all_media:
+        print("  (the image and video models download on first use; `omni init --media` loads them now)")
     return 0

@@ -14,6 +14,7 @@ import socket
 import subprocess
 import sys
 import time
+import webbrowser
 
 import httpx
 import psutil
@@ -102,7 +103,7 @@ def _non_loopback_refusal(host: str) -> str | None:
 
 
 # runs detached from the gateway, so it outlives the `down` that stops the gateway that launched it
-RELAUNCH_SCRIPT = 'sleep 1; "$0" -m omni.cli down; if [ "$1" = restart ]; then "$0" -m omni.cli --host "$2" --port "$3" up; fi'
+RELAUNCH_SCRIPT = 'sleep 1; "$0" -m omni.cli down; if [ "$1" = restart ]; then "$0" -m omni.cli up --host "$2" --port "$3" --no-browser; fi'
 
 
 def relaunch(host: str, port: int, restart: bool) -> None:
@@ -158,7 +159,10 @@ def _serve_locked(host: str, port: int) -> int:
         return 1
     config.PIDFILE.write_text(json.dumps({"pid": os.getpid(), "host": host, "port": port}))
     try:
-        uvicorn.run(app, host=host, port=port, log_level="info")
+        server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="info"))
+        # a closed terminal sends SIGHUP; uvicorn ignores it, which would skip the shutdown that stops the workers
+        signal.signal(signal.SIGHUP, lambda signum, frame: setattr(server, "should_exit", True))
+        server.run()
     finally:
         if _read_record().get("pid") == os.getpid():
             config.PIDFILE.unlink(missing_ok=True)
@@ -173,8 +177,14 @@ def _tail_text(path, lines: int = 10) -> str:
     return "\n".join(content[-lines:])
 
 
-def up(host: str, port: int) -> int:
-    """Start the gateway in the background and wait until it answers."""
+def open_playground(host: str, port: int) -> None:
+    """Open the playground in the default browser; a machine without one just keeps the printed URL."""
+    browsable_host = "127.0.0.1" if host in ("0.0.0.0", "::") else host
+    webbrowser.open(f"http://{browsable_host}:{port}/")
+
+
+def up(host: str, port: int, open_browser: bool = False) -> int:
+    """Start the gateway in the background and wait until it answers, then open the playground if asked."""
     refusal = _non_loopback_refusal(host)
     if refusal:
         print(refusal, file=sys.stderr)
@@ -188,6 +198,8 @@ def up(host: str, port: int) -> int:
             print(f"omni: that instance is not on {host}:{port}; `omni down` first to start there",
                   file=sys.stderr)
             return 1
+        if open_browser:
+            open_playground(running_host, running_port)
         return 0
     config.ensure_dirs()
     log_path = config.LOG_DIR / "omni.log"
@@ -213,6 +225,8 @@ def up(host: str, port: int) -> int:
             continue
         print(f"omni up: http://{host}:{port}/  "
               f"(pid {_read_record().get('pid')}, logs {log_path}; workers warm up in the background)")
+        if open_browser:
+            open_playground(host, port)
         return 0
     process.terminate()
     print(f"omni: gateway did not answer in {UP_TIMEOUT_SECONDS}s; stopped it; see {log_path}", file=sys.stderr)

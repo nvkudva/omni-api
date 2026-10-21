@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING
 import psutil
 
 from omni import config
+from omni.supervisor import guard
 
 if TYPE_CHECKING:
     from omni.supervisor.worker import Worker
@@ -46,10 +47,11 @@ def spawn(worker: "Worker") -> None:
     if worker.uds_link is not None:
         token = f"{os.getpid()}.{next(_generations)}"
         worker.uds = config.socket_target(worker.name, token)
-        worker.command = [part.replace("{uds}", str(worker.uds)) for part in worker.argv]
+        argv = [part.replace("{uds}", str(worker.uds)) for part in worker.argv]
     else:
         worker.uds = None
-        worker.command = list(worker.argv)
+        argv = list(worker.argv)
+    worker.command = guard.command(argv)
     if worker.uds is not None:
         worker.uds.unlink(missing_ok=True)
     logfile_path = config.LOG_DIR / f"{worker.name}.log"

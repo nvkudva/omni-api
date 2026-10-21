@@ -98,6 +98,16 @@ def register(app: FastAPI, ctx: Context) -> None:
 
         return StreamingResponse(events(), media_type="application/x-ndjson")
 
+    @app.post("/admin/models/pull/stop")
+    async def admin_pull_stop(request: Request) -> JSONResponse:
+        role, model = await model_request(request)
+        model = registry.normalize_repo_id(model)
+        if registry.runner(role) != "ollama":
+            model = registry.bare_repo_id(model)
+        if not pulling.stop(model):
+            return error_response(404, f"{model} is not downloading", "not_found")
+        return JSONResponse({"stopped": model})
+
     @app.post("/admin/models/delete")
     async def admin_delete(request: Request) -> JSONResponse:
         role, model = await model_request(request)

@@ -113,6 +113,9 @@ async def _background(role: str, model: str, client: httpx.AsyncClient) -> None:
                 warn(role, model, event["warning"])
             if event.get("error") or event.get("status") == "success":
                 terminal = event
+    except asyncio.CancelledError:
+        # stop() cancels this task on purpose; record it as the outcome, so watchers and loads see it
+        terminal = {"error": f"download of {model} stopped", "cancelled": True}
     except Exception as error:  # noqa: BLE001 - the outcome must be recorded, not raised
         terminal = {"error": f"download failed: {error}"}
     finally:
@@ -136,6 +139,15 @@ def ensure_started(role: str, model: str, client: httpx.AsyncClient) -> asyncio.
         task = TASKS[model] = asyncio.create_task(_background(role, model, client),
                                                   name=f"omni-download-{model}")
     return task
+
+
+def stop(model: str) -> bool:
+    """Cancel one in-flight download; whether there was one. Partial files stay, so a retry resumes."""
+    task = TASKS.get(model)
+    if task is None or task.done():
+        return False
+    task.cancel()
+    return True
 
 
 async def shutdown() -> None:

@@ -128,6 +128,26 @@ class Tracker(unittest.TestCase):
         self.assertEqual([entry["model"] for entry in pulling.recent()],
                          ["meta-llama/Llama-3.1-8B-Instruct"])
 
+    def test_stop_cancels_the_download_and_records_it_as_stopped(self):
+        async def fake_pull(client, role, model):
+            pulling.track(role, model, 100, 10)
+            await asyncio.Event().wait()
+            yield {"status": "success"}
+
+        async def run():
+            task = pulling.ensure_started("stt", "mlx/parakeet", None)
+            await asyncio.sleep(0)
+            self.assertTrue(pulling.stop("mlx/parakeet"))
+            await task
+            self.assertFalse(pulling.stop("mlx/parakeet"))
+
+        with patch.object(pulling, "pull", fake_pull):
+            asyncio.run(run())
+        terminal = pulling.outcome("mlx/parakeet")
+        self.assertTrue(terminal["cancelled"])
+        self.assertIn("stopped", terminal["error"])
+        self.assertEqual(pulling.TASKS, {})
+
     def test_cancelling_a_watcher_never_cancels_the_download(self):
         release = asyncio.Event()
 
@@ -255,7 +275,7 @@ class Shutdown(unittest.TestCase):
 
         with patch.object(pulling, "pull", fake_pull):
             task = asyncio.run(run())
-        self.assertTrue(task.cancelled())
+        self.assertTrue(task.done())
         self.assertEqual(cleaned, ["a/b"])
         self.assertEqual(pulling.TASKS, {})
 

@@ -56,7 +56,7 @@ def ok_run(argv, check=False):  # mirrors subprocess.run's signature
 
 
 def run_init(*, which, get=None, run=None, settings=SETTINGS, url="http://127.0.0.1:11434",
-             load_error=None, url_error=None):
+             load_error=None, url_error=None, all_media=False, warm_calls=None, warm_code=0):
     def load():
         if load_error is not None:
             raise load_error
@@ -67,15 +67,21 @@ def run_init(*, which, get=None, run=None, settings=SETTINGS, url="http://127.0.
             raise url_error
         return url
 
+    def warm_media(host, port, wanted_roles):
+        if warm_calls is not None:
+            warm_calls.append((host, port, wanted_roles))
+        return warm_code
+
     out, err = io.StringIO(), io.StringIO()
     with patch.object(init.shutil, "which", side_effect=which), \
+         patch.object(init, "warm_media", side_effect=warm_media), \
          patch.object(init.sys.stdin, "isatty", return_value=False), \
          patch.object(init.subprocess, "run", side_effect=run or ok_run), \
          patch.object(init.httpx, "get", side_effect=get or serve_api([])), \
          patch.object(init.config, "load", side_effect=load), \
          patch.object(init.config, "ollama_url", side_effect=ollama_url), \
          contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-        code = init.run()
+        code = init.run(all_media=all_media)
     return code, out.getvalue(), err.getvalue()
 
 
@@ -175,6 +181,26 @@ class Pulling(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertIn("ready: embeddinggemma-2, llama3.2", out)
         self.assertIn("http://127.0.0.1:10000/", out)
+
+    def test_success_downloads_and_starts_the_speech_models(self):
+        warm_calls = []
+        code, _, err = run_init(which=which_from("ollama"), warm_calls=warm_calls,
+                                get=serve_api(["llama3.2", "embeddinggemma-2"]))
+        self.assertEqual(code, 0, err)
+        self.assertEqual(warm_calls, [("127.0.0.1", 10000, ("stt", "tts"))])
+
+    def test_media_flag_also_loads_image_and_video(self):
+        warm_calls = []
+        code, _, err = run_init(which=which_from("ollama"), warm_calls=warm_calls, all_media=True,
+                                get=serve_api(["llama3.2", "embeddinggemma-2"]))
+        self.assertEqual(code, 0, err)
+        self.assertEqual(warm_calls, [("127.0.0.1", 10000, ("stt", "tts", "image", "video"))])
+
+    def test_a_speech_model_that_fails_to_load_fails_init(self):
+        code, out, _ = run_init(which=which_from("ollama"), warm_code=1,
+                                get=serve_api(["llama3.2", "embeddinggemma-2"]))
+        self.assertEqual(code, 1)
+        self.assertNotIn("ready:", out)
 
 
 class ModelUrls(unittest.TestCase):

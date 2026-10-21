@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { loadModels } from "./api/models.js";
-import { downloads, installs, pollDownloads, pollRuntime, ROLE_META, ROLE_ORDER } from "./api/roles.js";
+import { pollDownloads, pollRuntime, ROLE_META, ROLE_ORDER } from "./api/roles.js";
 import { execs, execResult, pollExecs } from "./api/execs.js";
 import * as ui from "./components/ui.jsx";
 import { cx } from "./lib/cx.js";
@@ -45,28 +45,6 @@ export function parsePath(path) {
 export function pathFor({ tab, section, role }) {
   if (tab !== "settings") return `/${tab}`;
   return `/settings/${section ?? "server"}${section === "models" && role ? `/${role}` : ""}`;
-}
-
-/** Every model download in flight, on every tab: installs, first-setup loads and keep-warm pins. */
-function DownloadStrip() {
-  const merged = { ...downloads.value };
-  for (const [role, progress] of Object.entries(installs.value)) {
-    if (progress?.busy) merged[role] = progress;
-  }
-  const entries = Object.values(merged);
-  if (!entries.length) return null;
-  return (
-    <div class={styles.downloads} role="status" aria-label="Model downloads in progress">
-      {entries.map((entry) => (
-        <div key={entry.model} class={styles.download}>
-          <span class={styles.downloadLabel} title={entry.status}>
-            <strong>{ROLE_META[entry.role]?.label ?? entry.role}</strong> · {entry.status}
-          </span>
-          <ui.Meter fraction={entry.fraction} />
-        </div>
-      ))}
-    </div>
-  );
 }
 
 /** The picture inside an images API response (`data[0].b64_json`), or "" when there is none. */
@@ -246,7 +224,6 @@ export default function App() {
           ))}
         </nav>
       )}
-      <DownloadStrip />
       <ExecStrip />
       <main class={styles.main}>
         {/* Every page stays mounted so an in-flight request survives a tab

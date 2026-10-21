@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
-import { OLLAMA_ROLES, ROLE_META, downloadFor, install, installs, matchesModel } from "../api/roles.js";
+import { OLLAMA_ROLES, ROLE_META, downloadFor, install, installs, matchesModel, stopDownload } from "../api/roles.js";
 import { checkModel, modelStatus, searchModels } from "../api/endpoints.js";
 import { models } from "../api/models.js";
 import { recommendedFor } from "../lib/recommended.js";
@@ -70,6 +70,7 @@ export function InstallProgress({ role }) {
       <ui.Meter fraction={progress.fraction} />
       <ui.Meta>{progress.status}</ui.Meta>
       {progress.warnings?.length > 0 && <ui.Notice>{progress.warnings.join(" ")}</ui.Notice>}
+      {progress.busy && <ui.Button small onClick={() => stopDownload(role)}>Stop download</ui.Button>}
       {progress.error && <ui.ErrorText>{progress.error}</ui.ErrorText>}
     </>
   );

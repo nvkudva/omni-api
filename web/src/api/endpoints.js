@@ -118,6 +118,7 @@ export const loadRole = (body) => postAdmin("/admin/models/load", body);
 export const unloadRole = (body) => postAdmin("/admin/models/unload", body);
 export const pinRole = (body) => postAdmin("/admin/pins", body);
 export const deleteModel = (body) => postAdmin("/admin/models/delete", body);
+export const stopPull = (body) => postAdmin("/admin/models/pull/stop", body);
 
 export async function pullModel(body, abortSignal) {
   return postJson("/admin/models/pull", body, { signal: abortSignal });

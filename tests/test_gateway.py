@@ -340,6 +340,19 @@ class Gateway(unittest.TestCase):
         lines = [json.loads(line) for line in response.text.splitlines() if line.strip()]
         self.assertTrue(lines[-1].get("error", "").startswith("huggingface: 401"))
 
+    def test_stop_cancels_a_running_download(self):
+        with patch("omni.registry.pulling.stop", return_value=True) as stop:
+            response = self.client.post("/admin/models/pull/stop",
+                                        json={"role": "tts", "model": "mlx-community/Kokoro-82M-bf16"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"stopped": "mlx-community/Kokoro-82M-bf16"})
+        stop.assert_called_once_with("mlx-community/Kokoro-82M-bf16")
+
+    def test_stop_without_a_running_download_is_not_found(self):
+        response = self.client.post("/admin/models/pull/stop",
+                                    json={"role": "tts", "model": "mlx-community/Kokoro-82M-bf16"})
+        self.assertEqual(response.status_code, 404)
+
     def test_image_generation_downloads_the_model_first(self):
         from fastapi.responses import JSONResponse
         with patch.object(residency, "ensure_ready", new=AsyncMock(return_value=None)) as ready, \

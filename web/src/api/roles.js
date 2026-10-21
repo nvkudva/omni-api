@@ -1,6 +1,6 @@
 import { signal } from "@preact/signals";
 import { getJson, ndjson } from "./client.js";
-import { pinRole, pullModel } from "./endpoints.js";
+import { pinRole, pullModel, stopPull } from "./endpoints.js";
 import { health, healthError } from "./health.js";
 import { gb } from "../lib/format.js";
 
@@ -169,9 +169,10 @@ function progressOf(event) {
 }
 
 function downloadProgressOf(entry) {
-  if (!entry.total) return { model: entry.model, busy: true, status: entry.status, fraction: 0, warnings: [], error: "" };
+  if (!entry.total) return { role: entry.role, model: entry.model, busy: true, status: entry.status, fraction: 0, warnings: [], error: "" };
   const completed = entry.completed ?? 0;
   return {
+    role: entry.role,
     model: entry.model,
     busy: true,
     status: `${entry.status} · ${gb(completed)} / ${gb(entry.total)}`,
@@ -196,7 +197,7 @@ export async function pollDownloads() {
     // A download that failed while this browser was closed still reports: surface it like a
     // local failure, once, unless this tab already has its own (busier or newer) state for the role.
     for (const entry of body.recent ?? []) {
-      if (!entry.error) continue;
+      if (!entry.error || entry.cancelled) continue;
       const failure = `${entry.model}@${entry.finished_at}`;
       if (surfacedFailures.has(failure)) continue;
       surfacedFailures.add(failure);
@@ -225,7 +226,7 @@ export function downloadFor(role) {
 /** Download `model` for `role`, publishing progress in `installs`. Resolves true once it is on disk. */
 export async function install(role, model) {
   if (installs.value[role]?.busy) return false;
-  installs.value = { ...installs.value, [role]: { model, busy: true, status: "starting…", fraction: 0, warnings: [], error: "", code: "", acceptUrl: "" } };
+  installs.value = { ...installs.value, [role]: { role, model, busy: true, status: "starting…", fraction: 0, warnings: [], error: "", code: "", acceptUrl: "" } };
   try {
     const response = await pullModel({ role, model });
     for await (const event of ndjson(response)) {
@@ -234,6 +235,7 @@ export async function install(role, model) {
         failure.code = event.code ?? "";
         failure.acceptUrl = event.accept_url ?? "";
         failure.model = event.model ?? model;
+        failure.cancelled = Boolean(event.cancelled);
         throw failure;
       }
       if (event.warning) updateInstall(role, { warnings: [...installs.value[role].warnings, event.warning] });
@@ -242,9 +244,25 @@ export async function install(role, model) {
     updateInstall(role, { busy: false, status: `installed ${model}`, fraction: 1, code: "", acceptUrl: "" });
     return true;
   } catch (error) {
+    if (error.cancelled) {
+      updateInstall(role, { busy: false, status: "download stopped", fraction: 0, error: "", code: "", acceptUrl: "" });
+      return false;
+    }
     updateInstall(role, { busy: false, status: "install failed", fraction: 0, error: error.message, code: error.code ?? "", acceptUrl: error.acceptUrl ?? "" });
     return false;
   } finally {
     await pollRuntime();
   }
+}
+
+/** Stop the download for `role`, wherever it was started. Partial files stay, so a retry resumes. */
+export async function stopDownload(role) {
+  const model = downloadFor(role)?.model;
+  if (!model) return;
+  try {
+    await stopPull({ role, model });
+  } catch {
+    // it finished or failed on its own just now: the next poll shows how
+  }
+  await pollDownloads();
 }

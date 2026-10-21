@@ -427,11 +427,11 @@ brew install omni</code></pre>
         <span class="step-num">2</span>
         <div class="step-body">
           <h3>Pull the models</h3>
-          <p><code>omni init</code> validates your config, installs Ollama if it is missing and fetches the chat, decide and embed models. Add <code>--media</code> for speech, image and video too.</p>
+          <p><code>omni init</code> validates your config, installs Ollama if it is missing and fetches the chat, decide and embed models, then downloads and starts speech-to-text and text-to-speech. Add <code>--media</code> for image and video too.</p>
           <div class="code-block">
             <div class="code-head"><span class="code-lang">shell</span><button class="copy-btn" data-copy="#codeInit" aria-label="Copy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg></button></div>
-            <pre id="codeInit"><code>omni init          # validate, install Ollama, pull the core models
-omni init --media  # also load stt, tts, image and video now</code></pre>
+            <pre id="codeInit"><code>omni init          # validate, install Ollama, pull the core models, start stt and tts
+omni init --media  # also load image and video now</code></pre>
           </div>
         </div>
       </li>

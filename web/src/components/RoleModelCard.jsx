@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { ask, withForce } from "./Confirm.jsx";
-import { ROLE_META, WORKER_ROLES, downloadFor, install, pollRuntime, runtime, setPinned } from "../api/roles.js";
+import { ROLE_META, WORKER_ROLES, downloadFor, install, pollRuntime, runtime, setPinned, stopDownload } from "../api/roles.js";
 import { deleteModel, loadRole, saveSetting, setRoleDefault, unloadRole, workerAction } from "../api/endpoints.js";
 import { InstallProgress } from "./FindAndInstall.jsx";
 import { HealthCard } from "./HealthCard.jsx";
@@ -347,7 +347,8 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
   // The one thing this card invites: set it up, bring it back up, or decide whether it stays warm.
   // The footer does not change shape between those beyond swapping its button, so the eye keeps
   // finding the light and the word in the same place on every card.
-  const action = needsSetup ? "setup"
+  const action = installing ? "stop"
+    : needsSetup ? "setup"
     : status === "stopped" || status === "failed"
       ? (WORKER_ROLES.has(role) ? "start" : "server")
       : "warm";
@@ -355,6 +356,11 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
   const flip = (event) => {
     event.stopPropagation();
     flipWarm();
+  };
+
+  const stopDownloading = (event) => {
+    event.stopPropagation();
+    stopDownload(role);
   };
 
   const server = (event) => {
@@ -418,6 +424,9 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
           <ui.Dot tone={look.tone} />
           <span class={styles.word}>{word}</span>
         </span>
+        {action === "stop" && (
+          <ui.IconButton class={styles.footAction} icon="x" label={`Stop downloading ${download.model}`} size={14} onClick={stopDownloading} />
+        )}
         {action === "setup" && (
           <ui.IconButton class={styles.footAction} icon="download" label={`Set up ${state.label}`} disabled={installing} size={14} onClick={explain} />
         )}
@@ -439,6 +448,18 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
           />
         )}
       </span>
+      {installing && (
+        <span
+          class={cx(styles.download, !download.fraction && styles.waiting)}
+          role="progressbar"
+          aria-label={`Downloading ${download.model}`}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round((download.fraction || 0) * 100)}
+        >
+          <span class={styles.downloadFill} style={{ width: `${Math.min(1, download.fraction || 0) * 100}%` }} />
+        </span>
+      )}
     </div>
   );
 }

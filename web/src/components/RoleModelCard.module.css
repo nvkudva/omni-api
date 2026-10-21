@@ -8,6 +8,7 @@
   composes: card from "./ui.module.css";
   display: flex; flex-direction: column; gap: 10px;
   padding: 14px;
+  position: relative; overflow: hidden;
   cursor: pointer; text-align: left; min-width: 0;
   transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
 
@@ -50,6 +51,15 @@
   & .footAction { width: 24px; height: 24px; border-radius: var(--radius-sm); }
   & .status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--muted-foreground); min-width: 0; }
   & .word { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* A download's progress: a thin line along the card's bottom edge, clipped by the card's corners. */
+  & .download {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+    background: color-mix(in oklab, var(--primary) 20%, transparent);
+  }
+  & .downloadFill { display: block; height: 100%; background: var(--brand-gradient); transition: width 0.25s; }
+  /* Before the size is known there is nothing to fill: pulse the whole line instead. */
+  & .waiting .downloadFill { width: 100% !important; opacity: 0.5; animation: pulse 1.4s ease-in-out infinite; }
 
   & .warnBadge {
     flex: none; display: inline-flex; align-items: center; justify-content: center;
@@ -102,4 +112,10 @@
   /* An opened health or log card sits flush under the head, inside the card. */
   & .log { padding: 16px 16px 0; }
   & .log > section { box-shadow: none; }
+}
+
+@keyframes pulse { 50% { opacity: 0.15; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .miniCard .waiting .downloadFill { animation: none; }
 }

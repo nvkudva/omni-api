@@ -43,11 +43,11 @@ apps ──► 127.0.0.1:10000  omni gateway (FastAPI + httpx streaming proxy)
 
 ```sh
 omni             # print this guide, grouped by what you are doing
-omni init        # ask before installing Ollama, then pull the chat/decide/embed models
-omni init --media  # also load the stt/tts/image/video models now, not on first request
+omni init        # ask before installing Ollama, pull chat/decide/embed, download and start stt/tts
+omni init --media  # also load the image/video models now, not on first request
 omni doctor      # report what works and what to fix, without changing anything
 omni serve       # foreground: gateway + all workers
-omni up          # same, in the background (logs: ~/.omni-api/logs/omni.log)
+omni up          # same, in the background, and opens the playground (`--no-browser` skips that)
 omni up --foreground  # what `serve` does, if you would rather not remember two verbs
 omni status      # worker health as a table; `--json` for the raw report
 omni logs        # the gateway log; `-f` follows it, `omni logs stt` shows one worker's
@@ -173,7 +173,7 @@ omni init     # validate config, install Ollama if missing, pull chat/decide/emb
 omni up       # gateway and workers in the background
 ```
 
-`omni init` validates `~/.omni-api/config.toml`, asks whether to install Ollama when the binary is missing (it stops if you say no), starts the server it just installed, pulls the chat/decide/embed models and confirms they landed; every failure prints the command to fix it and a link. The stt, tts, image and video models download on first use, or now with `omni init --media`. When something is wrong and you would rather not install anything, `omni doctor` runs the same checks read-only and prints one line per check. Release and packaging notes live in [`docs/publishing.md`](docs/publishing.md).
+`omni init` validates `~/.omni-api/config.toml`, asks whether to install Ollama when the binary is missing (it stops if you say no), starts the server it just installed, pulls the chat/decide/embed models and confirms they landed, then starts the gateway and loads the stt and tts models (downloading them first); every failure prints the command to fix it and a link. The image and video models download on first use, or now with `omni init --media`. When something is wrong and you would rather not install anything, `omni doctor` runs the same checks read-only and prints one line per check. Release and packaging notes live in [`docs/publishing.md`](docs/publishing.md).
 
 The shipped defaults are the small profile: `qwen2.5:0.5b` (chat), `OneJev1.5-0.8B` (decide), `embeddinggemma-2:270m` (embed), `parakeet-tdt-0.6b-v3` (stt, 2.5 GB), `Kokoro-82M-8bit` (tts), `Qwen-Image-2.1-Turbo` at Q8_0 (image, 7.6 GB) and `LTX-2.3-22B-RAM-12GB-MLX` (video). Any role can be changed in the playground (add a model, set it as default) or in `~/.omni-api/config.toml`; each role's list keeps the bigger models one click away.
 

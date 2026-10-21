@@ -11,6 +11,7 @@ from pathlib import Path
 from huggingface_hub import HfApi, constants, scan_cache_dir
 
 from omni.registry.roles import SEARCH_FILTERS, runner
+from omni.supervisor import guard
 
 CACHE_TTL_SECONDS = 30.0
 _installed_cache: tuple[float, list[dict]] | None = None
@@ -171,7 +172,7 @@ async def stop_process(process: asyncio.subprocess.Process) -> None:
 async def download(repo_id: str) -> None:
     """Download in a child process so cancelling really stops it. Raises OSError on failure."""
     process = await asyncio.create_subprocess_exec(
-        *download_command(repo_id), stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL,
+        *guard.command(download_command(repo_id)), stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.PIPE, start_new_session=True,
         env={**os.environ, "HF_HUB_DISABLE_PROGRESS_BARS": "1"})
     try:
