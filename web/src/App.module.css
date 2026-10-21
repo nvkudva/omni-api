@@ -38,22 +38,35 @@
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
 
+  /* The status chip: one dot and one number. */
   & .status {
-    display: inline-flex; align-items: center; gap: 6px; min-width: 0;
-    font-size: 12px; color: var(--muted-foreground); white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis;
+    display: inline-flex; align-items: center; gap: 7px;
+    margin-left: 4px; padding: 4px 11px 4px 9px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--muted);
+    font-size: 12px; color: var(--muted-foreground);
+    white-space: nowrap;
 
     & span:first-child { width: 7px; height: 7px; }
   }
 
+  /* The last request, as a quiet chip beside the actions. */
   & .lastRequest {
-    display: flex; gap: 8px; min-width: 0;
+    display: inline-flex; align-items: center; gap: 8px;
+    max-width: 320px; padding: 4px 11px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--muted);
     font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums;
   }
-  & .route { font-weight: 500; color: var(--foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  & .route {
+    min-width: 0; font: 500 0.6875rem var(--mono);
+    color: var(--foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   & .failed { color: var(--red); font-weight: 600; }
 
-  & .actions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+  & .actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 
   /* The seven model cards double as the page tabs. Every card stretches to the
      row's height, so the strip never steps where one footer differs. */

@@ -289,9 +289,9 @@
 .dot {
   display: inline-block; width: 0.5rem; height: 0.5rem; border-radius: 50%; flex: none;
 
-  &.ok { background: var(--green); }
-  &.busy { background: var(--orange); }
-  &.bad { background: var(--red); }
+  &.ok { background: var(--green); box-shadow: 0 0 8px color-mix(in srgb, var(--green) 55%, transparent); }
+  &.busy { background: var(--orange); box-shadow: 0 0 8px color-mix(in srgb, var(--orange) 55%, transparent); }
+  &.bad { background: var(--red); box-shadow: 0 0 8px color-mix(in srgb, var(--red) 55%, transparent); }
   &.idle { background: var(--text-3); }
 }
 

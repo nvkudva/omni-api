@@ -14,12 +14,14 @@ export function GatewayStatus() {
   const roles = Object.keys(ROLE_META).map((role) => runtime.value.roles[role]);
   const loaded = roles.filter((state) => state?.loaded).length;
   const status = loaded === roles.length ? "ready" : "starting";
-  return <span class={styles.status}><ui.Dot status={status} /> {loaded} of {roles.length} models loaded · gateway ok</span>;
+  // The dot already says whether the gateway is up, so the chip only counts
+  // what is in memory.
+  return <span class={styles.status}><ui.Dot status={status} /> {loaded} of {roles.length} loaded</span>;
 }
 
 export function LastRequest() {
   const last = lastRequest.value;
-  if (!last) return <span class={styles.lastRequest}>No requests yet</span>;
+  if (!last) return null;
   const failed = last.status >= 400;
   return (
     <span class={styles.lastRequest}>
