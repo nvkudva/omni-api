@@ -223,8 +223,8 @@ export default function App() {
           <span class={styles.brandName}>OMNI API</span>
           <GatewayStatus />
         </div>
-        <LastRequest />
         <div class={styles.actions}>
+          <LastRequest />
           <ui.IconButton
             icon={theme}
             label={`Theme: ${THEME_LABEL[theme]}. Switch to ${THEME_LABEL[nextTheme]}`}

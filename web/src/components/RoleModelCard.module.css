@@ -9,10 +9,16 @@
   display: flex; flex-direction: column; gap: 10px;
   padding: 14px;
   cursor: pointer; text-align: left; min-width: 0;
-  transition: border-color 0.15s, background-color 0.15s;
+  transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
 
   &:hover { border-color: var(--ring); }
-  &.on { background: var(--accent); border-color: var(--ring); }
+  /* The open role wears the brand sweep: a tinted surface, a ring in the brand
+     ink and the brand glow, so the tab you are on is obvious at a glance. */
+  &.on {
+    background: var(--accent);
+    border-color: transparent;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-ink) 55%, transparent), var(--brand-glow);
+  }
   &.off { opacity: 0.72; }
 
   & .top { display: flex; align-items: center; gap: 8px; min-width: 0; }

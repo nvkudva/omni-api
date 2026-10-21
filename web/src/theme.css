@@ -1,55 +1,84 @@
-/* shadcn/ui — new-york, neutral base.
-   Tokens mirror https://ui.shadcn.com/docs/theming so the primitives read as
-   the stock shadcn components:
-     · controls  h-9 (36px) · rounded-md (8px) · 1px --input border · shadow-xs
-     · cards     rounded-xl (14px) · shadow-sm
-     · focus     border flips to --ring plus a 3px ring at 50%
-   The radius scale is shadcn's: sm 6 · md 8 · lg 10 · xl 14 for --radius 0.625rem.
-   Components read these tokens and never branch on the theme themselves: where
-   light and dark differ, the difference lives in a token below. */
+/* The omni brand theme — the product site's palette, in the shadcn/ui token
+   shape the primitives already read.
+   The site's colours (deep navy, cyan → indigo → pink) are the source: every
+   difference between light and dark lives in a token below, so no component
+   ever branches on the theme itself.
+     · surfaces are glass over the page gradient, not flat paint
+     · --brand-gradient is the site's cyan → indigo → pink sweep
+     · --role-* is each role's accent, deeper in daylight so it keeps contrast
+     · controls  h-9 (36px) · rounded-md · 1px --input border · shadow-xs
+     · cards     rounded-xl · shadow-sm
+     · focus     border flips to --ring plus a 3px ring at 50% */
 :root {
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
   --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
 
-  --radius: 0.625rem;
+  --radius: 0.875rem;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
 
-  /* shadcn light theme. */
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: #ffffff;
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* The brand sweep. One gradient, used by the primary button, the brand
+     wordmark, the meter and the active card. In daylight the stops are the
+     deeper end of the same three hues, so white text on it still reads. */
+  --brand-gradient: linear-gradient(115deg, #0e7490 0%, #4f46e5 48%, #c026d3 100%);
+  --brand-ink: #4338ca;
+  --brand-glow: 0 14px 34px -16px rgba(99, 102, 241, 0.6);
 
-  --green: #16a34a;
-  --orange: #d97706;
-  --red: #e7000b;
+  /* The page the app floats on: a lit sky in daylight, a deep one at night. */
+  --page-bg:
+    radial-gradient(70rem 44rem at 78% -12%, rgba(99, 102, 241, 0.12), transparent 62%),
+    radial-gradient(52rem 36rem at 8% 4%, rgba(6, 182, 212, 0.10), transparent 60%),
+    linear-gradient(180deg, #f9faff 0%, #eef1fb 100%);
+  --aurora-cyan: rgba(6, 182, 212, 0.26);
+  --aurora-pink: rgba(217, 70, 239, 0.22);
+  --aurora-indigo: rgba(99, 102, 241, 0.22);
+
+  /* The light theme: daylight on the same palette. */
+  --background: #f2f4fd;
+  --foreground: #0e1330;
+  --card: rgba(255, 255, 255, 0.86);
+  --card-foreground: #0e1330;
+  --popover: rgba(255, 255, 255, 0.97);
+  --popover-foreground: #0e1330;
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --secondary: rgba(79, 70, 229, 0.09);
+  --secondary-foreground: #3730a3;
+  --muted: rgba(15, 23, 42, 0.045);
+  --muted-foreground: #5b6285;
+  --accent: rgba(99, 102, 241, 0.12);
+  --accent-foreground: #312e81;
+  --destructive: #e11d48;
+  --destructive-foreground: #ffffff;
+  --border: rgba(15, 23, 42, 0.10);
+  --input: rgba(15, 23, 42, 0.14);
+  --ring: #4f46e5;
+
+  /* Each role's accent, deeper in daylight so a glyph keeps its contrast. */
+  --role-chat: #0e7490;
+  --role-decide: #4338ca;
+  --role-embed: #4d7c0f;
+  --role-image: #a21caf;
+  --role-video: #b45309;
+  --role-stt: #0369a1;
+  --role-tts: #be123c;
+
+  --green: #15803d;
+  --orange: #b45309;
+  --red: #e11d48;
   /* The quiet third text tone: lighter than --muted-foreground on light, and
      paler than it on dark. */
-  --text-3: #52525b;
+  --text-3: #4b5273;
 
-  /* Control surfaces. Inputs are bg-transparent in shadcn light and
-     dark:bg-input/30 in dark; pills that sit on --muted use --raised. */
-  --field: transparent;
-  --raised: var(--background);
+  /* Control surfaces. A field sits on glass, so it carries its own fill;
+     pills that sit on --muted use --raised. */
+  --field: rgba(255, 255, 255, 0.72);
+  --raised: rgba(255, 255, 255, 0.92);
+  --glass: rgba(255, 255, 255, 0.72);
+  --surface-blur: blur(16px) saturate(160%);
 
   /* shadcn/Tailwind shadow scale. */
   --shadow-2xs: 0 1px rgb(0 0 0 / 0.05);
@@ -61,7 +90,7 @@
   /* The few places where the dark theme is not just a different token value. */
   --destructive-fill: var(--destructive);
   --destructive-fill-hover: color-mix(in oklab, var(--destructive) 90%, transparent);
-  --switch-thumb: var(--background);
+  --switch-thumb: #ffffff;
   --segment-on-border: transparent;
 
   --control-h: 2.25rem; --control-h-sm: 2rem; --control-h-lg: 2.5rem;
@@ -71,38 +100,61 @@
 }
 
 :root[data-theme="dark"] {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: #ffffff;
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  /* The same sweep, lit for a dark page. */
+  --brand-gradient: linear-gradient(115deg, #22d3ee 0%, #818cf8 48%, #e879f9 100%);
+  --brand-ink: #c7d2fe;
+  --brand-glow: 0 16px 40px -18px rgba(129, 140, 248, 0.8);
 
-  --green: #34d399;
+  --page-bg:
+    radial-gradient(80rem 52rem at 78% -12%, rgba(129, 140, 248, 0.34), transparent 62%),
+    radial-gradient(56rem 38rem at 6% 2%, rgba(34, 211, 238, 0.2), transparent 60%),
+    linear-gradient(180deg, #0b1026 0%, #05060f 48%, #07070d 100%);
+  --aurora-cyan: rgba(34, 211, 238, 0.5);
+  --aurora-pink: rgba(232, 121, 249, 0.45);
+  --aurora-indigo: rgba(129, 140, 248, 0.5);
+
+  --background: #05060f;
+  --foreground: #eef1ff;
+  --card: rgba(255, 255, 255, 0.035);
+  --card-foreground: #eef1ff;
+  --popover: rgba(14, 18, 38, 0.94);
+  --popover-foreground: #eef1ff;
+  --primary: #818cf8;
+  --primary-foreground: #05060f;
+  --secondary: rgba(255, 255, 255, 0.08);
+  --secondary-foreground: #eef1ff;
+  --muted: rgba(255, 255, 255, 0.06);
+  --muted-foreground: #98a1c6;
+  --accent: rgba(129, 140, 248, 0.16);
+  --accent-foreground: #eef1ff;
+  --destructive: #fb7185;
+  --destructive-foreground: #fecdd3;
+  --border: rgba(255, 255, 255, 0.10);
+  --input: rgba(255, 255, 255, 0.14);
+  --ring: #22d3ee;
+
+  /* The role accents, at the brightness the site uses. */
+  --role-chat: #22d3ee;
+  --role-decide: #818cf8;
+  --role-embed: #a3e635;
+  --role-image: #e879f9;
+  --role-video: #fbbf24;
+  --role-stt: #38bdf8;
+  --role-tts: #fb7185;
+
+  --green: #4ade80;
   --orange: #fbbf24;
-  --red: #ff6467;
-  --text-3: #9f9fa6;
+  --red: #fb7185;
+  --text-3: #7b84ad;
 
-  --field: color-mix(in oklab, var(--input) 30%, transparent);
-  --raised: color-mix(in oklab, var(--input) 30%, transparent);
+  --field: rgba(255, 255, 255, 0.05);
+  --raised: rgba(255, 255, 255, 0.08);
+  --glass: rgba(11, 16, 38, 0.72);
 
   /* destructive:bg-destructive/60 hover:bg-destructive/75; the switch thumb flips to --foreground. */
-  --destructive-fill: color-mix(in oklab, var(--destructive) 60%, transparent);
-  --destructive-fill-hover: color-mix(in oklab, var(--destructive) 75%, transparent);
-  --switch-thumb: var(--foreground);
+  --destructive-fill: color-mix(in oklab, var(--destructive) 22%, transparent);
+  --destructive-fill-hover: color-mix(in oklab, var(--destructive) 34%, transparent);
+  --switch-thumb: #05060f;
   --segment-on-border: var(--input);
 
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
@@ -118,7 +170,8 @@ body {
   font-size: 0.875rem;
   line-height: 1.5;
   color: var(--foreground);
-  background: var(--background);
+  background: var(--page-bg);
+  background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
