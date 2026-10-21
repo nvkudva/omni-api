@@ -23,7 +23,10 @@ def _role_for(name: str, capabilities: list[str], settings: dict) -> str:
         if registry.matches(name, settings[role]["model"]):
             return role
     if capabilities and "completion" not in capabilities:
-        return "embed" if "embedding" in capabilities else "chat"
+        if "embedding" in capabilities:
+            return "embed"
+        if "decision" in capabilities:
+            return "decide"
     return "chat"
 
 

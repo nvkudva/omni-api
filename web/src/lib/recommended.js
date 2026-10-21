@@ -18,9 +18,10 @@ export const RECOMMENDED = {
   ],
   decide: [
     { model: "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0", gb: 1.2, note: "shipped default" },
+    { model: "d1-omni", gb: 0.85, note: "native System One — fast and calibrated; strongest on short classification, weaker on long state" },
     { model: "nimble", gb: 9.5, note: "best answer accuracy" },
     { model: "clef-flash", gb: 10.6, note: "lowest latency" },
-    { model: "tev1:4b", gb: 4.6, note: "strong at tool routing" },
+    { model: "tev1:4b", gb: 4.6, note: "accuracy step-up" },
     { model: "laya", gb: 0.8, note: "tiny and quickest to answer" },
   ],
   embed: [

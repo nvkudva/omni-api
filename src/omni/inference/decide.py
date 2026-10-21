@@ -1,5 +1,7 @@
 """POST /v1/systemone on top of Ollama: each question is a lettered multiple-choice prompt, answered by the
-next-token probabilities of the option letters (OneJev's qev-labels-v2 prompt, rendered as raw ChatML)."""
+next-token probabilities of the option letters (OneJev's qev-labels-v2 prompt, rendered as raw ChatML).
+Models with Ollama's `decision` capability (d1-omni) cannot generate text at all, so they answer through
+Ollama's native /v1/systemone instead, which scores the options directly."""
 import asyncio
 import json
 import math
@@ -18,6 +20,8 @@ NOUL_DEFAULT_TRUE = "the statement is true / the answer is yes"
 NOUL_DEFAULT_FALSE = "the statement is false / the answer is no"
 SYSTEM_PROMPT = ("Apply the question to the state. Choose exactly one of the listed options. "
                  "Respond with only its uppercase letter, with no explanation or reasoning.")
+DECISION_CAPABILITY = "decision"
+_decision_models: dict[str, bool] = {}
 
 
 def _text(value) -> str:
@@ -75,6 +79,35 @@ def prompt(state: str, rendered: dict) -> str:
             f"Answer with one letter: {', '.join(LETTERS[:count])}.")
     return (f"<|im_start|>system\n{SYSTEM_PROMPT}<|im_end|>\n<|im_start|>user\n{user}<|im_end|>\n"
             "<|im_start|>assistant\n<think>\n\n</think>\n\n")
+
+
+def native_question(spec: dict) -> dict:
+    """A question spec in the shape Ollama's native System One takes; call question() first to validate."""
+    kind = spec.get("type", "choice")
+    criteria = spec.get("criteria")
+    if kind == "noul":
+        criteria = criteria or {}
+        instructions = spec.get("instructions") or NOUL_WITHOUT_INSTRUCTIONS
+        return {"type": "noul", "instructions": _text(instructions),
+                "criteria": {"true": _text(criteria.get("true") or NOUL_DEFAULT_TRUE),
+                             "false": _text(criteria.get("false") or NOUL_DEFAULT_FALSE)}}
+    instructions = _text(spec.get("instructions"))
+    if kind == "choice":
+        if isinstance(criteria, list):
+            criteria = {str(name): None for name in criteria}
+        return {"type": "choice", "instructions": instructions,
+                "criteria": {str(name): None if description in (None, "") else _text(description)
+                             for name, description in criteria.items()}}
+    return {"type": "score", "instructions": instructions,
+            "criteria": [_text(level) for level in criteria]}
+
+
+def native_probabilities(rendered: dict, reply: dict) -> list[float]:
+    """The option probabilities from a native System One answer, in the question's option order."""
+    if rendered["type"] == "noul":
+        probability = float(reply["noul"])
+        return [probability, 1.0 - probability]
+    return [float(reply["probabilities"][str(name)]) for name in rendered["names"]]
 
 
 def letter_probabilities(top_logprobs: list, count: int) -> list[float]:
@@ -148,6 +181,47 @@ def top_logprobs(reply: dict) -> list:
     return candidates if isinstance(candidates, list) else []
 
 
+async def _is_decision_model(client: httpx.AsyncClient, model: str) -> bool:
+    """Whether Ollama lists the model as a decision model; a failed lookup is retried next request."""
+    if model in _decision_models:
+        return _decision_models[model]
+    try:
+        response = await client.post("/api/show", json={"model": model})
+        response.raise_for_status()
+        details = response.json()
+        capabilities = details.get("capabilities") if isinstance(details, dict) else None
+    except (httpx.HTTPError, ValueError):
+        return False
+    if not isinstance(capabilities, list):
+        return False
+    _decision_models[model] = DECISION_CAPABILITY in capabilities
+    return _decision_models[model]
+
+
+async def _ask_native(client: httpx.AsyncClient, model: str, state: str,
+                      questions: dict, rendered: dict) -> dict:
+    response = await client.post("/v1/systemone", json={
+        "model": model,
+        "state": state,
+        "questions": {question_id: native_question(spec) for question_id, spec in questions.items()},
+    })
+    response.raise_for_status()
+    try:
+        reply = response.json()
+        native_answers = reply["answers"]
+        answers = {question_id: answer(item, native_probabilities(item, native_answers[question_id]))
+                   for question_id, item in rendered.items()}
+    except (KeyError, TypeError, ValueError) as error:
+        raise UpstreamError("ollama returned a decision that does not match the questions") from error
+    usage = reply.get("usage")
+    usage = usage if isinstance(usage, dict) else {}
+    input_tokens = usage.get("input_tokens") or 0
+    output_tokens = usage.get("output_tokens") or 0
+    return {"model": model, "answers": answers,
+            "usage": {"prompt_tokens": input_tokens, "completion_tokens": output_tokens,
+                      "total_tokens": input_tokens + output_tokens}}
+
+
 async def _ask(client: httpx.AsyncClient, model: str, text: str) -> dict:
     response = await client.post("/api/generate", json={
         "model": model,
@@ -182,6 +256,8 @@ async def run(client: httpx.AsyncClient, model: str, payload: dict) -> dict:
     if len(state) > MAX_STATE_CHARS:
         raise ValueError(f"state: at most {MAX_STATE_CHARS} characters")
     rendered = {question_id: question(spec) for question_id, spec in questions.items()}
+    if await _is_decision_model(client, model):
+        return await _ask_native(client, model, state, questions, rendered)
 
     semaphore = asyncio.Semaphore(MAX_CONCURRENCY)
 

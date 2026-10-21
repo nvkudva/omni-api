@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 
 from omni import config, gateway
 from omni.gateway import residency
+from omni.gateway.routes import system
 from omni.registry import ROLES, pulling
 
 
@@ -23,6 +24,20 @@ def _error(response):
     # every error carries a message and a type; a refusal may add the blockers beside them
     assert {"message", "type"} <= set(body["error"]), body
     return body["error"]
+
+
+class ModelRoles(unittest.TestCase):
+    def test_a_decision_model_is_labelled_decide(self):
+        settings = config.load()
+        self.assertEqual(system._role_for("d1-omni", ["decision", "vision"], settings), "decide")
+
+    def test_an_embedding_model_is_labelled_embed(self):
+        settings = config.load()
+        self.assertEqual(system._role_for("some-embed", ["embedding"], settings), "embed")
+
+    def test_a_completion_model_stays_chat(self):
+        settings = config.load()
+        self.assertEqual(system._role_for("some-chat", ["completion", "tools"], settings), "chat")
 
 
 class Gateway(unittest.TestCase):

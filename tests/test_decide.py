@@ -1,4 +1,5 @@
 """The decision logic: question shapes, letter probabilities, certainty and answers."""
+import asyncio
 import math
 import unittest
 
@@ -107,6 +108,98 @@ class PromptText(unittest.TestCase):
         self.assertEqual(decide.top_logprobs({"logprobs": []}), [])
         self.assertEqual(decide.top_logprobs({"logprobs": [{"top_logprobs": [1, 2]}]}), [1, 2])
         self.assertEqual(decide.top_logprobs({"logprobs": [{"top_logprobs": "x"}]}), [])
+
+
+class Native(unittest.TestCase):
+    def test_choice_list_becomes_a_criteria_map(self):
+        spec = {"type": "choice", "instructions": "Pick", "criteria": ["A", "B"]}
+        got = decide.native_question(spec)
+        self.assertEqual(got["criteria"], {"A": None, "B": None})
+
+    def test_noul_defaults_match_the_rendered_question(self):
+        got = decide.native_question({"type": "noul", "criteria": {"true": "yes"}})
+        self.assertEqual(got["instructions"], decide.NOUL_WITHOUT_INSTRUCTIONS)
+        self.assertEqual(got["criteria"], {"true": "yes", "false": decide.NOUL_DEFAULT_FALSE})
+
+    def test_native_probabilities_follow_the_option_order(self):
+        rendered = decide.question({"instructions": "Pick", "criteria": {"A": None, "B": None}})
+        reply = {"probabilities": {"B": 0.25, "A": 0.75}}
+        self.assertEqual(decide.native_probabilities(rendered, reply), [0.75, 0.25])
+
+    def test_noul_probability_pairs_with_its_complement(self):
+        probabilities = decide.native_probabilities({"type": "noul"}, {"noul": 0.8})
+        self.assertAlmostEqual(probabilities[0], 0.8)
+        self.assertAlmostEqual(probabilities[1], 0.2)
+
+
+class FakeResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return self.payload
+
+
+class FakeClient:
+    def __init__(self, capabilities, native=None, generate=None):
+        self.capabilities = capabilities
+        self.native = native
+        self.generate = generate
+        self.calls = []
+
+    async def post(self, path, json):
+        self.calls.append((path, json))
+        if path == "/api/show":
+            return FakeResponse({"capabilities": self.capabilities})
+        if path == "/v1/systemone":
+            return FakeResponse(self.native)
+        return FakeResponse(self.generate)
+
+
+class Routing(unittest.TestCase):
+    def setUp(self):
+        decide._decision_models.clear()
+
+    def payload(self):
+        return {"state": "the state", "questions": {
+            "pick": {"type": "choice", "instructions": "Pick", "criteria": ["A", "B"]},
+            "flag": {"type": "noul", "instructions": "Is it?", "criteria": {"true": "yes", "false": "no"}},
+        }}
+
+    def test_a_decision_model_answers_through_native_systemone(self):
+        client = FakeClient(["decision"], native={"answers": {
+            "pick": {"type": "choice", "choice": "A", "probabilities": {"A": 0.75, "B": 0.25}},
+            "flag": {"type": "noul", "noul": 0.8},
+        }, "usage": {"input_tokens": 11, "output_tokens": 0}})
+        got = asyncio.run(decide.run(client, "d1-omni", self.payload()))
+        self.assertEqual([path for path, _ in client.calls], ["/api/show", "/v1/systemone"])
+        self.assertEqual(client.calls[1][1]["questions"]["pick"]["criteria"], {"A": None, "B": None})
+        self.assertEqual(got["answers"]["pick"]["choice"], "A")
+        self.assertEqual(got["answers"]["pick"]["probabilities"], {"A": 0.75, "B": 0.25})
+        self.assertEqual(got["answers"]["flag"], {"type": "noul", "noul": 0.8})
+        self.assertEqual(got["usage"], {"prompt_tokens": 11, "completion_tokens": 0, "total_tokens": 11})
+
+    def test_a_completion_model_keeps_the_letter_prompt(self):
+        client = FakeClient(["completion"], generate={
+            "logprobs": [{"top_logprobs": [{"token": "A", "logprob": 0.0}]}],
+            "prompt_eval_count": 7,
+        })
+        got = asyncio.run(decide.run(client, "onejev", self.payload()))
+        self.assertEqual([path for path, _ in client.calls], ["/api/show", "/api/generate", "/api/generate"])
+        self.assertIn("the state", client.calls[1][1]["prompt"])
+        self.assertEqual(got["answers"]["pick"]["choice"], "A")
+
+    def test_the_capability_lookup_is_cached(self):
+        client = FakeClient(["decision"], native={"answers": {
+            "pick": {"type": "choice", "choice": "A", "probabilities": {"A": 0.6, "B": 0.4}},
+            "flag": {"type": "noul", "noul": 0.7},
+        }})
+        asyncio.run(decide.run(client, "d1-omni", self.payload()))
+        asyncio.run(decide.run(client, "d1-omni", self.payload()))
+        self.assertEqual([path for path, _ in client.calls].count("/api/show"), 1)
 
 
 if __name__ == "__main__":
