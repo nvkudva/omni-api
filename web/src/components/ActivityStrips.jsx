@@ -63,8 +63,10 @@ export function ExecStrip({ role, exceptRole }) {
   if (!entries.length && !open) return null;
   const word = (entry) => entry.error ? "failed"
     : entry.finished_at ? `done · ${size(entry.size)}` : `running · ${size(entry.bytes)}`;
+  const pageWide = !role || Boolean(exceptRole);
   return (
-    <div class={cx(styles.downloads, (!role || exceptRole) && styles.global)} aria-label="Recent requests">
+    <div class={cx(styles.downloads, pageWide && styles.global)} aria-label="Recent requests">
+      {pageWide && <span class={styles.stripLabel}>Recent requests</span>}
       <span class={styles.srOnly} role="status">{running.length ? `${running.length} running` : ""}</span>
       {entries.map((entry) => (
         <div key={entry.id} class={styles.download}>
@@ -73,7 +75,7 @@ export function ExecStrip({ role, exceptRole }) {
             {entry.error ? ` · ${entry.error}` : ""}
           </span>
           {entry.finished_at
-            ? <ui.Button small class={styles.execButton} onClick={() => setOpenId(openId === entry.id ? null : entry.id)}>View</ui.Button>
+            ? <ui.Button small class={styles.execButton} title="Show the response this request returned" onClick={() => setOpenId(openId === entry.id ? null : entry.id)}>View</ui.Button>
             : <ui.Spinner />}
         </div>
       ))}

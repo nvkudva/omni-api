@@ -3,7 +3,12 @@ import { cx } from "../lib/cx.js";
 import { ROLE_META } from "../api/roles.js";
 import * as ui from "./ui.jsx";
 import { ModelSettingsPopup } from "./ModelSettings.jsx";
+import { ExecStrip } from "./ActivityStrips.jsx";
 import styles from "./workbench.module.css";
+
+// The recent-requests strip now sits below the page's log card, not above the page.
+// It stays hidden until it earns that place.
+const SHOW_ACTIVITY = false;
 
 // The shared request/response workbench: everything the model pages need to lay a
 // request out on the left and a log of turns on the right. Each role page's
@@ -56,6 +61,7 @@ export function Workbench({ title, subtitle, readout, single, modelRole, headerT
         </div>
       </header>
       <main class={cx(styles.main, single && styles.single)}>{children}</main>
+      {SHOW_ACTIVITY && modelRole && <ExecStrip role={modelRole} exceptRole="embed" />}
       {settingsOpen && modelRole && <ModelSettingsPopup role={modelRole} onClose={() => setSettingsOpen(false)} />}
     </div>
   );

@@ -97,13 +97,23 @@ class Control(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.text, "two\nthree\n")
 
-    def test_role_log_for_an_ollama_role_tails_ollamas_server_log(self):
+    def test_role_log_for_an_ollama_role_tails_its_own_log(self):
+        with tempfile.TemporaryDirectory() as directory:
+            own_log = Path(directory) / "requests" / "chat.log"
+            own_log.parent.mkdir(parents=True)
+            own_log.write_text("one\ntwo\nthree\n")
+            with patch.object(config, "LOG_DIR", Path(directory)):
+                response = self.client.get("/admin/logs/chat", params={"lines": 2})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.text, "two\nthree\n")
+
+    def test_the_engine_log_tails_ollamas_server_log(self):
         with tempfile.TemporaryDirectory() as directory:
             server_log = Path(directory) / ".ollama" / "logs" / "server.log"
             server_log.parent.mkdir(parents=True)
             server_log.write_text("one\ntwo\nthree\n")
             with patch.object(Path, "home", classmethod(lambda cls: Path(directory))):
-                response = self.client.get("/admin/logs/chat", params={"lines": 2})
+                response = self.client.get("/admin/logs/ollama", params={"lines": 2})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.text, "two\nthree\n")
 

@@ -55,7 +55,8 @@
   @media (max-width: 1020px) {
     & .main { overflow: auto; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; grid-auto-rows: minmax(420px, auto); }
     & .main:not(.single) { display: flex; flex-direction: column; }
-    & .main:not(.single) > .panel { flex: none; }
+    /* Stacked, every child keeps its own height: a shrinking one would clip its content. */
+    & .main:not(.single) > * { flex: none; }
   }
 }
 

@@ -21,7 +21,9 @@ export function LogsCard({ role, initialOpen = false }) {
   const [error, setError] = useState("");
   const viewRef = useRef(null);
   const pageActive = usePageActive();
-  const fileName = OLLAMA_ROLES.has(role) ? "Ollama server.log" : `${role}.log`;
+  // Ollama serves chat, decide and embed from one engine with one log, so those roles
+  // show what omni did for them: their requests and their model's residency.
+  const fileName = OLLAMA_ROLES.has(role) ? `${role} requests` : `${role}.log`;
 
   usePolling(async () => {
     try {

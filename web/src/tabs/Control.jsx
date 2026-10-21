@@ -1,4 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
+import { getText } from "../api/client.js";
 import { pollHealth } from "../api/health.js";
 import { serverAction, serverInfo, serverLogs, workerAction } from "../api/endpoints.js";
 import { pollRuntime, runtime } from "../api/roles.js";
@@ -136,7 +137,56 @@ function Gateway({ info, onReconnected }) {
         />
       )}
       <GatewayLogs />
+      <OllamaLogs />
     </Panel>
+  );
+}
+
+/** The engine log: one Ollama serves chat, decide and embed, so its log belongs to no one role. */
+function OllamaLogs() {
+  const [text, setText] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      setText(await getText(`/admin/logs/ollama?lines=${LOG_LINES}`));
+      setError("");
+    } catch (failure) {
+      setError(failure.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <details
+      class={styles.logs}
+      onToggle={(event) => {
+        if (event.currentTarget.open && !text && !error && !loading) refresh();
+      }}
+    >
+      <summary>
+        Ollama engine log
+        <span class={styles.logsPath}>one server for chat, decide and embed</span>
+        <span class={styles.logsTools}>
+          <ui.IconButton
+            icon="refresh"
+            label="Refresh log"
+            disabled={loading}
+            onClick={(event) => {
+              event.preventDefault();
+              refresh();
+            }}
+          />
+        </span>
+      </summary>
+      {error && <ui.ErrorText>log request failed: {error}</ui.ErrorText>}
+      {text
+        ? <ui.Code>{text}</ui.Code>
+        : !error && <ui.Meta>{loading ? "reading…" : "The log is empty."}</ui.Meta>}
+    </details>
   );
 }
 

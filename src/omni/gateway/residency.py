@@ -10,7 +10,7 @@ from typing import NamedTuple
 import httpx
 from huggingface_hub.errors import HfHubHTTPError
 
-from omni import config, registry
+from omni import config, logs, registry
 from omni.registry import pulling
 
 log = logging.getLogger("omni.gateway")
@@ -105,11 +105,13 @@ async def set_residency(ctx, role: str, model: str, load: bool, *, keep_warm: bo
         else:
             await registry.ollama_unload(ctx.clients["chat"], role, model)
             _loaded_ollama.pop(role, None)
+        logs.note(role, f"{'kept loaded' if keep_warm else 'loaded' if load else 'unloaded'} {model}")
         return None
     if load:
         await ensure_downloaded(ctx, role, model)
     response = await ctx.clients[role].post("/load" if load else "/unload", timeout=600.0)
     response.raise_for_status()
+    logs.note(role, f"{'loaded' if load else 'unloaded'} {model}")
     try:
         report = response.json()
     except ValueError:

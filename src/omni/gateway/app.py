@@ -2,6 +2,7 @@
 and the playground, and start/stop the workers with the app's lifespan."""
 import asyncio
 import logging
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -10,7 +11,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from omni import config
+from omni import config, logs
 from omni.errors import error_response, install_error_handlers
 from omni.gateway import executions, residency, routes
 from omni.gateway.context import build
@@ -25,6 +26,25 @@ PLAYGROUND_PATHS = tuple(
 )
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+
+# the path a role answers on, so a request can be written into that role's own log
+ROLE_PATHS = (
+    ("/v1/chat/completions", "chat"),
+    ("/v1/systemone", "decide"),
+    ("/v1/embeddings", "embed"),
+    ("/v1/audio/transcriptions", "stt"),
+    ("/v1/audio", "tts"),
+    ("/v1/images", "image"),
+    ("/v1/videos", "video"),
+)
+
+
+def role_for(path: str) -> str | None:
+    """The role a request path belongs to, or None when it is not a role's request."""
+    for prefix, role in ROLE_PATHS:
+        if path.startswith(prefix):
+            return role
+    return None
 
 
 def _hostname(value: str) -> str:
@@ -84,6 +104,18 @@ def create() -> FastAPI:
         if refused is not None:
             return error_response(403, refused, "forbidden")
         return await call_next(request)
+
+    @app.middleware("http")
+    async def role_activity(request: Request, call_next):
+        """Write each request into the log of the role that answered it."""
+        role = role_for(request.url.path)
+        if role is None:
+            return await call_next(request)
+        started = time.perf_counter()
+        response = await call_next(request)
+        took = (time.perf_counter() - started) * 1000
+        logs.note(role, f"{request.method} {request.url.path} {response.status_code} {took:.0f}ms")
+        return response
 
     # the built playground ships inside the package; StaticFiles needs the directory to exist
     STATIC_DIR.mkdir(parents=True, exist_ok=True)

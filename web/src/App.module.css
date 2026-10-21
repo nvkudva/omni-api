@@ -20,7 +20,7 @@
   & .header {
     flex: none; display: flex; align-items: center; gap: 16px;
     min-height: 3.5rem; padding: 0 16px;
-    background: var(--glass);
+    background: var(--header-surface);
     backdrop-filter: var(--surface-blur);
     -webkit-backdrop-filter: var(--surface-blur);
     border-bottom: 1px solid var(--border);

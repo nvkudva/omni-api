@@ -90,10 +90,10 @@ def register(app: FastAPI, ctx: Context) -> None:
 
     @app.get("/admin/logs/{role}")
     async def admin_role_log(role: str, lines: int = Query(500, ge=1, le=5000)) -> PlainTextResponse:
-        if role not in config.ROLES:
+        if role != logs.OLLAMA_ENGINE and role not in config.ROLES:
             return error_response(404, f"no role named {role}", "not_found")
         path = logs.path_for(role)
         if not path.exists():
-            hint = "Ollama has not written one" if role in registry.OLLAMA_ROLES else "this runtime is not managed by omni"
+            hint = "Ollama has not written one" if role == logs.OLLAMA_ENGINE else "this runtime has not logged yet"
             return error_response(404, f"no log at {path} ({hint})", "not_found")
         return PlainTextResponse("\n".join(logs.tail(path, lines)) + "\n")

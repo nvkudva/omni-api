@@ -199,8 +199,8 @@ describe("the Logs card", () => {
     expect(html).not.toContain("<pre");
   });
 
-  test("an Ollama role names Ollama's server log", () => {
-    expect(render(<LogsCard role="chat" />)).toContain("Ollama server.log");
+  test("an Ollama role names its own request log, not the engine's", () => {
+    expect(render(<LogsCard role="chat" />)).toContain("chat requests");
   });
 });
 

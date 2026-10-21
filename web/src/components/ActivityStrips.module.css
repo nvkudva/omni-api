@@ -6,6 +6,11 @@
     border-bottom: 1px solid var(--border);
   }
 }
+/* What the page-wide strip is: the requests the gateway ran for this role. */
+.stripLabel {
+  font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted-foreground);
+}
 .download {
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(120px, 240px);
   gap: 4px 12px; align-items: center;

@@ -293,7 +293,7 @@ Set `OMNI_HOME` to move the state directory (default `~/.omni-api`):
 | Path | Contents |
 |---|---|
 | `run/` | pidfiles, one socket per worker generation, and the stable `<role>.sock` link clients dial |
-| `logs/` | one log per worker, plus `omni.log` |
+| `logs/` | one log per worker, plus `omni.log` and `requests/<role>.log` for the roles Ollama serves |
 
 Ports:
 

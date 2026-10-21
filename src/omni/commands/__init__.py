@@ -6,7 +6,7 @@
 import argparse
 import sys
 
-from omni import config, version
+from omni import config, logs, version
 from omni.commands import doctor, init, lifecycle, settings
 
 DEFAULT_HOST = "127.0.0.1"
@@ -95,8 +95,8 @@ def build_parser(gateway: dict | None = None) -> argparse.ArgumentParser:
         if name == "status":
             command.add_argument("--json", action="store_true", help="print the raw health report")
         if name == "logs":
-            command.add_argument("role", nargs="?", choices=config.ROLES,
-                                 help="a worker's log instead of the gateway's")
+            command.add_argument("role", nargs="?", choices=(*config.ROLES, logs.OLLAMA_ENGINE),
+                                 help="a role's log instead of the gateway's; 'ollama' is the engine's")
             command.add_argument("--lines", type=int, default=200, help="default 200")
             command.add_argument("-f", "--follow", action="store_true", help="keep printing as it grows")
         if name == "config":
