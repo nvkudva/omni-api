@@ -10,9 +10,13 @@ from pathlib import Path
 from typing import NamedTuple
 
 from huggingface_hub import HfApi, constants, scan_cache_dir
+from huggingface_hub.errors import CacheNotFound, HfHubHTTPError
 
 from omni.registry.roles import SEARCH_FILTERS, runner
 from omni.supervisor import guard
+
+# what a Hub call can raise that a route should report as a bad gateway, not a crash
+ERRORS = (HfHubHTTPError, OSError)
 
 CACHE_TTL_SECONDS = 30.0
 _installed_cache: tuple[float, list[dict]] | None = None
@@ -24,7 +28,10 @@ def installed(force: bool = False) -> list[dict]:
     now = time.monotonic()
     if not force and _installed_cache is not None and now - _installed_cache[0] < CACHE_TTL_SECONDS:
         return _installed_cache[1]
-    cache = scan_cache_dir()
+    try:
+        cache = scan_cache_dir()
+    except CacheNotFound:  # nothing has been downloaded on this machine yet
+        return []
     models = [{"name": repo.repo_id, "size_bytes": repo.size_on_disk}
               for repo in cache.repos if repo.repo_type == "model"]
     _installed_cache = (now, models)
@@ -138,7 +145,10 @@ def search(role: str, query: str, limit: int = 20) -> list[dict]:
 
 def delete(repo_id: str) -> None:
     """Remove every cached revision of a repo."""
-    cache = scan_cache_dir()
+    try:
+        cache = scan_cache_dir()
+    except CacheNotFound as error:
+        raise FileNotFoundError(f"{repo_id} is not in the Hugging Face cache") from error
     revisions = [revision.commit_hash for repo in cache.repos if repo.repo_id == repo_id
                  for revision in repo.revisions]
     if not revisions:
