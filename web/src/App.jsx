@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { loadModels } from "./api/models.js";
-import { pollDownloads, pollRuntime, ROLE_META, ROLE_ORDER } from "./api/roles.js";
-import { execs, execResult, pollExecs } from "./api/execs.js";
+import { pollDownloads, pollRuntime, ROLE_ORDER } from "./api/roles.js";
+import { pollExecs } from "./api/execs.js";
 import * as ui from "./components/ui.jsx";
 import { cx } from "./lib/cx.js";
-import { size } from "./lib/format.js";
 import { PageActive } from "./hooks/usePageActive.js";
 import { usePolling } from "./hooks/usePolling.js";
 import { useTheme } from "./hooks/useTheme.js";
 import { GatewayStatus, LastRequest } from "./components/GatewayStatus.jsx";
 import { ConfirmHost } from "./components/Confirm.jsx";
+import { ExecStrip } from "./components/ActivityStrips.jsx";
 import { RoleModelCard } from "./components/RoleModelCard.jsx";
 import * as store from "./store.js";
 import styles from "./App.module.css";
@@ -45,82 +45,6 @@ export function parsePath(path) {
 export function pathFor({ tab, section, role }) {
   if (tab !== "settings") return `/${tab}`;
   return `/settings/${section ?? "server"}${section === "models" && role ? `/${role}` : ""}`;
-}
-
-/** The picture inside an images API response (`data[0].b64_json`), or "" when there is none. */
-function generatedImageUrl(text) {
-  try {
-    const b64 = JSON.parse(text)?.data?.[0]?.b64_json;
-    return typeof b64 === "string" ? `data:image/png;base64,${b64}` : "";
-  } catch {
-    return "";
-  }
-}
-
-/** A retained result, rendered by what it is: JSON/text as code, images shown, audio playable. */
-function ExecResult({ execId }) {
-  const [state, setState] = useState({ loading: true, kind: "", url: "", text: "", error: "" });
-  useEffect(() => {
-    let alive = true;
-    let url = "";
-    execResult(execId).then(async ({ blob, contentType: type }) => {
-      if (!alive) return;
-      if (type.startsWith("image/") || type.startsWith("audio/")) {
-        url = URL.createObjectURL(blob);
-        setState({ loading: false, kind: type.split("/")[0], url, text: "", error: "" });
-        return;
-      }
-      const text = await blob.text();
-      const imageUrl = type.includes("json") ? generatedImageUrl(text) : "";
-      if (imageUrl) setState({ loading: false, kind: "image", url: imageUrl, text: "", error: "" });
-      else setState({ loading: false, kind: "text", url: "", text: text.slice(0, 20000), error: "" });
-    }).catch((failure) => {
-      if (alive) setState({ loading: false, kind: "", url: "", text: "", error: failure.message });
-    });
-    return () => { alive = false; if (url) URL.revokeObjectURL(url); };
-  }, [execId]);
-  if (state.loading) return <span class={styles.downloadLabel}>reading result…</span>;
-  if (state.error) return <span class={styles.downloadLabel}>result unreadable: {state.error}</span>;
-  if (state.kind === "image") return <img src={state.url} alt="retained result" class={styles.execImage} />;
-  if (state.kind === "audio") return <audio controls src={state.url} class={styles.execAudio} />;
-  return <pre class={styles.execText}>{state.text}</pre>;
-}
-
-/** Every retained inference execution, on every tab: running ones with live bytes, recent ones
- *  with their results. Work the browser never saw finish is still here after a reopen. */
-function ExecStrip() {
-  const [openId, setOpenId] = useState(null);
-  const { running = [], recent = [] } = execs.value;
-  const entries = [...running, ...recent.filter((entry) => entry.id !== openId)].slice(0, 8);
-  const open = recent.find((entry) => entry.id === openId);
-  if (!entries.length && !open) return null;
-  const word = (entry) => entry.error ? "failed"
-    : entry.finished_at ? `done · ${size(entry.size)}` : `running · ${size(entry.bytes)}`;
-  return (
-    <div class={styles.downloads} aria-label="Recent requests">
-      <span class={styles.srOnly} role="status">{running.length ? `${running.length} running` : ""}</span>
-      {entries.map((entry) => (
-        <div key={entry.id} class={styles.download}>
-          <span class={styles.downloadLabel} title={`${entry.id} · ${entry.error ?? entry.path}`}>
-            <strong>{ROLE_META[entry.role]?.label ?? entry.role}</strong> · {entry.path} · {word(entry)}
-            {entry.error ? ` · ${entry.error}` : ""}
-          </span>
-          {entry.finished_at
-            ? <ui.Button small class={styles.execButton} onClick={() => setOpenId(openId === entry.id ? null : entry.id)}>View</ui.Button>
-            : <ui.Spinner />}
-        </div>
-      ))}
-      {open && (
-        <div key={open.id} class={styles.download}>
-          <span class={styles.downloadLabel} title={open.id}>
-            <strong>{ROLE_META[open.role]?.label ?? open.role}</strong> · {open.path} · {word(open)}
-          </span>
-          <ui.Button small class={styles.execButton} onClick={() => setOpenId(null)}>Close</ui.Button>
-        </div>
-      )}
-      {open && <ExecResult execId={open.id} />}
-    </div>
-  );
 }
 
 export default function App() {
@@ -224,7 +148,7 @@ export default function App() {
           ))}
         </nav>
       )}
-      <ExecStrip />
+      <ExecStrip exceptRole="embed" />
       <main class={styles.main}>
         {/* Every page stays mounted so an in-flight request survives a tab
             switch; the inactive ones just hide. */}

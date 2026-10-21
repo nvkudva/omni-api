@@ -3,6 +3,8 @@ import { readDataUrl, record } from "../api/client.js";
 import { describeImage, embed, transcribe } from "../api/endpoints.js";
 import { cancelExec, newExecId } from "../api/execs.js";
 import { models } from "../api/models.js";
+import { ExecStrip } from "../components/ActivityStrips.jsx";
+import * as dialog from "../components/Confirm.jsx";
 import { shortModel, since, size } from "../lib/format.js";
 import { uid } from "../lib/uid.js";
 import { cx } from "../lib/cx.js";
@@ -282,6 +284,18 @@ export default function Embed() {
     setIndexing(false);
   };
 
+  const stopIndexing = async () => {
+    const confirmed = await dialog.ask({
+      title: "Stop embedding?",
+      message: "The file being embedded is dropped and the rest are skipped. Files already embedded are kept.",
+      confirmLabel: "Stop embedding",
+      cancelLabel: "Keep going",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+    cancelExec(indexRun.current?.controller, indexRun.current?.execId);
+  };
+
   const removeFile = async (name) => {
     setJobs((current) => current.filter((job) => job.name !== name));
     setChunks((current) => current.filter((chunk) => chunk.file !== name));
@@ -340,7 +354,7 @@ export default function Embed() {
         meta={indexing ? "embedding…" : undefined}
         tools={(
           <>
-            {indexing && <ui.Button variant="stop" onClick={() => cancelExec(indexRun.current?.controller, indexRun.current?.execId)}>Stop</ui.Button>}
+            {indexing && <ui.Button variant="stop" onClick={stopIndexing}>Stop</ui.Button>}
             <ui.IconButton icon="trash" label="Clear embedded data" disabled={indexing || !jobs.length} onClick={clearIndex} />
           </>
         )}
@@ -397,6 +411,7 @@ export default function Embed() {
             }}
           />
         </div>
+        <ExecStrip role="embed" />
         {catalogLoaded && !canCaption && (
           <ui.Notice tone="warn">No installed chat model supports vision, so images cannot be embedded. Install one in Settings.</ui.Notice>
         )}
