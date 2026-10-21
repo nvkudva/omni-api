@@ -10,8 +10,7 @@
   /* instrument bar */
   & .bar {
     flex: none;
-    border-bottom: 1px solid var(--border);
-    padding: 16px;
+    padding: 16px 16px 8px;
   }
   & .barInner { display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: flex-end; }
   & .barHead { flex: 1 1 300px; min-width: 0; }
