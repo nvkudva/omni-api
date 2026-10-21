@@ -119,6 +119,15 @@
 
   &.full { display: flex; width: 100%; }
   &.full .segment { flex: 1 1 auto; }
+  /* A card's own header: one step shorter than a page control, so the strip of
+     a turn header stays a strip. */
+  &.compact {
+    height: var(--control-h-sm);
+    padding: 2px;
+    gap: 1px;
+
+    & .segment { padding: 0 0.5rem; font-size: 0.75rem; }
+  }
 
   & .segment {
     flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;

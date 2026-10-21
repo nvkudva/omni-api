@@ -86,19 +86,23 @@ function ExecResult({ execId }) {
   return <pre class={styles.execText}>{state.text}</pre>;
 }
 
-/** Every retained inference execution, on every tab: running ones with live bytes, recent ones
- *  with their results. Work the browser never saw finish is still here after a reopen. */
-function ExecStrip() {
+/** The open role's retained executions: running ones with live bytes, recent ones with their
+ *  results. Work the browser never saw finish is still here after a reopen. Scoped to the role
+ *  whose page is open, so one model's request is never shown over another model's page. */
+function ExecStrip({ role }) {
   const [openId, setOpenId] = useState(null);
+  const mine = (entry) => entry.role === role;
   const { running = [], recent = [] } = execs.value;
-  const entries = [...running, ...recent.filter((entry) => entry.id !== openId)].slice(0, 8);
-  const open = recent.find((entry) => entry.id === openId);
+  const myRunning = running.filter(mine);
+  const entries = [...myRunning, ...recent.filter((entry) => entry.id !== openId && mine(entry))].slice(0, 8);
+  const open = recent.find((entry) => entry.id === openId && mine(entry));
+  useEffect(() => { setOpenId(null); }, [role]);
   if (!entries.length && !open) return null;
   const word = (entry) => entry.error ? "failed"
     : entry.finished_at ? `done · ${size(entry.size)}` : `running · ${size(entry.bytes)}`;
   return (
     <div class={styles.downloads} aria-label="Recent requests">
-      <span class={styles.srOnly} role="status">{running.length ? `${running.length} running` : ""}</span>
+      <span class={styles.srOnly} role="status">{myRunning.length ? `${myRunning.length} running` : ""}</span>
       {entries.map((entry) => (
         <div key={entry.id} class={styles.download}>
           <span class={styles.downloadLabel} title={`${entry.id} · ${entry.error ?? entry.path}`}>
@@ -170,7 +174,7 @@ export default function App() {
   useEffect(() => {
     const row = cardsRef.current;
     if (!row) return undefined;
-    const measure = () => setMoreCards(row.scrollLeft + row.clientWidth < row.scrollWidth - 4);
+    const measure = () => setMoreCards(row.scrollTop + row.clientHeight < row.scrollHeight - 4);
     measure();
     row.addEventListener("scroll", measure, { passive: true });
     window.addEventListener("resize", measure);
@@ -217,29 +221,33 @@ export default function App() {
           />
         </div>
       </header>
-      {!settingsOpen && (
-        <nav ref={cardsRef} class={cx(styles.cards, moreCards && styles.more)} aria-label="Models">
-          {ROLE_ORDER.map((role) => (
-            <RoleModelCard key={role} density="mini" role={role} active={role === tab} onOpen={choose} onSetup={openSetup} onServer={openServer} />
-          ))}
-        </nav>
-      )}
-      <ExecStrip />
-      <main class={styles.main}>
-        {/* Every page stays mounted so an in-flight request survives a tab
-            switch; the inactive ones just hide. */}
-        {ROLE_ORDER.map((role) => {
-          const RolePage = COMPONENTS[role];
-          return (
-            <div key={role} class={role === tab && !settingsOpen ? styles.page : styles.pageHidden} aria-hidden={role === tab && !settingsOpen ? undefined : true}>
-              <PageActive.Provider value={role === tab && !settingsOpen}>
-                <RolePage active={role === tab && !settingsOpen} />
-              </PageActive.Provider>
-            </div>
-          );
-        })}
-        {settingsOpen && <Settings key="settings" section={route.section} role={route.role} backTo={lastRole} onNavigate={go} onBack={() => choose(lastRole)} />}
-      </main>
+      <div class={styles.body}>
+        {!settingsOpen && (
+          <nav ref={cardsRef} class={cx(styles.cards, moreCards && styles.more)} aria-label="Models">
+            {ROLE_ORDER.map((role) => (
+              <RoleModelCard key={role} density="mini" role={role} active={role === tab} onOpen={choose} onSetup={openSetup} onServer={openServer} />
+            ))}
+          </nav>
+        )}
+        <div class={styles.content}>
+          <ExecStrip role={settingsOpen ? null : tab} />
+          <main class={styles.main}>
+            {/* Every page stays mounted so an in-flight request survives a tab
+                switch; the inactive ones just hide. */}
+            {ROLE_ORDER.map((role) => {
+              const RolePage = COMPONENTS[role];
+              return (
+                <div key={role} class={role === tab && !settingsOpen ? styles.page : styles.pageHidden} aria-hidden={role === tab && !settingsOpen ? undefined : true}>
+                  <PageActive.Provider value={role === tab && !settingsOpen}>
+                    <RolePage active={role === tab && !settingsOpen} />
+                  </PageActive.Provider>
+                </div>
+              );
+            })}
+            {settingsOpen && <Settings key="settings" section={route.section} role={route.role} backTo={lastRole} onNavigate={go} onBack={() => choose(lastRole)} />}
+          </main>
+        </div>
+      </div>
       <ConfirmHost />
     </div>
   );
