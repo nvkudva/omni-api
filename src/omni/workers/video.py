@@ -1,4 +1,4 @@
-"""LTX-2.5 distilled text/image-to-video on MLX, as OpenAI-style jobs: create, poll, fetch the mp4.
+"""LTX-2.3 distilled text/image-to-video on MLX, as OpenAI-style jobs: create, poll, fetch the mp4.
 
 Jobs are capped, expire on a TTL and their mp4s are deleted, so a long session cannot grow without bound.
 """
@@ -26,6 +26,8 @@ MAX_QUEUE = 8
 JOB_TTL_SECONDS = 3600
 SWEEP_SECONDS = 60
 JOB_ID_PATTERN = re.compile(r"^video_[0-9a-f]{16}$")
+QUANT_GROUP_SIZE = 64
+QUANT_BIT_WIDTHS = (2, 3, 4, 5, 6, 8)
 
 settings = config.load()
 model_name = settings["video"]["model"]
@@ -33,9 +35,57 @@ fps = settings["video"]["fps"]
 config.ensure_dirs()
 
 
+def _layer_bit_widths(weights: dict, group_size: int) -> dict[int, set[str]]:
+    """The bit width each quantized layer was packed at, read from its weight and scales shapes."""
+    widths: dict[int, set[str]] = {}
+    for key in weights:
+        if not key.endswith(".scales"):
+            continue
+        layer = key[: -len(".scales")]
+        weight = weights.get(f"{layer}.weight")
+        if weight is None:
+            continue
+        bits = round(weight.shape[-1] * 32 / (weights[key].shape[-1] * group_size))
+        if bits in QUANT_BIT_WIDTHS:
+            widths.setdefault(bits, set()).add(layer)
+    return widths
+
+
+def _install_per_layer_quantization() -> None:
+    """Let the transformer load a checkpoint whose layers each carry a different bit width.
+
+    ltx-core-mlx derives one width for the whole model, so a RAM pack — 2, 3, 4, 5, 6 and 8 bit
+    layers in one checkpoint — does not load. The pack ships its own demo with the same
+    workaround, so the worker installs it too, and hands a pack it cannot read back to the
+    stock quantizer.
+    """
+    import ltx_core_mlx.utils.weights as weights_module
+    import ltx_pipelines_mlx._base as base_module
+    import ltx_pipelines_mlx.utils._orchestration as orchestration
+    from mlx import nn
+
+    stock = weights_module.apply_quantization
+
+    def apply_per_layer(model, weights, group_size: int = QUANT_GROUP_SIZE, bits=None):
+        widths = _layer_bit_widths(weights, group_size)
+        packed = {layer for layers in widths.values() for layer in layers}
+        quantized = sum(1 for key in weights if key.endswith(".scales"))
+        if not packed or len(packed) != quantized:
+            return stock(model, weights, group_size, bits)
+        for width, layers in widths.items():
+            nn.quantize(model, group_size=group_size, bits=width,
+                        class_predicate=lambda path, module, _layers=layers:
+                            path in _layers and isinstance(module, nn.Linear))
+
+    weights_module.apply_quantization = apply_per_layer
+    orchestration.apply_quantization = apply_per_layer
+    base_module.apply_quantization = apply_per_layer
+
+
 def _load():
     from ltx_pipelines_mlx import DistilledPipeline
 
+    _install_per_layer_quantization()
     return DistilledPipeline(model_dir=model_name, low_memory=True)
 
 

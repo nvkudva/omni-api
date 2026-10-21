@@ -21,7 +21,7 @@ export const MODEL_CRITERIA = {
   stt: { kind: "MLX · Parakeet speech-to-text", family: "parakeet", accepts: "MLX Parakeet repo id or Hugging Face page URL, e.g. mlx-community/parakeet-tdt-0.6b-v3. Downloads to the HF cache.", example: "mlx-community/parakeet-tdt-0.6b-v3" },
   tts: { kind: "MLX · Kokoro text-to-speech", family: "kokoro", accepts: "MLX Kokoro repo id or Hugging Face page URL, e.g. mlx-community/Kokoro-82M-bf16. Downloads to the HF cache.", example: "mlx-community/Kokoro-82M-bf16" },
   image: { kind: "Diffusers · Qwen-Image-2", family: "qwen-image-2", accepts: "Qwen-Image-2 repo id or Hugging Face page URL, e.g. Qwen/Qwen-Image-2.1. Downloads to the HF cache.", example: "Qwen/Qwen-Image-2.1" },
-  video: { kind: "MLX · LTX video", family: "ltx", accepts: "MLX LTX repo id or Hugging Face page URL, e.g. dgrauet/ltx-2.5-mlx-q4. Downloads to the HF cache.", example: "dgrauet/ltx-2.5-mlx-q4" },
+  video: { kind: "MLX · LTX video", family: "ltx", accepts: "MLX LTX repo id or Hugging Face page URL, e.g. baa-ai/LTX-2.3-22B-RAM-12GB-MLX. Downloads to the HF cache.", example: "baa-ai/LTX-2.3-22B-RAM-12GB-MLX" },
 };
 
 const FALLBACK_CRITERIA = {

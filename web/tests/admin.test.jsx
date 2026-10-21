@@ -127,10 +127,10 @@ describe("a role's setup card", () => {
 
 describe("a gated model", () => {
   test("shows accept-terms link and retry button", () => {
-    const html = render(<GatedNotice model="dgrauet/ltx-2.5-mlx-q4" acceptUrl="https://huggingface.co/dgrauet/ltx-2.5-mlx-q4" busy={false} onRetry={noop} />);
-    expect(html).toContain("dgrauet/ltx-2.5-mlx-q4");
+    const html = render(<GatedNotice model="meta-llama/Llama-3.1-8B-Instruct" acceptUrl="https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct" busy={false} onRetry={noop} />);
+    expect(html).toContain("meta-llama/Llama-3.1-8B-Instruct");
     expect(html).toContain("Accept terms on Hugging Face");
-    expect(html).toContain("https://huggingface.co/dgrauet/ltx-2.5-mlx-q4");
+    expect(html).toContain("https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct");
     expect(html).toContain("Retry install");
   });
 });

@@ -126,7 +126,7 @@ omni brings all of that together:
 | **decide** | `POST /v1/systemone` | `hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0` | Ollama (option-letter logprobs) |
 | **embed** | `POST /v1/embeddings` | `embeddinggemma-2` (text) | Ollama |
 | **image** | `POST /v1/images/generations` | `unsloth/Qwen-Image-2.1-Turbo-GGUF` | diffusers (MPS, Q8_0) |
-| **video** | `POST /v1/videos`, `GET /v1/videos/{id}`, `GET /v1/videos/{id}/content` | `dgrauet/ltx-2.5-mlx-q4` | ltx-2-mlx (LTX-2.5 distilled, 4-bit) |
+| **video** | `POST /v1/videos`, `GET /v1/videos/{id}`, `GET /v1/videos/{id}/content` | `baa-ai/LTX-2.3-22B-RAM-12GB-MLX` | ltx-2-mlx (LTX-2.3 distilled, RAM-quantized) |
 | **stt** | `POST /v1/audio/transcriptions` | `mlx-community/parakeet-tdt-0.6b-v3` | parakeet-mlx |
 | **tts** | `POST /v1/audio/speech`, `GET /v1/audio/voices` | `prince-canuma/Kokoro-82M-4bit` (27 voices) | mlx-audio |
 | — | `GET /health`, `GET /v1/models` | | |
@@ -310,7 +310,7 @@ Ports:
   Pin the ones you use often (the card switch in the playground, or `POST /admin/pins`) and they stay
   loaded instead:
   - **image:** loading Qwen-Image-2.1-Turbo takes about a minute; each 1024² image takes under a minute at 8 steps.
-  - **video:** the LTX-2.5 4-bit pack is about 51 GB plus its Gemma text encoder; loading takes minutes. Ollama can't run video models, so this runs on MLX. The pack lives in a gated Hugging Face repo (`dgrauet/ltx-2.5-mlx-q4`, as does the q8 one), so accept its terms before the first run.
+  - **video:** the LTX-2.3 RAM pack is about 19 GB plus its Gemma text encoder; loading takes minutes. Ollama can't run video models, so this runs on MLX. Its layers carry 2 to 8 bits each, so the worker quantizes per layer instead of the one width the upstream loader assumes.
   - **stt stays unquantized:** parakeet-mlx loads dense checkpoints only, so a 4-bit parakeet pack cannot load. It also needs the repo's NeMo `config.json`; packed formats such as `moondream/parakeet-redux` need their own runtime (Photon) and fail with `Model is not supported yet!`.
   - **tts:** the first call also downloads a spaCy model and voice weights.
 - **Ollama roles are never downloaded by a load.** `POST /admin/models/load` (and a pin) answers `409`

@@ -198,7 +198,7 @@ export default function Video() {
               : "First frame (optional): drop an image or click to choose"}
           </ui.DropZone>
           <ui.Notice tone="warn">
-            LTX-2.5 distilled, 4-bit MLX. The first request downloads the model pack (~51 GB) plus its Gemma text encoder, then loads for minutes. Change or pre-install it on the Models page.
+            LTX-2.3 distilled, RAM-quantized MLX. The first request downloads the model pack (~19 GB) plus its Gemma text encoder, then loads for minutes. Change or pre-install it on the Models page.
           </ui.Notice>
         </RequestBody>
       </Panel>

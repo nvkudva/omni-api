@@ -21,7 +21,7 @@ class Supports(unittest.TestCase):
             "stt": "mlx-community/parakeet-tdt-0.6b-v3",
             "tts": "prince-canuma/Kokoro-82M-4bit",
             "image": "Qwen/Qwen-Image-2.1-Turbo",
-            "video": "dgrauet/ltx-2.5-mlx-q4",
+            "video": "baa-ai/LTX-2.3-22B-RAM-12GB-MLX",
         }
         for role, repo in defaults.items():
             self.assertTrue(roles.supports(role, repo), role)

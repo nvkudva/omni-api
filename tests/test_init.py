@@ -182,8 +182,8 @@ class ModelUrls(unittest.TestCase):
         self.assertEqual(init.model_url("llama3.2:latest"), "https://ollama.com/library/llama3.2")
 
     def test_hugging_face_model(self):
-        self.assertEqual(init.model_url("hf.co/dgrauet/ltx-2.5-mlx-q4:Q8_0"),
-                         "https://huggingface.co/dgrauet/ltx-2.5-mlx-q4")
+        self.assertEqual(init.model_url("hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0"),
+                         "https://huggingface.co/mradermacher/OneJev1.5-0.8B-GGUF")
 
 
 if __name__ == "__main__":

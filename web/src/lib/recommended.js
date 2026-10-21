@@ -50,7 +50,6 @@ export const RECOMMENDED = {
   video: [
     { model: "baa-ai/LTX-2.3-22B-RAM-12GB-MLX", gb: 19.1, note: "shipped default — fits the 34 GB cap, low RAM" },
     { model: "notapalindrome/ltx23-mlx-av-q4", gb: 22.8, note: "fits the cap, with audio" },
-    { model: "dgrauet/ltx-2.5-mlx-q4", gb: 50.7, note: "best quality — over the 34 GB cap; needs terms accepted" },
   ],
 };
 

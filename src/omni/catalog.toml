@@ -32,7 +32,8 @@ model = "unsloth/Qwen-Image-2.1-Turbo-GGUF"
 steps = 8
 
 [video]
-# 4-bit MLX, 22B: fits the 34 GB cap. The 2.5 q4 default is better, and 51 GB.
+# RAM-quantized MLX, 22B: fits the 34 GB cap. Layers carry 2-8 bits each, so the worker
+# quantizes per layer (see workers/video.py). Public repo, no terms to accept.
 model = "baa-ai/LTX-2.3-22B-RAM-12GB-MLX"
 frames = 97
 fps = 24

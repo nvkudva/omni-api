@@ -11,10 +11,10 @@ from omni.registry import huggingface, pulling
 
 class Gated(unittest.TestCase):
     def test_gated_event_carries_model_and_accept_url(self):
-        event = pulling.gated_event("dgrauet/ltx-2.5-mlx-q4")
+        event = pulling.gated_event("meta-llama/Llama-3.1-8B-Instruct")
         self.assertEqual(event["code"], "gated")
-        self.assertEqual(event["model"], "dgrauet/ltx-2.5-mlx-q4")
-        self.assertEqual(event["accept_url"], "https://huggingface.co/dgrauet/ltx-2.5-mlx-q4")
+        self.assertEqual(event["model"], "meta-llama/Llama-3.1-8B-Instruct")
+        self.assertEqual(event["accept_url"], "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct")
         self.assertIn("terms accepted", event["error"])
 
     def test_is_gated_matches_hf_wording(self):
@@ -118,15 +118,15 @@ class Tracker(unittest.TestCase):
             pulling.finish(model)
 
         async def run():
-            await pulling.ensure_started("video", "dgrauet/ltx-2.5-mlx-q4", None)
+            await pulling.ensure_started("video", "meta-llama/Llama-3.1-8B-Instruct", None)
 
         with patch.object(pulling, "pull", fake_pull):
             asyncio.run(run())
-        terminal = pulling.outcome("dgrauet/ltx-2.5-mlx-q4")
+        terminal = pulling.outcome("meta-llama/Llama-3.1-8B-Instruct")
         self.assertEqual(terminal["code"], "gated")
         self.assertIn("accept_url", terminal)
         self.assertEqual([entry["model"] for entry in pulling.recent()],
-                         ["dgrauet/ltx-2.5-mlx-q4"])
+                         ["meta-llama/Llama-3.1-8B-Instruct"])
 
     def test_cancelling_a_watcher_never_cancels_the_download(self):
         release = asyncio.Event()
