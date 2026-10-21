@@ -64,11 +64,11 @@ function Gateway({ info, onReconnected }) {
   const run = async (action) => {
     const restart = action === "restart";
     const confirmed = await ask({
-      title: restart ? "Restart the gateway?" : "Stop the gateway?",
+      title: restart ? "Restart the gateway?" : "Shut down the gateway?",
       message: restart
         ? "In-flight requests will be dropped. This page reconnects on its own."
-        : "The playground will go offline and in-flight requests will be dropped. Run `omni up` in a terminal to start it again.",
-      confirmLabel: restart ? "Restart" : "Stop gateway",
+        : "This page will close and every worker stops, so in-flight requests are dropped and models omni loaded are unloaded. Run omni up in a terminal to start omni again.",
+      confirmLabel: restart ? "Restart" : "Shutdown",
       tone: "danger",
     });
     if (!confirmed) return;
@@ -83,7 +83,12 @@ function Gateway({ info, onReconnected }) {
     const wentDown = await waitForGateway(false);
     if (action === "stop") {
       setPhase(wentDown ? "stopped" : "");
-      if (!wentDown) setError("the gateway did not stop in time; check the logs");
+      if (!wentDown) {
+        setError("the gateway did not stop in time; check the logs");
+        return;
+      }
+      // a tab the browser opened itself refuses this, and the notice below says what to do next
+      if (typeof window !== "undefined" && typeof window.close === "function") window.close();
       return;
     }
     const cameBack = wentDown && await waitForGateway(true);
@@ -113,13 +118,13 @@ function Gateway({ info, onReconnected }) {
         <>
           <ui.Button small onClick={copy}>{copied ? "Copied" : "Copy URL"}</ui.Button>
           <ui.Button small disabled={working || phase === "stopped"} onClick={() => run("restart")}>Restart</ui.Button>
-          <ui.Button small disabled={working || phase === "stopped"} onClick={() => run("stop")}>Stop</ui.Button>
+          <ui.Button small disabled={working || phase === "stopped"} onClick={() => run("stop")}>Shutdown</ui.Button>
         </>
       )}
     >
       {error && <ui.ErrorText>{error}</ui.ErrorText>}
       {working && <ui.Notice tone="info"><ui.Spinner /> {phase === "restarting" ? "Restarting… the page reconnects on its own." : "Stopping…"}</ui.Notice>}
-      {phase === "stopped" && <ui.Notice>The gateway is stopped. Run <code>omni up</code> in a terminal to start it again.</ui.Notice>}
+      {phase === "stopped" && <ui.Notice>This tab can be closed. Run <code>omni up</code> in a terminal to start the gateway again.</ui.Notice>}
       {info && (
         <Facts rows={[
           ["Address", `${info.gateway.host}:${info.gateway.port}`],

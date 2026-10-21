@@ -10,7 +10,7 @@ from typing import NamedTuple
 import httpx
 from huggingface_hub.errors import HfHubHTTPError
 
-from omni import registry
+from omni import config, registry
 from omni.registry import pulling
 
 log = logging.getLogger("omni.gateway")
@@ -19,6 +19,13 @@ log = logging.getLogger("omni.gateway")
 # nothing to hold, instead of being re-loaded on a timer.
 OLLAMA_KEEP_WARM = -1
 OLLAMA_KEEP_ALIVE = "10m"
+
+# how long a stopping gateway waits for Ollama to give a model back, per model
+UNLOAD_TIMEOUT_SECONDS = 5.0
+
+# The Ollama models this gateway loaded, role -> model, so stopping can hand the memory back to a
+# server omni does not own.
+_loaded_ollama: dict[str, str] = {}
 
 HF_ERRORS = (HfHubHTTPError, OSError)
 
@@ -94,8 +101,10 @@ async def set_residency(ctx, role: str, model: str, load: bool, *, keep_warm: bo
         if load:
             keep_alive = OLLAMA_KEEP_WARM if keep_warm else OLLAMA_KEEP_ALIVE
             await registry.ollama_load(ctx.clients["chat"], role, model, keep_alive=keep_alive)
+            _loaded_ollama[role] = model
         else:
             await registry.ollama_unload(ctx.clients["chat"], role, model)
+            _loaded_ollama.pop(role, None)
         return None
     if load:
         await ensure_downloaded(ctx, role, model)
@@ -115,3 +124,38 @@ async def ollama_resident(ctx) -> set[str]:
         return {model["name"] for model in response.json().get("models", [])}
     except (httpx.HTTPError, ValueError):
         return set()
+
+
+async def unload_ollama_models(ctx) -> list[str]:
+    """Unload the Ollama models this gateway loaded, and the pinned ones, before it exits.
+
+    A gateway that started Ollama takes the models down with the worker's process group. One attached
+    to a server it does not own has to ask, or the weights sit in memory with nothing using them —
+    a pinned model forever, since it is held with keep_alive = -1.
+    """
+    wanted = dict(_loaded_ollama)
+    for role in config.load_pins():
+        if registry.runner(role) == "ollama":
+            wanted.setdefault(role, ctx.settings[role]["model"])
+    if not wanted:
+        return []
+    resident = await ollama_resident(ctx)
+    targets = [(role, model) for role, model in wanted.items()
+               if any(registry.matches(name, model) for name in resident)]
+    unloaded = [model for model in await asyncio.gather(*(release(ctx, role, model) for role, model in targets))
+                if model]
+    _loaded_ollama.clear()
+    if unloaded:
+        log.info("unloaded from Ollama: %s", ", ".join(unloaded))
+    return unloaded
+
+
+async def release(ctx, role: str, model: str) -> str | None:
+    """Ask Ollama to drop one model, within the stop budget; report it only when it worked."""
+    try:
+        await asyncio.wait_for(
+            registry.ollama_unload(ctx.clients["chat"], role, model), UNLOAD_TIMEOUT_SECONDS)
+    except (httpx.HTTPError, TimeoutError):
+        log.warning("could not unload %s from Ollama as the gateway stopped", model, exc_info=True)
+        return None
+    return model
