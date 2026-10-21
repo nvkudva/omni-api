@@ -91,7 +91,11 @@ def _load():
     from ltx_pipelines_mlx import DistilledPipeline
 
     _install_per_layer_quantization()
-    return DistilledPipeline(model_dir=model_name, low_memory=True)
+    pipeline = DistilledPipeline(model_dir=model_name, low_memory=True)
+    # the pipeline only reads its weights when it generates, so without this the role would
+    # report itself loaded while nothing is in memory
+    pipeline.load()
+    return pipeline
 
 
 def _clear_cache() -> None:
