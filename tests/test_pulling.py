@@ -185,7 +185,7 @@ class Tracker(unittest.TestCase):
             async for event in pulling.pull(None, "stt", "mlx/parakeet"):
                 seen.append(event)
 
-        with patch.object(pulling.huggingface, "size", return_value=100), \
+        with patch.object(pulling.huggingface, "download_plan", return_value=huggingface.Plan(None, 100)), \
                 patch.object(pulling.huggingface, "download", return_value="/cache"), \
                 patch.object(pulling.huggingface, "cache_dir", return_value="/none"), \
                 patch.object(pulling.huggingface, "folder_size", side_effect=[10, 100]), \

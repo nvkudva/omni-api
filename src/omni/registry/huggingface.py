@@ -7,6 +7,7 @@ import signal
 import sys
 import time
 from pathlib import Path
+from typing import NamedTuple
 
 from huggingface_hub import HfApi, constants, scan_cache_dir
 
@@ -36,9 +37,31 @@ def invalidate() -> None:
     _installed_cache = None
 
 
-def size(repo_id: str) -> int:
-    info = HfApi().model_info(repo_id, files_metadata=True)
-    return sum(sibling.size or 0 for sibling in info.siblings or [])
+class Plan(NamedTuple):
+    """What a role's download covers: the files to fetch, or None for the whole repo."""
+    files: list[str] | None
+    size: int
+
+
+def preferred_gguf(names: list[str]) -> str | None:
+    """The GGUF an 8-bit load takes: Q8_0 when the repo ships one, else the first file."""
+    files = [name for name in names if name.endswith(".gguf")]
+    eight_bit = [name for name in files if "Q8_0" in name]
+    return (eight_bit or files or [None])[0]
+
+
+def download_plan(role: str, repo_id: str) -> Plan:
+    """The files this role loads, so a quant repo does not download every quant.
+
+    `unsloth/Qwen-Image-2.1-Turbo-GGUF` holds twelve GGUFs (65 GB); the image worker loads one,
+    and pulling the rest costs 57 GB nothing reads.
+    """
+    siblings = HfApi().model_info(repo_id, files_metadata=True).siblings or []
+    if role == "image":
+        file = preferred_gguf([sibling.rfilename for sibling in siblings])
+        if file is not None:
+            return Plan([file], next((sibling.size or 0) for sibling in siblings if sibling.rfilename == file))
+    return Plan(None, sum(sibling.size or 0 for sibling in siblings))
 
 
 def cache_dir(repo_id: str) -> Path:
@@ -128,8 +151,9 @@ DOWNLOAD_SCRIPT = (
     "import json, sys\n"
     "from huggingface_hub import snapshot_download\n"
     "from huggingface_hub.errors import GatedRepoError\n"
+    "files = json.loads(sys.argv[2]) if len(sys.argv) > 2 else None\n"
     "try:\n"
-    "    snapshot_download(sys.argv[1])\n"
+    "    snapshot_download(sys.argv[1], allow_patterns=files)\n"
     "except Exception as error:\n"
     "    print(json.dumps({'error': str(error), 'gated': isinstance(error, GatedRepoError)}), file=sys.stderr)\n"
     "    sys.exit(1)\n"
@@ -138,8 +162,9 @@ TERMINATE_GRACE_SECONDS = 5.0
 STDERR_TAIL_CHARS = 2000
 
 
-def download_command(repo_id: str) -> list[str]:
-    return [sys.executable, "-c", DOWNLOAD_SCRIPT, repo_id]
+def download_command(repo_id: str, files: list[str] | None = None) -> list[str]:
+    command = [sys.executable, "-c", DOWNLOAD_SCRIPT, repo_id]
+    return [*command, json.dumps(files)] if files else command
 
 
 def failure_message(stderr: bytes, code: int | None) -> str:
@@ -169,10 +194,10 @@ async def stop_process(process: asyncio.subprocess.Process) -> None:
     await process.wait()
 
 
-async def download(repo_id: str) -> None:
+async def download(repo_id: str, files: list[str] | None = None) -> None:
     """Download in a child process so cancelling really stops it. Raises OSError on failure."""
     process = await asyncio.create_subprocess_exec(
-        *guard.command(download_command(repo_id)), stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL,
+        *guard.command(download_command(repo_id, files)), stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.PIPE, start_new_session=True,
         env={**os.environ, "HF_HUB_DISABLE_PROGRESS_BARS": "1"})
     try:

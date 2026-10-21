@@ -43,7 +43,7 @@ export const RECOMMENDED = {
     { model: "mlx-community/Kokoro-82M-bf16", gb: 0.4, note: "reference quality" },
   ],
   image: [
-    { model: "unsloth/Qwen-Image-2.1-Turbo-GGUF", gb: 7.6, note: "shipped default — 8 steps, Q8_0" },
+    { model: "unsloth/Qwen-Image-2.1-Turbo-GGUF", gb: 25.9, note: "shipped default — Q8_0 transformer (7.6 GB) plus the base text encoder and VAE" },
     { model: "Qwen/Qwen-Image-2.1-Turbo", gb: 32.5, note: "the same checkpoint at full precision" },
     { model: "Qwen/Qwen-Image-2.1", gb: 33.1, note: "full quality, more steps" },
   ],

@@ -9,6 +9,7 @@ from pathlib import Path
 from fastapi import HTTPException
 
 from omni import config, schemas, workers
+from omni.registry import huggingface
 
 settings = config.load()
 model_name = settings["image"]["model"]
@@ -22,13 +23,9 @@ def _find_gguf(repo: str) -> str | None:
     try:
         from huggingface_hub import HfApi
 
-        files = [name for name in HfApi().list_repo_files(repo) if name.endswith(".gguf")]
+        return huggingface.preferred_gguf(HfApi().list_repo_files(repo))
     except Exception:  # noqa: BLE001 - an offline hub falls through to the plain load, which reports it
         return None
-    preferred = [name for name in files if "Q8_0" in name]
-    if preferred:
-        return preferred[0]
-    return files[0] if files else None
 
 
 def _base_repo(repo: str) -> str:

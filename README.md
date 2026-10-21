@@ -175,7 +175,7 @@ omni up       # gateway and workers in the background
 
 `omni init` validates `~/.omni-api/config.toml`, asks whether to install Ollama when the binary is missing (it stops if you say no), starts the server it just installed, pulls the chat/decide/embed models and confirms they landed, then starts the gateway and loads the stt and tts models (downloading them first); every failure prints the command to fix it and a link. The image and video models download on first use, or now with `omni init --media`. When something is wrong and you would rather not install anything, `omni doctor` runs the same checks read-only and prints one line per check. Release and packaging notes live in [`docs/publishing.md`](docs/publishing.md).
 
-The shipped defaults are the small profile: `qwen2.5:0.5b` (chat), `OneJev1.5-0.8B` (decide), `embeddinggemma-2:270m` (embed), `parakeet-tdt-0.6b-v3` (stt, 2.5 GB), `Kokoro-82M-8bit` (tts), `Qwen-Image-2.1-Turbo` at Q8_0 (image, 7.6 GB) and `LTX-2.3-22B-RAM-12GB-MLX` (video). Any role can be changed in the playground (add a model, set it as default) or in `~/.omni-api/config.toml`; each role's list keeps the bigger models one click away.
+The shipped defaults are the small profile: `qwen2.5:0.5b` (chat), `OneJev1.5-0.8B` (decide), `embeddinggemma-2:270m` (embed), `parakeet-tdt-0.6b-v3` (stt, 2.5 GB), `Kokoro-82M-8bit` (tts), `Qwen-Image-2.1-Turbo` at Q8_0 (image, 7.6 GB transformer, about 26 GB once the shared text encoder and VAE land) and `LTX-2.3-22B-RAM-12GB-MLX` (video). Any role can be changed in the playground (add a model, set it as default) or in `~/.omni-api/config.toml`; each role's list keeps the bigger models one click away.
 
 ---
 

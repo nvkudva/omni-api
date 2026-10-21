@@ -200,20 +200,20 @@ async def _ollama_pull(client: httpx.AsyncClient, role: str, model: str) -> Asyn
 
 async def _hf_pull(role: str, repo_id: str) -> AsyncIterator[dict]:
     try:
-        total = await asyncio.to_thread(huggingface.size, repo_id)
+        plan = await asyncio.to_thread(huggingface.download_plan, role, repo_id)
     except (HfHubHTTPError, OSError) as error:
         yield gated_event(repo_id) if is_gated(error) else {"error": f"huggingface: {error}"}
         return
-    for warning in fit_blockers(total):
+    for warning in fit_blockers(plan.size):
         yield {"warning": warning}
-    track(role, repo_id, total, 0)
-    download = asyncio.create_task(huggingface.download(repo_id))
+    track(role, repo_id, plan.size, 0)
+    download = asyncio.create_task(huggingface.download(repo_id, plan.files))
     folder = huggingface.cache_dir(repo_id)
     try:
         while not download.done():
             completed = await asyncio.to_thread(huggingface.folder_size, folder)
-            track(role, repo_id, total, completed)
-            yield {"status": f"downloading {repo_id}", "total": total, "completed": completed}
+            track(role, repo_id, plan.size, completed)
+            yield {"status": f"downloading {repo_id}", "total": plan.size, "completed": completed}
             await asyncio.wait({download}, timeout=PROGRESS_SECONDS)
         download.result()
     except (HfHubHTTPError, OSError) as error:

@@ -23,6 +23,49 @@ class FakeApi:
         return self.repos
 
 
+class FakeSibling:
+    def __init__(self, name, size):
+        self.rfilename = name
+        self.size = size
+
+
+class FakeInfo:
+    def __init__(self, siblings):
+        self.siblings = siblings
+
+
+class FakeSizeApi:
+    def __init__(self, siblings):
+        self.siblings = siblings
+
+    def model_info(self, repo_id, files_metadata=False):
+        return FakeInfo(self.siblings)
+
+
+class DownloadPlan(unittest.TestCase):
+    def plan(self, role, siblings):
+        with patch.object(huggingface, "HfApi", return_value=FakeSizeApi(siblings)):
+            return huggingface.download_plan(role, "unsloth/Qwen-Image-2.1-Turbo-GGUF")
+
+    def test_a_quant_repo_downloads_only_the_eight_bit_file(self):
+        plan = self.plan("image", [FakeSibling("turbo-F16.gguf", 14_230_000_000),
+                                   FakeSibling("turbo-Q4_K_M.gguf", 4_200_000_000),
+                                   FakeSibling("turbo-Q8_0.gguf", 7_640_000_000)])
+        self.assertEqual(plan.files, ["turbo-Q8_0.gguf"])
+        self.assertEqual(plan.size, 7_640_000_000)
+
+    def test_other_roles_still_take_the_whole_repo(self):
+        plan = self.plan("video", [FakeSibling("transformer.safetensors", 9_970_000_000),
+                                   FakeSibling("vae.safetensors", 810_000_000)])
+        self.assertIsNone(plan.files)
+        self.assertEqual(plan.size, 10_780_000_000)
+
+    def test_an_image_repo_without_a_gguf_downloads_everything(self):
+        plan = self.plan("image", [FakeSibling("transformer/a.safetensors", 9_970_000_000)])
+        self.assertIsNone(plan.files)
+        self.assertEqual(plan.size, 9_970_000_000)
+
+
 class Search(unittest.TestCase):
     def search(self, repos, role="image", query=""):
         with patch.object(huggingface, "HfApi", return_value=FakeApi(repos)):

@@ -20,7 +20,7 @@ from omni.registry.huggingface import (
     installed as hf_installed,
 )
 from omni.registry.huggingface import (
-    size as hf_size,
+    download_plan as hf_plan,
 )
 from omni.registry.memory import fit_blockers, memory, overload_advisories
 from omni.registry.ollama import (
@@ -76,7 +76,7 @@ __all__ = [
     "folder_size",
     "hf_delete",
     "hf_installed",
-    "hf_size",
+    "hf_plan",
     "installed_for",
     "invalidate",
     "matches",

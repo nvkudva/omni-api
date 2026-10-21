@@ -256,7 +256,7 @@ def register(app: FastAPI, ctx: Context) -> None:
         gated = False
         if registry.runner(role) != "ollama":
             try:
-                size = await asyncio.to_thread(registry.hf_size, name)
+                size = (await asyncio.to_thread(registry.hf_plan, role, name)).size
             except GatedRepoError:
                 gated = True
             except HF_ERRORS:

@@ -25,9 +25,10 @@ voice = "af_heart"
 
 [image]
 # Turbo: the 7B pipeline distilled to 8 steps, as a Q8_0 GGUF transformer: 7.6 GB instead of
-# 32.5 GB. The worker finds the GGUF file and the base checkpoint (text encoder, VAE and the
-# `sample_sigmas` schedule in model_index.json) from the repo itself; `file` and `base` pin
-# them by hand instead.
+# 14.2 GB. The text encoder and VAE still come from the base checkpoint, so a first generation
+# is about 26 GB, not 7.6 GB. The worker finds the GGUF file and the base checkpoint (text
+# encoder, VAE and the `sample_sigmas` schedule in model_index.json) from the repo itself;
+# `file` and `base` pin them by hand instead.
 model = "unsloth/Qwen-Image-2.1-Turbo-GGUF"
 steps = 8
 
