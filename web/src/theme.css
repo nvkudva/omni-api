@@ -92,6 +92,7 @@
   --destructive-fill-hover: color-mix(in oklab, var(--destructive) 90%, transparent);
   --switch-thumb: #ffffff;
   --segment-on-border: transparent;
+  --card-edge: none;
 
   --control-h: 2.25rem; --control-h-sm: 2rem; --control-h-lg: 2.5rem;
   --focus-ring: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
@@ -120,7 +121,8 @@
 
   --background: #05060f;
   --foreground: #eef1ff;
-  --card: rgba(255, 255, 255, 0.035);
+  /* A lifted navy, not a veil: the aurora behind must not wash through text. */
+  --card: rgba(17, 22, 46, 0.92);
   --card-foreground: #eef1ff;
   --popover: rgba(14, 18, 38, 0.94);
   --popover-foreground: #eef1ff;
@@ -163,6 +165,8 @@
   --destructive-fill-hover: color-mix(in oklab, var(--destructive) 34%, transparent);
   --switch-thumb: #05060f;
   --segment-on-border: var(--input);
+  /* A 1px top light lifts a navy card off the near-black page, where the border alone is faint. */
+  --card-edge: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   color-scheme: dark;

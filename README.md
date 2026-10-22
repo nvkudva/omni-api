@@ -8,23 +8,35 @@ The first client is Hyperlight.
 
 ## Screenshots
 
-![Playground — chat tab, dark theme](site/assets/playground-chat.png)
+[![omni in 43 seconds: the launch film](docs/screenshots/omni-launch-poster.jpg)](marketing/omni-launch-16x9.mp4)
+
+A 43 s silent tour: one base URL, seven roles, the real playground. [Watch the film](marketing/omni-launch-16x9.mp4) or open the [product page](https://nvkudva.github.io/omni-api/). Every screenshot below is the real playground, in the dark and the light theme (the toggle sits in the top bar; it follows your system until you pick one).
+
+| Dark | Light |
+|---|---|
+| ![Playground, chat tab, dark](docs/screenshots/playground-chat-dark.png) | ![Playground, chat tab, light](docs/screenshots/playground-chat-light.png) |
 
 The playground at `/`: every role is a card in the left rail (runtime, model, one status that says what it is doing, and the switch that keeps it loaded), each role page is a workbench with a UI / JSON / cURL view of the same request, and that role's live request log sits under it.
 
-| ![Decide — probability bars](site/assets/playground-decide.png) | ![Embed — semantic search over your own files](site/assets/playground-embed.png) |
+| Dark | Light |
 |---|---|
-| **Decide** — noul, choice and score questions answered as probability distributions, in one forward pass. | **Embed** — index files, folders, images and audio, then search them by meaning. |
+| ![Decide, probability bars, dark](docs/screenshots/playground-decide-dark.png) | ![Decide, probability bars, light](docs/screenshots/playground-decide-light.png) |
+| ![Embed, semantic search over your own files, dark](docs/screenshots/playground-embed-dark.png) | ![Embed, semantic search over your own files, light](docs/screenshots/playground-embed-light.png) |
 
-![Models — every role's models, in Settings](site/assets/playground-models.png)
+**Decide** answers noul, choice and score questions as probability distributions, in one forward pass. **Embed** indexes files, folders, images and audio, then searches them by meaning.
+
+| Dark | Light |
+|---|---|
+| ![Models, the chat role in Settings, dark](docs/screenshots/playground-models-dark.png) | ![Models, the chat role in Settings, light](docs/screenshots/playground-models-light.png) |
+| ![Server, the gateway, Ollama and the memory meters, dark](docs/screenshots/playground-server-dark.png) | ![Server, the gateway, Ollama and the memory meters, light](docs/screenshots/playground-server-light.png) |
 
 **Settings → Models** lists every role's models, what is on disk, what is loaded and how to add more. **Settings → Server** holds the gateway, Ollama and worker controls plus the memory and CPU meters.
 
-![Server — the gateway, Ollama, the workers and the memory meters](docs/screenshots/playground-server.png)
-
 It fits a phone as well: the role cards become a strip and the panels stack.
 
-![Playground on a phone](docs/screenshots/playground-mobile.png)
+| Dark | Light |
+|---|---|
+| <img src="docs/screenshots/playground-mobile-dark.png" alt="Playground on a phone, dark" width="260"> | <img src="docs/screenshots/playground-mobile-light.png" alt="Playground on a phone, light" width="260"> |
 
 ---
 
