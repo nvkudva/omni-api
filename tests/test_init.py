@@ -5,6 +5,7 @@ gets: each test here pins one failure to the guidance it must print.
 """
 import contextlib
 import io
+import threading
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -201,6 +202,45 @@ class Pulling(unittest.TestCase):
                                 get=serve_api(["llama3.2", "embeddinggemma-2"]))
         self.assertEqual(code, 1)
         self.assertNotIn("ready:", out)
+
+
+class DownloadProgress(unittest.TestCase):
+    def test_line_shows_size_and_percent_for_the_role(self):
+        downloads = [{"role": "tts", "completed": 1, "total": 2},
+                     {"role": "stt", "completed": 1.2 * 1024**3, "total": 2.4 * 1024**3}]
+        self.assertEqual(init.download_line(downloads, "stt"), "  stt: 1.2 / 2.4 GB (50%)")
+
+    def test_line_without_a_total_shows_bytes_so_far(self):
+        self.assertEqual(init.download_line([{"role": "stt", "completed": 0, "total": None}], "stt"),
+                         "  stt: 0.0 GB downloaded")
+
+    def test_no_line_when_the_role_is_not_downloading(self):
+        self.assertIsNone(init.download_line([{"role": "tts", "completed": 1, "total": 2}], "stt"))
+
+    def test_load_prints_progress_while_it_waits(self):
+        release = threading.Event()
+
+        def slow_post(*_, **__):
+            release.wait(5)
+            return FakeResponse({})
+
+        def downloads(*_, **__):
+            release.set()
+            return FakeResponse({"downloads": [{"role": "stt", "completed": 1024**3, "total": 2 * 1024**3}]})
+
+        out = io.StringIO()
+        with patch.object(init, "DOWNLOAD_PROGRESS_SECONDS", 0.01), \
+             patch.object(init.httpx, "post", side_effect=slow_post), \
+             patch.object(init.httpx, "get", side_effect=downloads), \
+             contextlib.redirect_stdout(out):
+            response = init.load_with_progress("http://127.0.0.1:10000", "stt")
+        self.assertIsInstance(response, FakeResponse)
+        self.assertIn("stt: 1.0 / 2.0 GB (50%)", out.getvalue())
+
+    def test_load_failure_is_raised_to_the_caller(self):
+        with patch.object(init.httpx, "post", side_effect=httpx.ConnectError("refused")), \
+             self.assertRaises(httpx.ConnectError):
+            init.load_with_progress("http://127.0.0.1:10000", "stt")
 
 
 class ModelUrls(unittest.TestCase):
