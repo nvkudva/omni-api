@@ -241,7 +241,8 @@ app = workers.app(model, lifespan=lifespan, model_executor=executor)
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "model": model_name, "loaded": model.loaded, "queued": queue.qsize()}
+    return {"ok": True, "model": model_name, "loaded": model.loaded, "queued": queue.qsize(),
+            "busy": executor.pending + queue.qsize()}
 
 
 @app.post("/v1/videos")

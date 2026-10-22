@@ -31,7 +31,7 @@ def _clear_cache() -> None:
 
 
 model = workers.Lazy(_load, config.idle_seconds(settings), _clear_cache)
-executor = workers.ModelExecutor("tts-model")
+executor = workers.ModelExecutor("tts-model", max_pending=8)
 app = workers.app(model, model_executor=executor)
 
 
@@ -61,7 +61,7 @@ def _wav(pcm: bytes, sample_rate: int) -> bytes:
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "model": model_name, "loaded": model.loaded}
+    return {"ok": True, "model": model_name, "loaded": model.loaded, "busy": executor.pending}
 
 
 @app.get("/v1/audio/voices")
@@ -76,7 +76,7 @@ async def speech(req: schemas.SpeechRequest) -> Response:
     voice = req.voice or default_voice
     if voice not in VOICES:
         raise HTTPException(422, f"unknown voice {voice!r}; GET /v1/audio/voices lists them")
-    samples, sample_rate = await executor.run(_synthesize, req.input, voice, req.speed)
+    samples, sample_rate = await executor.run_request(_synthesize, req.input, voice, req.speed)
     if samples.size == 0:
         raise HTTPException(500, "synthesis produced no audio for this input")
     pcm = _pcm16(samples)

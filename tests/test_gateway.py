@@ -13,6 +13,7 @@ import httpx
 from fastapi.testclient import TestClient
 
 from omni import config, gateway
+from omni.errors import error_response
 from omni.gateway import residency
 from omni.gateway.routes import system
 from omni.registry import ROLES, pulling
@@ -413,7 +414,8 @@ class Gateway(unittest.TestCase):
 
     def test_image_generation_reports_a_failed_first_download(self):
         with self._own_client("image") as client, \
-                patch.object(residency, "ensure_ready", new=AsyncMock(return_value="image: gated")):
+                patch.object(residency, "ensure_ready",
+                             new=AsyncMock(return_value=error_response(502, "image: gated", "upstream_error"))):
             response = client.post("/v1/images/generations", json={"prompt": "a cat"})
         self.assertEqual(response.status_code, 502)
         self.assertEqual(_error(response)["type"], "upstream_error")

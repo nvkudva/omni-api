@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
 from omni.workers import image, runtime, stt, tts, video
@@ -51,6 +51,22 @@ class LazyModel(unittest.TestCase):
             lazy.load()
             time.sleep(0.2)
             self.assertFalse(lazy.loaded)
+
+    def test_requests_past_the_cap_are_refused_not_queued(self):
+        executor = runtime.ModelExecutor("test-model", max_pending=1)
+        release = threading.Event()
+
+        async def run():
+            first = asyncio.ensure_future(executor.run_request(release.wait))
+            await asyncio.sleep(0.05)
+            with self.assertRaises(HTTPException) as refused:
+                await executor.run_request(lambda: None)
+            release.set()
+            await first
+            return refused.exception.status_code
+
+        self.assertEqual(asyncio.run(run()), 429)
+        self.assertEqual(executor.pending, 0)
 
     def test_idle_unload_runs_on_the_loading_thread(self):
         executor = runtime.ModelExecutor("test-model")

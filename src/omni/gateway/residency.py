@@ -8,8 +8,10 @@ import logging
 from typing import NamedTuple
 
 import httpx
+from fastapi.responses import Response
 
 from omni import config, logs, registry
+from omni.errors import error_response
 from omni.registry import pulling
 
 log = logging.getLogger("omni.gateway")
@@ -21,6 +23,9 @@ OLLAMA_KEEP_ALIVE = "10m"
 
 # how long a stopping gateway waits for Ollama to give a model back, per model
 UNLOAD_TIMEOUT_SECONDS = 5.0
+
+# one cold load at a time across every role, so two first requests never both count the same free RAM
+_cold_load = asyncio.Lock()
 
 # The Ollama models this gateway loaded, role -> model, so stopping can hand the memory back to a
 # server omni does not own.
@@ -73,23 +78,77 @@ async def ensure_downloaded(ctx, role: str, model: str) -> None:
         raise OSError(terminal["error"])
 
 
-async def ensure_ready(ctx, role: str) -> str | None:
-    """Download the role's model with live progress when it is not on disk yet.
+async def ensure_ready(ctx, role: str) -> Response | None:
+    """Get the role's model on disk and into memory before a request runs; the refusal, or None.
 
     Inference used to trigger a silent download inside the worker: the first request sat for
     minutes with no progress bar. Draining the download here publishes every sample to the
-    shared tracker first, so the progress shows while the request waits. Returns an error
-    message when the download fails, else None.
+    shared tracker first, so the progress shows while the request waits.
     """
+    model = ctx.settings[role]["model"]
     try:
-        await ensure_downloaded(ctx, role, ctx.settings[role]["model"])
+        await ensure_downloaded(ctx, role, model)
     except OSError as error:
-        model = ctx.settings[role]["model"]
-        if registry.runner(role) != "ollama" and (registry.cache_dir(model) / "snapshots").is_dir():
-            # already cached (the scan missed it, or the hub is unreachable): the worker loads it
+        # already cached (the scan missed it, or the hub is unreachable): the worker loads it
+        is_cached = registry.runner(role) != "ollama" and (registry.cache_dir(model) / "snapshots").is_dir()
+        if not is_cached:
+            return error_response(502, f"{role}: {error}", "upstream_error")
+    return await make_room(ctx, role, model)
+
+
+async def make_room(ctx, role: str, model: str) -> Response | None:
+    """Load a cold worker's model before its first request, unloading idle roles when RAM is short.
+
+    Without this every worker loads on first use, unaware of the others, and two big roles swap the
+    machine to a halt or get killed by Metal. Ollama manages its own memory, and a worker that is not
+    ready is left to the proxy, which says so.
+    """
+    worker = ctx.workers.get(role)
+    if registry.runner(role) == "ollama" or worker is None or worker.status != "ready" or worker.loaded:
+        return None
+    async with _cold_load:
+        if worker.loaded:
             return None
-        return f"{role}: {error}"
+        size = await _installed_size(ctx, role, model)
+        shortfall = await _free_memory(ctx, role, size) if size else None
+        if shortfall:
+            return error_response(503, f"{role}: {shortfall}", "unavailable")
+        try:
+            await set_residency(ctx, role, model, True)
+        except (httpx.HTTPError, OSError):
+            # the request itself runs into the same failure and reports it in the worker's words
+            log.warning("could not load %s before its request", model, exc_info=True)
+            return None
+        worker.loaded = True
     return None
+
+
+async def _installed_size(ctx, role: str, model: str) -> int | None:
+    available = await installed(ctx, role)
+    match = next((entry for entry in available if registry.matches(entry["name"], model)), None)
+    return match["size_bytes"] if match else None
+
+
+async def _free_memory(ctx, role: str, size_bytes: int) -> str | None:
+    """Unload idle, unpinned Python workers until `size_bytes` fits; why it still does not, or None."""
+    shortfall = registry.ram_shortfall(size_bytes)
+    pinned = set(config.load_pins())
+    for other, worker in ctx.workers.items():
+        if shortfall is None:
+            return None
+        if other == role or other in pinned or registry.runner(other) == "ollama":
+            continue
+        if worker.status != "ready" or not worker.loaded or worker.busy:
+            continue
+        try:
+            await set_residency(ctx, other, ctx.settings[other]["model"], False)
+        except httpx.HTTPError:
+            log.warning("could not unload %s to make room for %s", other, role, exc_info=True)
+            continue
+        worker.loaded = False
+        log.info("unloaded %s to make room for %s", other, role)
+        shortfall = registry.ram_shortfall(size_bytes)
+    return shortfall
 
 
 async def set_residency(ctx, role: str, model: str, load: bool, *, keep_warm: bool = False) -> bool | None:

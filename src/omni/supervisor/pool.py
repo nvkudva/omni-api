@@ -157,6 +157,7 @@ class Supervisor:
             if report.get("model"):
                 worker.model = str(report["model"])
             worker.loaded = bool(report.get("loaded", worker.loaded))
+            worker.busy = int(report.get("busy", 0) or 0)
         return True
 
     def _schedule_restart(self, worker: Worker, now: float) -> None:

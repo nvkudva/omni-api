@@ -8,6 +8,7 @@ import asyncio
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -41,6 +42,51 @@ class FakeContext:
         self.clients = {role: FakeClient() for role in config.ROLES}
         self.workers = workers or {}
         self.settings = settings or {role: {"model": f"{role}-model"} for role in config.ROLES}
+
+
+def ready_worker(name, loaded=False, busy=0):
+    return SimpleNamespace(name=name, status="ready", loaded=loaded, busy=busy)
+
+
+class MakeRoom(unittest.TestCase):
+    """A cold worker loads before its request, and only once there is RAM for it."""
+
+    def make_room(self, ctx, shortfalls, pins=()):
+        installed = [{"name": "image-model", "size_bytes": 10}]
+        with patch.object(residency, "installed", AsyncMock(return_value=installed)), \
+                patch.object(residency.registry, "ram_shortfall", side_effect=shortfalls), \
+                patch.object(residency.config, "load_pins", return_value=list(pins)), \
+                patch.object(residency, "set_residency", AsyncMock()) as set_residency:
+            refused = asyncio.run(residency.make_room(ctx, "image", "image-model"))
+        return refused, set_residency
+
+    def test_a_cold_model_that_fits_is_loaded_first(self):
+        ctx = FakeContext(workers={"image": ready_worker("image")})
+        refused, set_residency = self.make_room(ctx, [None])
+        self.assertIsNone(refused)
+        set_residency.assert_awaited_once_with(ctx, "image", "image-model", True)
+        self.assertTrue(ctx.workers["image"].loaded)
+
+    def test_an_idle_role_is_unloaded_to_make_room(self):
+        ctx = FakeContext(workers={"image": ready_worker("image"), "video": ready_worker("video", loaded=True)})
+        refused, set_residency = self.make_room(ctx, ["short", None])
+        self.assertIsNone(refused)
+        set_residency.assert_any_await(ctx, "video", "video-model", False)
+        self.assertFalse(ctx.workers["video"].loaded)
+
+    def test_busy_and_pinned_roles_are_kept_and_the_request_is_refused(self):
+        ctx = FakeContext(workers={"image": ready_worker("image"),
+                                   "video": ready_worker("video", loaded=True, busy=1),
+                                   "tts": ready_worker("tts", loaded=True)})
+        refused, set_residency = self.make_room(ctx, ["short", "short"], pins=["tts"])
+        self.assertEqual(refused.status_code, 503)
+        set_residency.assert_not_awaited()
+
+    def test_a_loaded_worker_needs_no_gate(self):
+        ctx = FakeContext(workers={"image": ready_worker("image", loaded=True)})
+        refused, set_residency = self.make_room(ctx, [])
+        self.assertIsNone(refused)
+        set_residency.assert_not_awaited()
 
 
 class Plan(unittest.TestCase):
@@ -125,7 +171,8 @@ class SetResidency(unittest.TestCase):
         ctx = FakeContext()
         with patch.object(residency, "ensure_downloaded", AsyncMock(side_effect=OSError("gated"))):
             result = asyncio.run(residency.ensure_ready(ctx, "stt"))
-        self.assertIn("stt", result)
+        self.assertEqual(result.status_code, 502)
+        self.assertIn(b"stt", result.body)
 
     def test_a_first_inference_download_is_visible_while_it_runs(self):
         from omni.registry import pulling

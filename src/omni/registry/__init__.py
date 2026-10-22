@@ -9,6 +9,8 @@ import httpx
 
 from omni.registry.huggingface import (
     ERRORS as HF_ERRORS,
+)
+from omni.registry.huggingface import (
     cache_dir,
     folder_size,
     invalidate,
@@ -18,12 +20,17 @@ from omni.registry.huggingface import (
     delete as hf_delete,
 )
 from omni.registry.huggingface import (
-    installed as hf_installed,
-)
-from omni.registry.huggingface import (
     download_plan as hf_plan,
 )
-from omni.registry.memory import fit_blockers, memory, overload_advisories
+from omni.registry.huggingface import (
+    installed as hf_installed,
+)
+from omni.registry.memory import (
+    fit_blockers,
+    memory,
+    overload_advisories,
+    ram_shortfall,
+)
 from omni.registry.ollama import (
     capabilities,
 )
@@ -94,6 +101,7 @@ __all__ = [
     "overload_advisories",
     "progress",
     "pull",
+    "ram_shortfall",
     "recent",
     "repo_name",
     "runner",

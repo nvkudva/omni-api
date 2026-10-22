@@ -29,7 +29,7 @@ model = workers.Lazy(_load, config.idle_seconds(settings), _clear_cache)
 # MLX streams are thread-local, so every call into the model (load, unload,
 # transcribe) must land on this one thread or parakeet raises
 # "There is no Stream(...) in current thread".
-executor = workers.ModelExecutor("stt-model")
+executor = workers.ModelExecutor("stt-model", max_pending=4)
 app = workers.app(model, model_executor=executor)
 
 
@@ -54,7 +54,7 @@ def _suffix(filename: str | None) -> str:
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "model": model_name, "loaded": model.loaded}
+    return {"ok": True, "model": model_name, "loaded": model.loaded, "busy": executor.pending}
 
 
 @app.post("/v1/audio/transcriptions")
@@ -77,7 +77,7 @@ async def transcriptions(
 
     with tempfile.NamedTemporaryFile(suffix=_suffix(file.filename)) as upload:
         await asyncio.to_thread(_write_upload, upload, data)
-        result = await executor.run(_transcribe, Path(upload.name))
+        result = await executor.run_request(_transcribe, Path(upload.name))
 
     if response_format == "text":
         return PlainTextResponse(result.text)

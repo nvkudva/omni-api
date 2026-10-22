@@ -12,6 +12,8 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
 from typing import Any
 
+from fastapi import HTTPException
+
 IDLE_CHECK_SECONDS = 30.0
 
 _owner = threading.local()
@@ -27,8 +29,11 @@ class ModelExecutor:
     loaded the model.
     """
 
-    def __init__(self, name: str = "model") -> None:
+    def __init__(self, name: str = "model", max_pending: int = 0) -> None:
         self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix=name, initializer=self._claim_thread)
+        # 0 means unlimited; otherwise requests past this many running + waiting are refused
+        self.max_pending = max_pending
+        self.pending = 0
 
     def _claim_thread(self) -> None:
         _owner.executor = self
@@ -38,7 +43,18 @@ class ModelExecutor:
 
     async def run(self, fn: Callable[..., Any], *args: Any) -> Any:
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(self._executor, fn, *args)
+        self.pending += 1
+        try:
+            return await loop.run_in_executor(self._executor, fn, *args)
+        finally:
+            self.pending -= 1
+
+    async def run_request(self, fn: Callable[..., Any], *args: Any) -> Any:
+        """`run` for an inference request: refused with a 429 instead of queueing past the gateway's
+        read timeout, where the client would give up while the model still did the work."""
+        if self.max_pending and self.pending >= self.max_pending:
+            raise HTTPException(429, f"{self.pending} requests are already running or waiting; retry later")
+        return await self.run(fn, *args)
 
 
 class Lazy:
