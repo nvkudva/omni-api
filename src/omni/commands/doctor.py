@@ -8,7 +8,7 @@ import sys
 
 import httpx
 
-from omni import config
+from omni import config, registry
 from omni.commands import init, lifecycle
 
 OK, WARN, FAIL = "ok", "warn", "fail"
@@ -85,7 +85,7 @@ def _check_models(settings: dict | None) -> Finding:
     if present is None:
         return WARN, "models", f"skipped: ollama is not answering at {url}"
     have = {name.removesuffix(":latest") for name in present}
-    wanted = sorted({settings[role]["model"] for role in init.OLLAMA_ROLES})
+    wanted = sorted({settings[role]["model"] for role in registry.OLLAMA_ROLES})
     missing = [model for model in wanted if model.removesuffix(":latest") not in have]
     if missing:
         return FAIL, "models", f"missing {', '.join(missing)}; `omni init`"

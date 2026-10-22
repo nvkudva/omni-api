@@ -8,6 +8,7 @@ import time
 import httpx
 
 from omni.registry.huggingface import (
+    ERRORS as HF_ERRORS,
     cache_dir,
     folder_size,
     invalidate,
@@ -56,12 +57,14 @@ from omni.registry.roles import (
     family,
     matches,
     normalize_repo_id,
+    repo_name,
     runner,
     supports,
     unavailable_reason,
 )
 
 __all__ = [
+    "HF_ERRORS",
     "HF_ROLES",
     "OLLAMA_ROLES",
     "PYTHON_WORKERS",
@@ -82,6 +85,7 @@ __all__ = [
     "matches",
     "memory",
     "normalize_repo_id",
+    "ollama_capabilities",
     "ollama_delete",
     "ollama_installed",
     "ollama_load",
@@ -91,6 +95,7 @@ __all__ = [
     "progress",
     "pull",
     "recent",
+    "repo_name",
     "runner",
     "search",
     "snapshot",
@@ -103,16 +108,16 @@ CAPABILITY_TTL_SECONDS = 60.0
 _capability_cache: dict[str, tuple[float, list[str]]] = {}
 
 
-async def _ollama_capabilities(client: httpx.AsyncClient, models: list[dict]) -> list[list[str]]:
+async def ollama_capabilities(client: httpx.AsyncClient, names: list[str]) -> list[list[str]]:
     """Each model's Ollama capabilities, asking /api/show only for names not seen lately."""
     now = time.monotonic()
-    stale = [model["name"] for model in models
-             if model["name"] not in _capability_cache or now - _capability_cache[model["name"]][0] >= CAPABILITY_TTL_SECONDS]
+    stale = [name for name in names
+             if name not in _capability_cache or now - _capability_cache[name][0] >= CAPABILITY_TTL_SECONDS]
     found = await asyncio.gather(*(capabilities(client, name) for name in stale))
     for name, caps in zip(stale, found):
         if caps:
             _capability_cache[name] = (now, caps)
-    return [_capability_cache[model["name"]][1] if model["name"] in _capability_cache else [] for model in models]
+    return [_capability_cache[name][1] if name in _capability_cache else [] for name in names]
 
 
 async def installed_for(role: str, client: httpx.AsyncClient) -> list[dict]:
@@ -121,7 +126,7 @@ async def installed_for(role: str, client: httpx.AsyncClient) -> list[dict]:
         cached = await asyncio.to_thread(hf_installed)
         return [model for model in cached if supports(role, model["name"])]
     models = await ollama_installed(client)
-    found = await _ollama_capabilities(client, models)
+    found = await ollama_capabilities(client, [model["name"] for model in models])
     usable = []
     for model, caps in zip(models, found):
         if not caps:

@@ -58,14 +58,18 @@ def refusal(request: Request, allowed_hosts: set[str]) -> str | None:
 
     Every route answers only loopback Host headers, so a DNS-rebound page cannot read anything.
     Admin changes also need a same-host Origin when a browser sends one, so a page the user
-    happens to visit cannot stop the gateway or delete models with a simple cross-site POST.
+    happens to visit cannot stop the gateway or delete models with a simple cross-site POST. Inference
+    posts get the same check for web pages (http/https origins); desktop shells such as Tauri send
+    their own scheme and stay allowed.
     """
     host = request.headers.get("host", "")
     if _hostname(host) not in allowed_hosts:
         return f"host {host!r} is not a loopback address"
     origin = request.headers.get("origin")
-    if (request.method in SAFE_METHODS or not request.url.path.startswith("/admin")
-            or origin is None):
+    if request.method in SAFE_METHODS or origin is None:
+        return None
+    is_admin = request.url.path.startswith("/admin")
+    if not is_admin and urlsplit(origin).scheme not in ("http", "https"):
         return None
     if urlsplit(origin).netloc.lower() != host.lower():
         return f"origin {origin!r} may not change gateway state"

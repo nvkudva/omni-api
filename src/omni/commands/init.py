@@ -12,11 +12,9 @@ import time
 
 import httpx
 
-from omni import config
+from omni import config, registry
 from omni.supervisor import guard
 
-# chat, decide and embed run in the machine's Ollama; the MLX roles download on first use instead.
-OLLAMA_ROLES = ("chat", "decide", "embed")
 # speech models are small and every install wants them; image and video weigh tens of GB, so `--media` opts in
 SPEECH_ROLES = ("stt", "tts")
 MEDIA_ROLES = (*SPEECH_ROLES, "image", "video")
@@ -292,7 +290,7 @@ def _run(all_media: bool, started: list[subprocess.Popen]) -> int:
     if not check_ollama(url):
         return 1
 
-    models = sorted({settings[role]["model"] for role in OLLAMA_ROLES})
+    models = sorted({settings[role]["model"] for role in registry.OLLAMA_ROLES})
     for model in models:
         if not pull(model):
             return 1

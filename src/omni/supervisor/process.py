@@ -55,6 +55,7 @@ def spawn(worker: "Worker") -> None:
     if worker.uds is not None:
         worker.uds.unlink(missing_ok=True)
     logfile_path = config.LOG_DIR / f"{worker.name}.log"
+    config.trim_log(logfile_path)
     try:
         logfile = logfile_path.open("ab")
     except OSError:
@@ -191,7 +192,7 @@ def is_ours(pid: int, argv: list[str]) -> bool:
     return bool(command) and _matches(command, argv)
 
 
-def _pid_alive(pid: int) -> bool:
+def pid_alive(pid: int) -> bool:
     try:
         os.kill(pid, 0)
     except ProcessLookupError:
@@ -230,7 +231,7 @@ def kill_leftovers() -> list[str]:
             touched.append(pidfile.stem)  # nothing is left to protect
             continue
         pid, argv, owner = record
-        if owner is not None and _pid_alive(owner):
+        if owner is not None and pid_alive(owner):
             continue  # a running gateway still owns this worker
         if not _group_alive(pid):
             pidfile.unlink(missing_ok=True)

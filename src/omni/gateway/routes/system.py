@@ -34,7 +34,7 @@ def register(app: FastAPI, ctx: Context) -> None:
     @app.get("/v1/models")
     async def list_models() -> dict:
         names = await _chat_models(ctx.clients["chat"])
-        found = await asyncio.gather(*(registry.capabilities(ctx.clients["chat"], name) for name in names))
+        found = await registry.ollama_capabilities(ctx.clients["chat"], names)
         data = [{"id": name, "object": "model", "owned_by": "omni",
                  "role": _role_for(name, capabilities, ctx.settings), "capabilities": capabilities}
                 for name, capabilities in zip(names, found)]

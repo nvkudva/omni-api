@@ -212,6 +212,29 @@ def ollama_url() -> str:
     return f"{parts.scheme}://{host}:{port or default_port}"
 
 
+LOG_MAX_BYTES = 10 * 1024 * 1024
+LOG_KEEP_BYTES = 1024 * 1024
+
+
+def trim_log(path: Path) -> None:
+    """Cut a log past LOG_MAX_BYTES down to its newest LOG_KEEP_BYTES, on a line boundary.
+
+    Only for a log nothing holds open: call it just before a process that appends to it starts.
+    """
+    try:
+        if path.stat().st_size <= LOG_MAX_BYTES:
+            return
+        with path.open("rb") as file:
+            file.seek(-LOG_KEEP_BYTES, os.SEEK_END)
+            tail = file.read()
+        tail = tail[tail.find(b"\n") + 1:]
+        temporary = path.with_name(f".{path.name}.tmp")
+        temporary.write_bytes(tail)
+        os.replace(temporary, path)
+    except OSError:
+        pass
+
+
 def ensure_dirs() -> None:
     RUN_DIR.mkdir(parents=True, exist_ok=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)

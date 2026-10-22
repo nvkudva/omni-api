@@ -1,6 +1,10 @@
 """The Hugging Face search maps Hub records to the rows the playground table renders."""
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
+
+from huggingface_hub.errors import CacheNotFound
 
 from omni.registry import huggingface
 
@@ -86,3 +90,20 @@ class Search(unittest.TestCase):
     def test_missing_figures_are_none_not_zero(self):
         rows = self.search([FakeRepo("Qwen/Qwen-Image-2.1-Turbo")])
         self.assertIsNone(rows[0]["size_bytes"])
+
+
+class MissingCache(unittest.TestCase):
+    def setUp(self):
+        huggingface.invalidate()
+        self.addCleanup(huggingface.invalidate)
+
+    def test_a_machine_with_no_cache_has_no_models(self):
+        with tempfile.TemporaryDirectory() as empty, \
+                patch.object(huggingface, "scan_cache_dir",
+                             side_effect=CacheNotFound("missing", cache_dir=Path(empty) / "nope")):
+            self.assertEqual(huggingface.installed(force=True), [])
+
+    def test_deleting_from_a_missing_cache_is_not_found(self):
+        with patch.object(huggingface, "scan_cache_dir", side_effect=CacheNotFound("missing", cache_dir="x")), \
+                self.assertRaises(FileNotFoundError):
+            huggingface.delete("a/b")

@@ -5,6 +5,8 @@ from typing import Any
 from fastapi import HTTPException, Request
 from starlette.requests import ClientDisconnect
 
+from omni import registry
+
 MAX_JSON_BYTES = 8 * 1024 * 1024
 
 
@@ -36,6 +38,10 @@ async def json_body(request: Request) -> Any:
         return json.loads(b"".join(chunks))
     except json.JSONDecodeError as error:
         raise HTTPException(400, f"body must be JSON ({error})") from error
+
+
+def bad_role() -> HTTPException:
+    return HTTPException(400, f"role: one of {', '.join(registry.ROLES)}")
 
 
 def optional_model(payload: dict) -> str | None:
