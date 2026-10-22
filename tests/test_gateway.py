@@ -16,6 +16,7 @@ from omni import config, gateway
 from omni.gateway import residency
 from omni.gateway.routes import system
 from omni.registry import ROLES, pulling
+from omni.supervisor.worker import Worker
 
 
 def _error(response):
@@ -192,6 +193,9 @@ class Gateway(unittest.TestCase):
         with patch("omni.gateway.app.build", side_effect=lambda settings: built.append(real_build(settings)) or built[-1]):
             app = gateway.create()
         pool = built[0].pool
+        if not pool.workers:
+            pool.workers["video"] = Worker(name="video", argv=[], client=httpx.AsyncClient(base_url="http://worker"),
+                                           health_path="/health")
         name = next(iter(pool.workers))
         with TestClient(app, base_url="http://localhost") as client, patch("omni.supervisor.pool.Supervisor.restart", new=AsyncMock()) as restart:
             pool.workers[name].status, pool.workers[name].held = "ready", False
@@ -245,19 +249,42 @@ class Gateway(unittest.TestCase):
         response = self.client.post("/admin/workers/chat/delete")
         self.assertIn(response.status_code, (400, 404, 409))
 
+    def _own_client(self, *roles):
+        """A TestClient for a fresh app, with a worker client for each role this machine may not run."""
+        built = []
+        real_build = gateway.app.build
+        with patch("omni.gateway.app.build", side_effect=lambda settings: built.append(real_build(settings)) or built[-1]):
+            app = gateway.create()
+        for role in roles:
+            built[0].clients.setdefault(role, httpx.AsyncClient(base_url="http://worker"))
+        return TestClient(app, base_url="http://localhost")
+
     def test_admin_load_reports_the_workers_own_loaded_flag(self):
         """The worker's report is the truth: a load that left nothing resident must not claim `loaded`."""
         report = httpx.Response(200, json={"loaded": False},
                                 request=httpx.Request("POST", "http://worker/load"))
-        with patch.object(httpx.AsyncClient, "post", new=AsyncMock(return_value=report)), \
+        with self._own_client("stt") as client, \
+                patch.object(httpx.AsyncClient, "post", new=AsyncMock(return_value=report)), \
                 patch.object(residency, "ensure_downloaded", new=AsyncMock()):
-            response = self.client.post("/admin/models/load", json={"role": "stt", "force": True})
+            response = client.post("/admin/models/load", json={"role": "stt", "force": True})
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.json()["loaded"])
 
     def test_admin_unload_reaches_a_transport_failure_as_a_restart(self):
-        with patch.object(httpx.AsyncClient, "post", new=AsyncMock(side_effect=httpx.ConnectError("no socket"))):
-            response = self.client.post("/admin/models/unload", json={"role": "stt"})
+        with self._own_client("stt") as client, \
+                patch.object(httpx.AsyncClient, "post", new=AsyncMock(side_effect=httpx.ConnectError("no socket"))):
+            response = client.post("/admin/models/unload", json={"role": "stt"})
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(_error(response)["type"], "unavailable")
+
+    def test_admin_unload_without_a_worker_client_is_unavailable(self):
+        built = []
+        real_build = gateway.app.build
+        with patch("omni.gateway.app.build", side_effect=lambda settings: built.append(real_build(settings)) or built[-1]):
+            app = gateway.create()
+        built[0].clients.pop("stt", None)
+        with TestClient(app, base_url="http://localhost") as client:
+            response = client.post("/admin/models/unload", json={"role": "stt"})
         self.assertEqual(response.status_code, 503)
         self.assertEqual(_error(response)["type"], "unavailable")
 
@@ -385,8 +412,9 @@ class Gateway(unittest.TestCase):
         self.assertEqual(ready.call_args.args[1], "image")
 
     def test_image_generation_reports_a_failed_first_download(self):
-        with patch.object(residency, "ensure_ready", new=AsyncMock(return_value="image: gated")):
-            response = self.client.post("/v1/images/generations", json={"prompt": "a cat"})
+        with self._own_client("image") as client, \
+                patch.object(residency, "ensure_ready", new=AsyncMock(return_value="image: gated")):
+            response = client.post("/v1/images/generations", json={"prompt": "a cat"})
         self.assertEqual(response.status_code, 502)
         self.assertEqual(_error(response)["type"], "upstream_error")
 
