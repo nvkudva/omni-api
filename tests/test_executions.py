@@ -1,5 +1,6 @@
 """Retained inference executions run to completion and stay retrievable after disconnect."""
 import asyncio
+import time
 import unittest
 from unittest.mock import patch
 
@@ -178,7 +179,7 @@ class Retention(unittest.TestCase):
 
     def test_old_entries_age_out_of_recent(self):
         executions.DONE["old"] = {"id": "old", "role": "chat", "path": "/", "started_at": 0,
-                                  "finished_at": 1.0, "status_code": 200, "content_type": "text/plain",
+                                  "finished_at": time.monotonic() - executions.TTL_SECONDS - 1, "status_code": 200, "content_type": "text/plain",
                                   "size": 1, "truncated": False, "body": b"x", "error": None}
         self.assertEqual(executions.recent(), [])
         self.assertIsNone(executions.get("old"))
