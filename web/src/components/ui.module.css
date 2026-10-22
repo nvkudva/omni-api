@@ -178,9 +178,9 @@
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  /* No shadow: on a light page it doubles the hairline and the border reads thick.
-     The border alone draws the edge, sharp in both themes. */
-  box-shadow: none;
+  /* No drop shadow: on a light page it doubles the hairline and the border reads thick.
+     Dark adds only an inset top light (--card-edge). */
+  box-shadow: var(--card-edge);
   backdrop-filter: var(--surface-blur);
   -webkit-backdrop-filter: var(--surface-blur);
 }
