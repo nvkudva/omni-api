@@ -7,11 +7,15 @@ import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 let slots = [];
 let cursor = 0;
 let cleanups = [];
+let faking = false;
 
-mock.module("preact/hooks", () => ({
+// mock.module replaces preact/hooks for every test file in this process, so the stand-in
+// must pass through to the real hooks outside this file's tests or other pages break
+const real = { ...(await import("preact/hooks")) };
+const fake = {
   useState(initial) {
     const index = cursor++;
-    if (!(index in slots)) slots[index] = initial;
+    if (!(index in slots)) slots[index] = typeof initial === "function" ? initial() : initial;
     return [slots[index], (value) => { slots[index] = value; }];
   },
   useRef(initial) {
@@ -25,6 +29,13 @@ mock.module("preact/hooks", () => ({
     slots[index] = true;
     cleanups.push(effect());
   },
+};
+
+mock.module("preact/hooks", () => ({
+  ...real,
+  useState: (...args) => (faking ? fake.useState : real.useState)(...args),
+  useRef: (...args) => (faking ? fake.useRef : real.useRef)(...args),
+  useEffect: (...args) => (faking ? fake.useEffect : real.useEffect)(...args),
 }));
 
 const { useRunHistory } = await import("../src/hooks/useRunHistory.js");
@@ -41,6 +52,7 @@ let revoked;
 let deletes;
 
 beforeEach(() => {
+  faking = true;
   slots = [];
   cleanups = [];
   revoked = [];
@@ -53,6 +65,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  faking = false;
   URL.revokeObjectURL = realRevoke;
   globalThis.fetch = realFetch;
 });
