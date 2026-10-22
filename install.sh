@@ -190,7 +190,8 @@ install_uv_via_script() {
 if ! have uv; then
   say "uv is not installed; installing it first (omni is distributed as a uv tool)."
   if have brew; then
-    if ! brew install uv < /dev/null > "$LOG" 2>&1; then
+    # uv has no dependencies, so a stale index still installs it; skip brew's slow self-update.
+    if ! HOMEBREW_NO_AUTO_UPDATE=1 brew install uv < /dev/null > "$LOG" 2>&1; then
       warn "brew install uv failed; trying the official installer instead"
       tail -n 10 "$LOG" >&2
       install_uv_via_script
@@ -243,8 +244,29 @@ else
 fi
 # --- install ----------------------------------------------------------------
 say "installing omni from $spec"
+if [ -n "$EXTRAS" ]; then
+  say "  a first install downloads about 1.5 GB of Python packages (MLX, torch); this takes a few minutes"
+fi
 export UV_TOOL_BIN_DIR="$BIN_DIR"
-if ! uv tool install --force --python 3.12 "$spec" < /dev/null > "$LOG" 2>&1; then
+
+run_uv_install() {
+  uv tool install --force --python 3.12 "$spec" < /dev/null 2>&1
+  echo $? > "$WORK/uv.status"
+}
+
+# uv's progress bars need a terminal; piped, it still prints these step lines, so echo them live
+show_uv_steps() {
+  while IFS= read -r line; do
+    printf '%s\n' "$line" >> "$LOG"
+    case "$line" in
+      Resolved*|Prepared*|Installed*|Downloading*|Updating*|" Downloaded"*|" Updated"*|" Built"*) say "  $line" ;;
+    esac
+  done
+}
+
+: > "$LOG"
+run_uv_install | show_uv_steps
+if [ "$(cat "$WORK/uv.status" 2>/dev/null)" != "0" ]; then
   tail -n 20 "$LOG" >&2
   if grep -qi "failed to download\|error sending request\|dns error\|timed out\|connection" "$LOG"; then
     die "could not download the Python packages" \

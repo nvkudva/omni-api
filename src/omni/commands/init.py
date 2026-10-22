@@ -8,11 +8,13 @@ import shutil
 import signal
 import subprocess
 import sys
+import threading
 import time
 
 import httpx
 
 from omni import config, registry
+from omni.registry.memory import GB
 from omni.supervisor import guard
 
 # speech models are small and every install wants them; image and video weigh tens of GB, so `--media` opts in
@@ -20,6 +22,7 @@ SPEECH_ROLES = ("stt", "tts")
 MEDIA_ROLES = (*SPEECH_ROLES, "image", "video")
 # a first load reads or downloads weights from Hugging Face, which is slow but not endless
 MEDIA_LOAD_TIMEOUT = httpx.Timeout(10.0, read=1800.0)
+DOWNLOAD_PROGRESS_SECONDS = 10.0
 # how long a freshly started server gets to answer, and how often it is asked
 SERVER_START_SECONDS = 20.0
 PROBE_SECONDS = 0.5
@@ -213,6 +216,53 @@ def installed(url: str) -> set[str] | None:
     return {model["name"] for model in models if isinstance(model, dict) and model.get("name")}
 
 
+def download_line(downloads: list[dict], role: str) -> str | None:
+    """One progress line for `role`'s in-flight download, from the gateway's /admin/models/downloads."""
+    for entry in downloads:
+        if entry.get("role") != role:
+            continue
+        completed_gb = (entry.get("completed") or 0) / GB
+        total = entry.get("total")
+        if not total:
+            return f"  {role}: {completed_gb:.1f} GB downloaded"
+        percent = 100 * (entry.get("completed") or 0) / total
+        return f"  {role}: {completed_gb:.1f} / {total / GB:.1f} GB ({percent:.0f}%)"
+    return None
+
+
+def show_download(base: str, role: str) -> None:
+    try:
+        downloads = httpx.get(f"{base}/admin/models/downloads", timeout=5.0).json().get("downloads", [])
+    except (httpx.HTTPError, ValueError):
+        return
+    line = download_line(downloads, role)
+    if line:
+        print(line, flush=True)
+
+
+def load_with_progress(base: str, role: str) -> httpx.Response:
+    """POST the load and, while it blocks on a weights download, print the progress the gateway tracks."""
+    outcome: dict = {}
+
+    def post() -> None:
+        try:
+            outcome["response"] = httpx.post(f"{base}/admin/models/load", json={"role": role, "force": True},
+                                             timeout=MEDIA_LOAD_TIMEOUT)
+        except Exception as failure:  # re-raised on the main thread below
+            outcome["failure"] = failure
+
+    # a daemon thread, so Ctrl-C exits at once instead of waiting out a 30-minute load
+    request = threading.Thread(target=post, daemon=True)
+    request.start()
+    request.join(DOWNLOAD_PROGRESS_SECONDS)
+    while request.is_alive():
+        show_download(base, role)
+        request.join(DOWNLOAD_PROGRESS_SECONDS)
+    if "failure" in outcome:
+        raise outcome["failure"]
+    return outcome["response"]
+
+
 def warm_media(host: str, port: int, wanted_roles: tuple[str, ...]) -> int:
     """Load each of `wanted_roles` the gateway serves, so the download is not paid by the first request.
 
@@ -237,8 +287,7 @@ def warm_media(host: str, port: int, wanted_roles: tuple[str, ...]) -> int:
     for role in roles:
         print(f"loading {role} (weights download on first use)", flush=True)
         try:
-            response = httpx.post(f"http://{host}:{port}/admin/models/load", json={"role": role, "force": True},
-                                  timeout=MEDIA_LOAD_TIMEOUT)
+            response = load_with_progress(f"http://{host}:{port}", role)
         except httpx.HTTPError as failure:
             print(f"{role}: {failure}", file=sys.stderr)
             failed += 1
