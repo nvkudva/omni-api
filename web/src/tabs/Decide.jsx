@@ -123,7 +123,6 @@ export default function Decide() {
 
   const decideModels = models.value.data.filter((entry) => entry.role === "decide").map((entry) => entry.id);
   const effectiveModel = decideModels.includes(model) ? model : "";
-  if (!Array.isArray(rows)) throw new Error(`DEBUG rows=${typeof rows} ${String(rows).slice(0,200)} keys=${Object.keys(rows ?? {})}`);
   const rowsError = validationError(rows);
 
   const body = {
