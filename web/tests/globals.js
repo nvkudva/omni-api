@@ -24,3 +24,7 @@ globalThis.document = {
 globalThis.getComputedStyle = () => ({ getPropertyValue: () => "" });
 globalThis.URL.createObjectURL ??= () => "blob:test";
 globalThis.URL.revokeObjectURL ??= () => {};
+globalThis.window ??= globalThis;
+globalThis.history ??= { pushState() {}, replaceState() {} };
+globalThis.addEventListener ??= () => {};
+globalThis.removeEventListener ??= () => {};
