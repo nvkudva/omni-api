@@ -38,6 +38,8 @@ class Worker:
     # the worker's own report: which model it serves, and whether that model is in memory
     model: str = ""
     loaded: bool = False
+    # requests the worker is running or holding in its queue, so an idle model can be unloaded safely
+    busy: int = 0
     # serialises spawn/terminate against the watch loop and against admin actions
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 

@@ -81,9 +81,9 @@ class Proxy:
 
     async def forward(self, request: Request, role: str, path: str, body: bytes | None = None,
                       max_bytes: int = DEFAULT_MAX_BYTES,
-                      ready: Callable[[], Awaitable[str | None]] | None = None) -> Response:
-        """Proxy one request. `ready` (downloading or waking the model) runs only when the request
-        will actually run, never for a replay; a refusal it returns becomes a 502."""
+                      ready: Callable[[], Awaitable[Response | None]] | None = None) -> Response:
+        """Proxy one request. `ready` (downloading or loading the model) runs only when the request
+        will actually run, never for a replay; a refusal it returns is the answer."""
         if role not in self.clients:
             return error_response(503, unavailable_reason(role) or f"{role} is not available")
         content = await self.read_body(request, max_bytes) if body is None else body
@@ -136,7 +136,7 @@ class Proxy:
         return self._forward_retained(exec_id, role, path, upstream, response_headers)
 
     async def _prepare(self, exec_id: str | None, role: str, path: str,
-                       ready: Callable[[], Awaitable[str | None]] | None) -> Response | None:
+                       ready: Callable[[], Awaitable[Response | None]] | None) -> Response | None:
         """Run `ready` for a request about to run; its refusal, recorded under the id, or None."""
         if ready is None:
             return None
@@ -148,7 +148,7 @@ class Proxy:
             raise
         if refused is None:
             return None
-        return self._settle(exec_id, role, path, error_response(502, refused, "upstream_error"))
+        return self._settle(exec_id, role, path, refused)
 
     @staticmethod
     def _settle(exec_id: str | None, role: str, path: str, response: Response) -> Response:

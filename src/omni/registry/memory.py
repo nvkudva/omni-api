@@ -30,10 +30,20 @@ def fit_blockers(size_bytes: int) -> list[str]:
     if size_bytes > ram.total * WEIGHTS_SHARE_OF_RAM:
         warnings.append(f"{_gb(size_bytes)} of weights on a {_gb(ram.total)} machine: expect heavy swapping, "
                         "or a crash if it loads all at once")
-    elif size_bytes > ram.available:
-        warnings.append(f"{_gb(size_bytes)} of weights but only {_gb(ram.available)} RAM free now: "
-                        "close apps or let other models unload first")
+    else:
+        shortfall = ram_shortfall(size_bytes)
+        if shortfall:
+            warnings.append(shortfall)
     return warnings
+
+
+def ram_shortfall(size_bytes: int) -> str | None:
+    """Why weights of this size do not fit in the RAM free right now, or None when they do."""
+    available = psutil.virtual_memory().available
+    if size_bytes <= available:
+        return None
+    return (f"{_gb(size_bytes)} of weights but only {_gb(available)} RAM free now: "
+            "close apps or let other models unload first")
 
 
 def overload_advisories(cpu: float | None = None) -> list[str]:

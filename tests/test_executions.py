@@ -7,6 +7,7 @@ import httpx
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
+from omni.errors import error_response
 from omni.gateway import executions
 from omni.gateway.proxy import Proxy
 
@@ -429,7 +430,7 @@ class ForwardEdges(unittest.TestCase):
 
         async def refuse():
             calls.append(1)
-            return "model is still downloading"
+            return error_response(502, "model is still downloading", "upstream_error")
 
         async def ready():
             calls.append(2)

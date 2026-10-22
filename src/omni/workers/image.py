@@ -117,7 +117,7 @@ def _empty_cache() -> None:
 
 
 model = workers.Lazy(_load, config.idle_seconds(settings), _empty_cache)
-executor = workers.ModelExecutor("image-model")
+executor = workers.ModelExecutor("image-model", max_pending=2)
 app = workers.app(model, model_executor=executor)
 
 
@@ -139,7 +139,7 @@ def _generate(req: schemas.ImageRequest, width: int, height: int, steps: int) ->
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "model": model_name, "loaded": model.loaded}
+    return {"ok": True, "model": model_name, "loaded": model.loaded, "busy": executor.pending}
 
 
 @app.post("/v1/images/generations")
@@ -151,6 +151,6 @@ async def generations(req: schemas.ImageRequest) -> dict:
     except ValueError as error:
         raise HTTPException(400, str(error)) from error
     steps = req.steps if req.steps is not None else default_steps
-    images = await executor.run(_generate, req, width, height, steps)
+    images = await executor.run_request(_generate, req, width, height, steps)
     return {"created": int(time.time()), "model": model_name, "size": f"{width}x{height}",
             "data": [{"b64_json": image, "revised_prompt": None} for image in images]}
