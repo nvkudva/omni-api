@@ -6,10 +6,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+import httpx
 from fastapi.testclient import TestClient
 
 from omni import config, gateway
 from omni.commands import lifecycle
+from omni.supervisor.worker import Worker
 
 
 def _error(response):
@@ -57,10 +59,17 @@ class Control(unittest.TestCase):
         _error(response)
 
     def test_settings_saves_validates_and_restarts_the_affected_worker(self):
+        built = []
+        real_build = gateway.app.build
+        with patch("omni.gateway.app.build", side_effect=lambda settings: built.append(real_build(settings)) or built[-1]):
+            app = gateway.create()
+        built[0].pool.workers.setdefault("video", Worker(name="video", argv=[], health_path="/health",
+                                                         client=httpx.AsyncClient(base_url="http://worker")))
         with tempfile.TemporaryDirectory() as directory, \
                 patch.object(config, "USER_CONFIG", Path(directory) / "config.toml"), \
-                patch("omni.supervisor.pool.Supervisor.restart", new=AsyncMock()) as restart:
-            response = self.client.post("/admin/settings", json={"section": "video", "key": "fps", "value": 12})
+                patch("omni.supervisor.pool.Supervisor.restart", new=AsyncMock()) as restart, \
+                TestClient(app, base_url="http://localhost") as client:
+            response = client.post("/admin/settings", json={"section": "video", "key": "fps", "value": 12})
             saved = (Path(directory) / "config.toml").read_text()
         self.assertEqual(response.status_code, 200)
         self.assertIn("fps = 12", saved)

@@ -109,7 +109,10 @@ async def set_residency(ctx, role: str, model: str, load: bool, *, keep_warm: bo
         return None
     if load:
         await ensure_downloaded(ctx, role, model)
-    response = await ctx.clients[role].post("/load" if load else "/unload", timeout=600.0)
+    client = ctx.clients.get(role)
+    if client is None:
+        raise httpx.ConnectError(registry.unavailable_reason(role) or f"{role} is not available")
+    response = await client.post("/load" if load else "/unload", timeout=600.0)
     response.raise_for_status()
     logs.note(role, f"{'loaded' if load else 'unloaded'} {model}")
     try:
