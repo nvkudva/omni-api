@@ -21,5 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
+        # shortcut: 1.4.4 on Linux fails the Decide smoke tests (rows.forEach), 1.4.3 and macOS pass; unpin once a newer Bun passes
+        with:
+          bun-version: 1.4.3
       - run: bun install --frozen-lockfile
       - run: bun test
