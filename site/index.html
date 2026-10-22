@@ -10,7 +10,7 @@
 <meta property="og:description" content="One CLI, one port, seven AI roles. Local-first, OpenAI-compatible, self-healing.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://nvkudva.github.io/omni-api/">
-<meta property="og:image" content="https://nvkudva.github.io/omni-api/assets/playground-chat.png">
+<meta property="og:image" content="https://nvkudva.github.io/omni-api/assets/playground-chat-dark.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/svg+xml" href="assets/logo.svg">
 <link rel="stylesheet" href="assets/styles.css">
@@ -36,6 +36,7 @@
 
     <nav class="nav-links" id="navLinks" aria-label="Primary">
       <a href="#roles">Roles</a>
+      <a href="#film">Film</a>
       <a href="#playground">Playground</a>
       <a href="#features">Features</a>
       <a href="#quickstart">Quickstart</a>
@@ -321,6 +322,23 @@
   </div>
 </section>
 
+<!-- ───────────────────────────── film ───────────────────────────── -->
+<section class="section" id="film">
+  <div class="container">
+    <header class="section-head reveal">
+      <p class="kicker">Watch</p>
+      <h2>omni in 43 seconds</h2>
+      <p class="sub">One base URL, seven roles, the real playground. No sound needed.</p>
+    </header>
+    <figure class="film reveal">
+      <video controls muted playsinline preload="metadata" poster="assets/omni-launch-poster.jpg" width="1920" height="1080">
+        <source src="assets/omni-launch.mp4" type="video/mp4">
+        Your browser cannot play this video. <a href="https://github.com/nvkudva/omni-api/raw/main/marketing/omni-launch-16x9.mp4">Download the film</a>.
+      </video>
+    </figure>
+  </div>
+</section>
+
 <!-- ───────────────────────────── playground ───────────────────────────── -->
 <section class="section" id="playground">
   <div class="container">
@@ -341,26 +359,41 @@
           <li><b>Settings</b> — the gateway, Ollama and the workers, the memory and CPU meters, and every role's models.</li>
           <li><b>Live logs</b> — each role's request log, tailed under the page that produced it.</li>
         </ul>
+
+        <div class="theme-toggle" role="group" aria-label="Screenshot theme">
+          <span>Playground theme</span>
+          <button type="button" class="is-active" data-shot-theme="dark" aria-pressed="true">Dark</button>
+          <button type="button" data-shot-theme="light" aria-pressed="false">Light</button>
+        </div>
       </div>
 
       <figure class="shot reveal">
-        <img src="assets/playground-chat.png" alt="The omni playground: role cards in the left rail and a chat request on the right" width="1600" height="1000">
+        <img data-theme-img="dark" src="assets/playground-chat-dark.png" alt="The omni playground: role cards in the left rail and a streaming chat reply on the right (dark theme)" width="1600" height="1000">
+        <img data-theme-img="light" src="assets/playground-chat-light.png" alt="The omni playground: role cards in the left rail and a streaming chat reply on the right (light theme)" width="1600" height="1000">
         <figcaption>Chat — a streaming reply, its token rate and the role's live log</figcaption>
       </figure>
     </div>
 
     <div class="shots reveal">
       <figure class="shot">
-        <img src="assets/playground-decide.png" alt="The decide page scoring a support ticket as probability bars" width="1600" height="1000" loading="lazy">
+        <img data-theme-img="dark" src="assets/playground-decide-dark.png" alt="The decide page scoring a support ticket as probability bars (dark theme)" width="1600" height="1000" loading="lazy">
+        <img data-theme-img="light" src="assets/playground-decide-light.png" alt="The decide page scoring a support ticket as probability bars (light theme)" width="1600" height="1000" loading="lazy">
         <figcaption>Decide — probabilities per option, no text to parse</figcaption>
       </figure>
       <figure class="shot">
-        <img src="assets/playground-embed.png" alt="The embed page searching indexed files by meaning" width="1600" height="1000" loading="lazy">
+        <img data-theme-img="dark" src="assets/playground-embed-dark.png" alt="The embed page searching an indexed file by meaning (dark theme)" width="1600" height="1000" loading="lazy">
+        <img data-theme-img="light" src="assets/playground-embed-light.png" alt="The embed page searching an indexed file by meaning (light theme)" width="1600" height="1000" loading="lazy">
         <figcaption>Embed — your own files, searchable by meaning</figcaption>
       </figure>
       <figure class="shot">
-        <img src="assets/playground-models.png" alt="The models settings page listing every role's models, what is on disk and what is loaded" width="1600" height="1000" loading="lazy">
-        <figcaption>Settings — every role's models, what is on disk, what is loaded</figcaption>
+        <img data-theme-img="dark" src="assets/playground-models-dark.png" alt="The models settings page listing the models of the chat role and what is on disk (dark theme)" width="1600" height="1000" loading="lazy">
+        <img data-theme-img="light" src="assets/playground-models-light.png" alt="The models settings page listing the models of the chat role and what is on disk (light theme)" width="1600" height="1000" loading="lazy">
+        <figcaption>Settings → Models — every role's models, what is on disk, what is loaded</figcaption>
+      </figure>
+      <figure class="shot">
+        <img data-theme-img="dark" src="assets/playground-server-dark.png" alt="The server settings page with the gateway, Ollama and the memory and CPU meters (dark theme)" width="1600" height="1000" loading="lazy">
+        <img data-theme-img="light" src="assets/playground-server-light.png" alt="The server settings page with the gateway, Ollama and the memory and CPU meters (light theme)" width="1600" height="1000" loading="lazy">
+        <figcaption>Settings → Server — the gateway, Ollama, the workers and the meters</figcaption>
       </figure>
     </div>
   </div>

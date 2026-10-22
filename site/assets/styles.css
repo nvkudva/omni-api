@@ -803,13 +803,53 @@ code {
   background: rgba(8, 10, 24, 0.8);
 }
 
+.film {
+  margin: 0 auto;
+  max-width: 960px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  border: 1px solid var(--stroke-strong);
+  box-shadow: 0 40px 90px -46px rgba(0, 0, 0, 0.95);
+  background: #000;
+}
+.film video { display: block; width: 100%; height: auto; }
+
+/* Screenshot theme: both images ship, the toggle shows one. */
+[data-theme-img="light"] { display: none; }
+#playground[data-shot-theme="light"] [data-theme-img="light"] { display: block; }
+#playground[data-shot-theme="light"] [data-theme-img="dark"] { display: none; }
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 22px;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--stroke);
+  background: var(--panel);
+  font-size: 0.82rem;
+  color: var(--dim);
+}
+.theme-toggle span { padding: 0 8px 0 10px; }
+.theme-toggle button {
+  font: inherit;
+  color: var(--dim);
+  background: transparent;
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+.theme-toggle button.is-active { color: var(--text); background: var(--panel-2); }
+
 .shots {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
   margin-top: 46px;
 }
-.shots .shot:last-child { grid-column: 1 / -1; max-width: 720px; justify-self: center; }
+.shots .shot:nth-child(odd):last-child { grid-column: 1 / -1; max-width: 720px; justify-self: center; }
 
 /* ───────────── features ───────────── */
 
@@ -1072,7 +1112,7 @@ code {
   .hero-visual { max-width: 560px; }
   .split-wide, .playground-grid { grid-template-columns: 1fr; }
   .shots { grid-template-columns: 1fr; }
-  .shots .shot:last-child { max-width: none; }
+  .shots .shot:nth-child(odd):last-child { max-width: none; }
   .flow { grid-template-columns: 1fr; gap: 10px; }
   .flow-arrow { transform: rotate(90deg); height: 34px; }
 }

@@ -112,3 +112,16 @@ document.querySelectorAll(".role-card").forEach((card) => {
     card.style.setProperty("--mx", `${event.clientX - bounds.left}px`);
   });
 });
+
+// ── playground screenshot theme ───────────────────────────────────────────
+const playground = document.getElementById("playground");
+document.querySelectorAll("[data-shot-theme]").forEach((button) => {
+  button.addEventListener("click", () => {
+    playground.dataset.shotTheme = button.dataset.shotTheme;
+    document.querySelectorAll("[data-shot-theme]").forEach((other) => {
+      const isActive = other === button;
+      other.classList.toggle("is-active", isActive);
+      other.setAttribute("aria-pressed", String(isActive));
+    });
+  });
+});
