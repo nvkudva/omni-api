@@ -52,12 +52,12 @@
   & .status { display: inline-flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--muted-foreground); min-width: 0; }
   & .word { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  /* A download's progress: a thin line along the card's bottom edge, clipped by the card's corners. */
+  /* Progress of a download, a model load or a worker start: its own row under the footer. */
   & .download {
-    position: absolute; left: 0; right: 0; bottom: 0; height: 3px;
+    display: block; flex: none; height: 6px; border-radius: 999px; overflow: hidden;
     background: color-mix(in oklab, var(--primary) 20%, transparent);
   }
-  & .downloadFill { display: block; height: 100%; background: var(--brand-gradient); transition: width 0.25s; }
+  & .downloadFill { display: block; height: 100%; border-radius: 999px; background: var(--brand-gradient); transition: width 0.25s; }
   /* Before the size is known there is nothing to fill: pulse the whole line instead. */
   & .waiting .downloadFill { width: 100% !important; opacity: 0.5; animation: pulse 1.4s ease-in-out infinite; }
 

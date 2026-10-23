@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>omni — every local model your app needs, behind one port</title>
-<meta name="description" content="omni runs, supervises and serves chat, decision, embedding, image, video, speech-to-text and text-to-speech models on 127.0.0.1:10000 with an OpenAI-compatible API.">
+<title>omni — every AI model your app needs, one install, zero setup pain</title>
+<meta name="description" content="Chat, speech, images, video and embeddings running on your own machine behind one port. One install, a couple of clicks, no terminal juggling. OpenAI-compatible.">
 <meta name="theme-color" content="#05060f">
-<meta property="og:title" content="omni — every local model your app needs, behind one port">
-<meta property="og:description" content="One CLI, one port, seven AI roles. Local-first, OpenAI-compatible, self-healing.">
+<meta property="og:title" content="omni — every AI model your app needs, one install, zero setup pain">
+<meta property="og:description" content="One install. One port. Every model your app needs, running locally.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://nvkudva.github.io/omni-api/">
 <meta property="og:image" content="https://nvkudva.github.io/omni-api/assets/playground-chat-dark.png">
@@ -35,11 +35,10 @@
     </a>
 
     <nav class="nav-links" id="navLinks" aria-label="Primary">
-      <a href="#roles">Roles</a>
-      <a href="#film">Film</a>
-      <a href="#playground">Playground</a>
-      <a href="#features">Features</a>
+      <a href="#film">Watch</a>
+      <a href="#architecture">Architecture</a>
       <a href="#quickstart">Quickstart</a>
+      <a href="#playground">Playground</a>
       <a href="#api">API</a>
       <a href="#faq">FAQ</a>
     </nav>
@@ -65,23 +64,23 @@
     <div class="hero-copy">
       <p class="eyebrow reveal">
         <span class="dot"></span>
-        v0.5.1 · local-first · MIT
+        free · local · open source
       </p>
 
       <h1 class="reveal">
-        Every local model your app needs,
-        <span class="grad-text">behind one port.</span>
+        Every AI model your app needs.
+        <span class="grad-text">One install, zero setup pain.</span>
       </h1>
 
       <p class="lede reveal">
-        omni is a local CLI that downloads, runs and supervises chat, decisions, embeddings,
-        images, video, speech-to-text and text-to-speech on <code>127.0.0.1:10000</code>.
-        Your app asks for a <em>role</em> — never a model name, never an engine port.
+        Chat, speech, images, video and embeddings — running on your own machine behind a
+        single port. No terminals to juggle, no model hunting, no API keys.
+        Set it up in a couple of clicks and start building.
       </p>
 
       <div class="hero-cta reveal">
         <a class="btn btn-primary" href="#quickstart">Install omni</a>
-        <a class="btn btn-ghost" href="#api">Explore the API</a>
+        <a class="btn btn-ghost" href="#film">Watch the film</a>
       </div>
 
       <div class="install-line reveal">
@@ -92,9 +91,8 @@
       </div>
 
       <dl class="hero-stats reveal">
-        <div><dt>Roles served</dt><dd><span class="count" data-count="7">7</span></dd></div>
-        <div><dt>Ports exposed</dt><dd><span class="count" data-count="1">1</span></dd></div>
-        <div><dt>Chat speed</dt><dd><span class="count" data-count="140">140</span><span class="unit">tok/s</span></dd></div>
+        <div><dt>AI roles</dt><dd><span class="count" data-count="7">7</span></dd></div>
+        <div><dt>Ports to manage</dt><dd><span class="count" data-count="1">1</span></dd></div>
         <div><dt>Data leaves machine</dt><dd class="nowrap">never</dd></div>
       </dl>
     </div>
@@ -133,197 +131,8 @@
   </div>
 </section>
 
-<!-- ───────────────────────────── marquee ───────────────────────────── -->
-<section class="ticker" aria-hidden="true">
-  <div class="ticker-track">
-    <span>chat</span><span>decide</span><span>embed</span><span>image</span><span>video</span><span>stt</span><span>tts</span>
-    <span>chat</span><span>decide</span><span>embed</span><span>image</span><span>video</span><span>stt</span><span>tts</span>
-  </div>
-</section>
-
-<!-- ───────────────────────────── problem ───────────────────────────── -->
-<section class="section" id="why">
-  <div class="container">
-    <header class="section-head reveal">
-      <p class="kicker">The problem</p>
-      <h2>Three ports, three download steps, model names in your code</h2>
-      <p class="sub">A local-first app usually ends up juggling a chat server, an embedding server and a speech model — and hard-coding every model name.</p>
-    </header>
-
-    <div class="split">
-      <article class="card card-muted reveal">
-        <h3 class="card-title bad">Before</h3>
-        <ul class="check-list bad-list">
-          <li>Ollama on :11434, embeddings on :8000, speech on :9000</li>
-          <li>A different download step, start command and RAM profile per model</li>
-          <li><code>model="qwen2.5:3b"</code> sprinkled through the codebase</li>
-          <li>Swapping a model breaks the app that called it</li>
-          <li>One model crashing takes the whole stack down</li>
-        </ul>
-      </article>
-
-      <article class="card card-accent reveal">
-        <h3 class="card-title good">After</h3>
-        <ul class="check-list good-list">
-          <li>One gateway on <code>127.0.0.1:10000</code> for every role</li>
-          <li><code>omni init</code> pulls, warms and supervises everything</li>
-          <li>Your app calls <code>chat</code>, <code>embed</code>, <code>tts</code></li>
-          <li>Config maps role → model, so swapping never breaks an app</li>
-          <li>Each role runs in its own process and restarts itself</li>
-        </ul>
-      </article>
-    </div>
-  </div>
-</section>
-
-<!-- ───────────────────────────── architecture ───────────────────────────── -->
-<section class="section" id="architecture">
-  <div class="container">
-    <header class="section-head reveal">
-      <p class="kicker">Architecture</p>
-      <h2>One port in. Seven roles out.</h2>
-      <p class="sub">Engines are never exposed. The gateway routes by path, workers talk over Unix sockets, and only Ollama touches TCP.</p>
-    </header>
-
-    <div class="flow reveal">
-      <div class="flow-col">
-        <p class="flow-label">your app</p>
-        <div class="chip chip-app">OpenAI SDK</div>
-        <div class="chip chip-app">HTTP</div>
-        <div class="chip chip-app">Tauri · Electron · Python</div>
-      </div>
-
-      <div class="flow-arrow" aria-hidden="true"><span></span></div>
-
-      <div class="flow-col flow-gateway">
-        <p class="flow-label">gateway</p>
-        <div class="gateway-box">
-          <span class="gateway-title">omni · :10000</span>
-          <span class="gateway-sub">routes by path · OpenAI error shape</span>
-        </div>
-      </div>
-
-      <div class="flow-arrow" aria-hidden="true"><span></span></div>
-
-      <div class="flow-col">
-        <p class="flow-label">roles</p>
-        <div class="chip-grid">
-          <span class="chip" style="--c:var(--cyan)">chat</span>
-          <span class="chip" style="--c:var(--indigo)">decide</span>
-          <span class="chip" style="--c:var(--lime)">embed</span>
-          <span class="chip" style="--c:var(--pink)">image</span>
-          <span class="chip" style="--c:var(--amber)">video</span>
-          <span class="chip" style="--c:var(--sky)">stt</span>
-          <span class="chip" style="--c:var(--rose)">tts</span>
-        </div>
-      </div>
-    </div>
-
-    <div class="engines reveal">
-      <span class="engine">Ollama · chat, decide, embed</span>
-      <span class="engine">diffusers · image</span>
-      <span class="engine">ltx-2-mlx · video</span>
-      <span class="engine">parakeet-mlx · stt</span>
-      <span class="engine">mlx-audio · tts</span>
-    </div>
-  </div>
-</section>
-
-<!-- ───────────────────────────── roles ───────────────────────────── -->
-<section class="section" id="roles">
-  <div class="container">
-    <header class="section-head reveal">
-      <p class="kicker">Roles</p>
-      <h2>Seven roles, one consistent API</h2>
-      <p class="sub">Each role has one endpoint, one default model and one engine — and you can swap any of them without touching your app.</p>
-    </header>
-
-    <div class="role-grid">
-      <article class="role-card reveal" style="--c:var(--cyan)">
-        <header>
-          <span class="role-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-8 8H8l-4 3v-5.5A8 8 0 0 1 12 4a8 8 0 0 1 8 8Z"/></svg></span>
-          <h3>chat</h3><span class="role-engine">Ollama</span>
-        </header>
-        <p>Streaming chat completions, optionally with image input when the model has vision.</p>
-        <code class="role-endpoint">POST /v1/chat/completions</code>
-        <p class="role-model">default · <span>qwen2.5:0.5b</span></p>
-      </article>
-
-      <article class="role-card reveal" style="--c:var(--indigo)">
-        <header>
-          <span class="role-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5.5"/></svg></span>
-          <h3>decide</h3><span class="role-engine">Ollama</span>
-        </header>
-        <p>Yes/no, choice and score questions scored from one token's logprobs — no text to parse.</p>
-        <code class="role-endpoint">POST /v1/systemone</code>
-        <p class="role-model">default · <span>OneJev1.5-0.8B</span></p>
-      </article>
-
-      <article class="role-card reveal" style="--c:var(--lime)">
-        <header>
-          <span class="role-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="m8.5 6 7 0M6 8.5V16l9.5 0"/></svg></span>
-          <h3>embed</h3><span class="role-engine">Ollama</span>
-        </header>
-        <p>Query and document embeddings with task prompts added server-side, warm in 30 ms.</p>
-        <code class="role-endpoint">POST /v1/embeddings</code>
-        <p class="role-model">default · <span>embeddinggemma-2:270m</span></p>
-      </article>
-
-      <article class="role-card reveal" style="--c:var(--pink)">
-        <header>
-          <span class="role-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="m4 17 5-5 4 4 3-3 4 4"/></svg></span>
-          <h3>image</h3><span class="role-engine">diffusers</span>
-        </header>
-        <p>Text-to-image on Metal with steps, seed and size — returned as base64 PNG.</p>
-        <code class="role-endpoint">POST /v1/images/generations</code>
-        <p class="role-model">default · <span>Qwen-Image-2.1-Turbo</span></p>
-      </article>
-
-      <article class="role-card reveal" style="--c:var(--amber)">
-        <header>
-          <span class="role-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m10 9.5 5 2.5-5 2.5Z"/></svg></span>
-          <h3>video</h3><span class="role-engine">ltx-2-mlx</span>
-        </header>
-        <p>Text-to-video as a queued job: create, poll, download the mp4.</p>
-        <code class="role-endpoint">POST /v1/videos</code>
-        <p class="role-model">default · <span>LTX-2.3 MLX</span></p>
-      </article>
-
-      <article class="role-card reveal" style="--c:var(--sky)">
-        <header>
-          <span class="role-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11v2M8 8v8M12 5v14M16 8v8M20 11v2"/></svg></span>
-          <h3>stt</h3><span class="role-engine">parakeet-mlx</span>
-        </header>
-        <p>Transcribe a recording or an uploaded file, with segment timings.</p>
-        <code class="role-endpoint">POST /v1/audio/transcriptions</code>
-        <p class="role-model">default · <span>parakeet-tdt-0.6b-v3</span></p>
-      </article>
-
-      <article class="role-card reveal" style="--c:var(--rose)">
-        <header>
-          <span class="role-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h3l4 3V7l-4 3H4Z"/><path d="M15 9.5a3.5 3.5 0 0 1 0 5M17.5 7a7 7 0 0 1 0 10"/></svg></span>
-          <h3>tts</h3><span class="role-engine">mlx-audio</span>
-        </header>
-        <p>Speech from text with 27 voices and speed control — about 12× realtime.</p>
-        <code class="role-endpoint">POST /v1/audio/speech</code>
-        <p class="role-model">default · <span>Kokoro-82M</span></p>
-      </article>
-
-      <article class="role-card reveal" style="--c:var(--violet)">
-        <header>
-          <span class="role-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l2-5 3 10 2.5-5H21"/></svg></span>
-          <h3>settings</h3><span class="role-engine">playground</span>
-        </header>
-        <p>The gateway, Ollama and every worker under your hand, with the memory and CPU meters next to them.</p>
-        <code class="role-endpoint">GET /admin/server · /admin/memory</code>
-        <p class="role-model">also · <span>/health · /v1/models</span></p>
-      </article>
-    </div>
-  </div>
-</section>
-
 <!-- ───────────────────────────── film ───────────────────────────── -->
-<section class="section" id="film">
+<section class="section section-film" id="film">
   <div class="container">
     <header class="section-head reveal">
       <p class="kicker">Watch</p>
@@ -339,124 +148,73 @@
   </div>
 </section>
 
-<!-- ───────────────────────────── playground ───────────────────────────── -->
-<section class="section" id="playground">
+<!-- ───────────────────────────── problem ───────────────────────────── -->
+<section class="section" id="why">
   <div class="container">
-    <div class="playground-grid">
-      <div class="reveal">
-        <header class="section-head section-head-left">
-          <p class="kicker">Playground</p>
-          <h2>A workbench for every endpoint</h2>
-          <p class="sub">omni ships a browser playground at <code>/</code>. Every role is a card in the left rail — runtime, model, one status word, and the switch that keeps it loaded — and every page is a workbench with a UI view, a raw JSON view and a copyable cURL for the exact request it sends.</p>
-        </header>
+    <header class="section-head reveal">
+      <p class="kicker">Why omni</p>
+      <h2>The next generation of apps needs more than an LLM</h2>
+      <p class="sub">A virtual agent needs text, speech-to-text, text-to-speech and embeddings. Wiring them up by hand is where the weekend goes.</p>
+    </header>
 
-        <ul class="feature-list">
-          <li><b>Chat</b> — streaming replies with time-to-first-token, total time and a token rate; attach images when the model supports vision.</li>
-          <li><b>Decide</b> — yes/no, choice and score questions answered as probability distributions.</li>
-          <li><b>Embed</b> — index files, folders, images and audio, then search them by meaning.</li>
-          <li><b>Image &amp; Video</b> — prompts, sizes, steps, seeds; PNG download and mp4 playback.</li>
-          <li><b>STT &amp; TTS</b> — record from the mic, round-trip audio back through speech-to-text.</li>
-          <li><b>Settings</b> — the gateway, Ollama and the workers, the memory and CPU meters, and every role's models.</li>
-          <li><b>Live logs</b> — each role's request log, tailed under the page that produced it.</li>
-        </ul>
-
-        <div class="theme-toggle" role="group" aria-label="Screenshot theme">
-          <span>Playground theme</span>
-          <button type="button" class="is-active" data-shot-theme="dark" aria-pressed="true">Dark</button>
-          <button type="button" data-shot-theme="light" aria-pressed="false">Light</button>
-        </div>
-      </div>
-
-      <figure class="shot reveal">
-        <img data-theme-img="dark" src="assets/playground-chat-dark.png" alt="The omni playground: role cards in the left rail and a streaming chat reply on the right (dark theme)" width="1600" height="1000">
-        <img data-theme-img="light" src="assets/playground-chat-light.png" alt="The omni playground: role cards in the left rail and a streaming chat reply on the right (light theme)" width="1600" height="1000">
-        <figcaption>Chat — a streaming reply, its token rate and the role's live log</figcaption>
-      </figure>
-    </div>
-
-    <div class="shots reveal">
-      <figure class="shot">
-        <img data-theme-img="dark" src="assets/playground-decide-dark.png" alt="The decide page scoring a support ticket as probability bars (dark theme)" width="1600" height="1000" loading="lazy">
-        <img data-theme-img="light" src="assets/playground-decide-light.png" alt="The decide page scoring a support ticket as probability bars (light theme)" width="1600" height="1000" loading="lazy">
-        <figcaption>Decide — probabilities per option, no text to parse</figcaption>
-      </figure>
-      <figure class="shot">
-        <img data-theme-img="dark" src="assets/playground-embed-dark.png" alt="The embed page searching an indexed file by meaning (dark theme)" width="1600" height="1000" loading="lazy">
-        <img data-theme-img="light" src="assets/playground-embed-light.png" alt="The embed page searching an indexed file by meaning (light theme)" width="1600" height="1000" loading="lazy">
-        <figcaption>Embed — your own files, searchable by meaning</figcaption>
-      </figure>
-      <figure class="shot">
-        <img data-theme-img="dark" src="assets/playground-models-dark.png" alt="The models settings page listing the models of the chat role and what is on disk (dark theme)" width="1600" height="1000" loading="lazy">
-        <img data-theme-img="light" src="assets/playground-models-light.png" alt="The models settings page listing the models of the chat role and what is on disk (light theme)" width="1600" height="1000" loading="lazy">
-        <figcaption>Settings → Models — every role's models, what is on disk, what is loaded</figcaption>
-      </figure>
-      <figure class="shot">
-        <img data-theme-img="dark" src="assets/playground-server-dark.png" alt="The server settings page with the gateway, Ollama and the memory and CPU meters (dark theme)" width="1600" height="1000" loading="lazy">
-        <img data-theme-img="light" src="assets/playground-server-light.png" alt="The server settings page with the gateway, Ollama and the memory and CPU meters (light theme)" width="1600" height="1000" loading="lazy">
-        <figcaption>Settings → Server — the gateway, Ollama, the workers and the meters</figcaption>
-      </figure>
+    <div class="feature-grid">
+      <article class="feature reveal" style="--c:var(--rose)">
+        <h3>One terminal per model</h3>
+        <p>omni runs every model behind <code>127.0.0.1:10000</code>, supervised and restarted if one crashes.</p>
+      </article>
+      <article class="feature reveal" style="--c:var(--amber)">
+        <h3>Which model? Will it fit?</h3>
+        <p>Small, sensible defaults for every role. The playground searches for alternatives and warns before one won't fit your RAM.</p>
+      </article>
+      <article class="feature reveal" style="--c:var(--lime)">
+        <h3>Zero setup errors</h3>
+        <p><code>omni init</code> installs and downloads everything. Your app asks for a role like <code>chat</code> or <code>tts</code>, never a model name.</p>
+      </article>
     </div>
   </div>
 </section>
 
-<!-- ───────────────────────────── features ───────────────────────────── -->
-<section class="section" id="features">
+<!-- ───────────────────────────── architecture ───────────────────────────── -->
+<section class="section" id="architecture">
   <div class="container">
     <header class="section-head reveal">
-      <p class="kicker">Features</p>
-      <h2>The parts that usually bite you</h2>
-      <p class="sub">Every one of these shipped, with the failure mode it removes.</p>
+      <p class="kicker">Architecture</p>
+      <h2>One port in. Seven roles out.</h2>
+      <p class="sub">Your app talks to one gateway. omni routes each request to the right model and keeps the engines private.</p>
     </header>
 
-    <div class="feature-grid">
-      <article class="feature reveal" style="--c:var(--cyan)">
-        <h3>Decide without generation</h3>
-        <p>Questions are scored from one token's logprobs, so you get calibrated probabilities per option instead of text to parse.</p>
-      </article>
-      <article class="feature reveal" style="--c:var(--indigo)">
-        <h3>Keep-warm pins</h3>
-        <p>Pin a role and its model stays loaded across restarts. Unpinned models unload after ten idle minutes.</p>
-      </article>
-      <article class="feature reveal" style="--c:var(--pink)">
-        <h3>Three views, one request</h3>
-        <p>Every playground tab shows the UI call, the raw JSON and a copyable cURL — the same body, three ways.</p>
-      </article>
-      <article class="feature reveal" style="--c:var(--lime)">
-        <h3>Find &amp; install</h3>
-        <p>Search Hugging Face and Ollama per role, filtered to what that role's runtime can actually run, with live download progress.</p>
-      </article>
-      <article class="feature reveal" style="--c:var(--amber)">
-        <h3>Self-healing workers</h3>
-        <p>Per-worker locks, exponential-backoff restarts, pid and argv checks — a recycled pid is never signalled.</p>
-      </article>
-      <article class="feature reveal" style="--c:var(--sky)">
-        <h3>One error shape</h3>
-        <p>Gateway, workers, routing 404s and validation 422s all answer <code>{"error": {"message", "type"}}</code>.</p>
-      </article>
-      <article class="feature reveal" style="--c:var(--rose)">
-        <h3>Hardened local surface</h3>
-        <p>8 MB body caps, finite upstream timeouts, loopback only. A non-loopback host is refused unless you force it.</p>
-      </article>
-      <article class="feature reveal" style="--c:var(--violet)">
-        <h3>Survives a closed tab</h3>
-        <p>Requests are retained server-side, so closing the browser never cancels the work — reopen it and the result is there.</p>
-      </article>
-      <article class="feature reveal" style="--c:var(--sky)">
-        <h3>Live per-role logs</h3>
-        <p>Each role's request log, tailed in the playground and in <code>omni logs</code>, so you see what a model was asked.</p>
-      </article>
-      <article class="feature reveal" style="--c:var(--lime)">
-        <h3>Search your own files</h3>
-        <p>The embed role indexes text, code, images and audio, then ranks the chunks against your query by meaning.</p>
-      </article>
-      <article class="feature reveal" style="--c:var(--indigo)">
-        <h3>Server controls</h3>
-        <p>Restart the gateway, start and stop a worker, and watch RAM, CPU and load average from the same page.</p>
-      </article>
-      <article class="feature reveal" style="--c:var(--amber)">
-        <h3>Stop anything</h3>
-        <p>Cancel a running request or a running download. A download that failed while you were away is waiting when you come back.</p>
-      </article>
+    <div class="flow reveal">
+      <div class="flow-col">
+        <p class="flow-label">your app</p>
+        <div class="chip chip-app">OpenAI SDK</div>
+        <div class="chip chip-app">HTTP / cURL</div>
+        <div class="chip chip-app">Tauri · Electron · Python</div>
+      </div>
+
+      <div class="flow-arrow" aria-hidden="true"><span></span></div>
+
+      <div class="flow-col flow-gateway">
+        <p class="flow-label">gateway</p>
+        <div class="gateway-box">
+          <span class="gateway-title">omni · :10000</span>
+          <span class="gateway-sub">routes by path · supervises workers · restarts on crash</span>
+        </div>
+      </div>
+
+      <div class="flow-arrow" aria-hidden="true"><span></span></div>
+
+      <div class="flow-col">
+        <p class="flow-label">roles · engines</p>
+        <div class="chip-grid">
+          <span class="chip" style="--c:var(--cyan)">chat <small>Ollama</small></span>
+          <span class="chip" style="--c:var(--indigo)">decide <small>Ollama</small></span>
+          <span class="chip" style="--c:var(--lime)">embed <small>Ollama</small></span>
+          <span class="chip" style="--c:var(--pink)">image <small>diffusers</small></span>
+          <span class="chip" style="--c:var(--amber)">video <small>ltx-2-mlx</small></span>
+          <span class="chip" style="--c:var(--sky)">stt <small>parakeet-mlx</small></span>
+          <span class="chip" style="--c:var(--rose)">tts <small>mlx-audio</small></span>
+        </div>
+      </div>
     </div>
   </div>
 </section>
@@ -467,23 +225,20 @@
     <header class="section-head reveal">
       <p class="kicker">Quickstart</p>
       <h2>Running in three commands</h2>
-      <p class="sub">Install the CLI, pull the models, start the gateway.</p>
+      <p class="sub">Install, pull the models, start. Then open the playground and click.</p>
     </header>
 
     <ol class="steps">
       <li class="step reveal">
         <span class="step-num">1</span>
         <div class="step-body">
-          <h3>Install the CLI</h3>
-          <p>The script brings Python and uv if they are missing, then installs the <code>omni</code> command.</p>
+          <h3>Install</h3>
+          <p>Brings Python and uv if they are missing, then installs the <code>omni</code> command. On macOS you can use Homebrew instead.</p>
           <div class="code-block">
             <div class="code-head"><span class="code-lang">shell</span><button class="copy-btn" data-copy="#codeInstall" aria-label="Copy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg></button></div>
             <pre id="codeInstall"><code>curl -fsSL https://raw.githubusercontent.com/nvkudva/omni-api/main/install.sh | sh
 
-# or, with Homebrew on macOS
-brew tap nvkudva/omni
-brew trust nvkudva/omni    # Homebrew 7+ refuses untrusted third-party taps
-brew install omni</code></pre>
+# or: brew tap nvkudva/omni &amp;&amp; brew trust nvkudva/omni &amp;&amp; brew install omni</code></pre>
           </div>
         </div>
       </li>
@@ -492,11 +247,11 @@ brew install omni</code></pre>
         <span class="step-num">2</span>
         <div class="step-body">
           <h3>Pull the models</h3>
-          <p><code>omni init</code> validates your config, installs Ollama if it is missing and fetches the chat, decide and embed models, then downloads and starts speech-to-text and text-to-speech. Add <code>--media</code> for image and video too.</p>
+          <p>Installs Ollama if needed, fetches chat, decide and embed, and sets up speech. Add <code>--media</code> for image and video.</p>
           <div class="code-block">
             <div class="code-head"><span class="code-lang">shell</span><button class="copy-btn" data-copy="#codeInit" aria-label="Copy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg></button></div>
-            <pre id="codeInit"><code>omni init          # validate, install Ollama, pull the core models, start stt and tts
-omni init --media  # also load image and video now</code></pre>
+            <pre id="codeInit"><code>omni init            # core models + speech
+omni init --media    # also image and video</code></pre>
           </div>
         </div>
       </li>
@@ -504,14 +259,11 @@ omni init --media  # also load image and video now</code></pre>
       <li class="step reveal">
         <span class="step-num">3</span>
         <div class="step-body">
-          <h3>Start it and open the playground</h3>
-          <p><code>omni up</code> runs the gateway and every worker in the background. Then open <code>http://127.0.0.1:10000/</code>.</p>
+          <h3>Start and open the playground</h3>
+          <p>Runs the gateway and every worker in the background. Then open <code>http://127.0.0.1:10000/</code>. Stuck? <code>omni doctor</code> says what to fix.</p>
           <div class="code-block">
             <div class="code-head"><span class="code-lang">shell</span><button class="copy-btn" data-copy="#codeUp" aria-label="Copy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg></button></div>
-            <pre id="codeUp"><code>omni up      # gateway + workers in the background
-omni status   # worker health as a table
-omni doctor   # what works and what to fix, changing nothing
-omni down     # stop everything, leave no orphans</code></pre>
+            <pre id="codeUp"><code>omni up</code></pre>
           </div>
         </div>
       </li>
@@ -519,140 +271,57 @@ omni down     # stop everything, leave no orphans</code></pre>
   </div>
 </section>
 
-<!-- ───────────────────────────── api ───────────────────────────── -->
-<section class="section" id="api">
+<!-- ───────────────────────────── playground ───────────────────────────── -->
+<section class="section" id="playground">
   <div class="container">
-    <header class="section-head reveal">
-      <p class="kicker">API</p>
-      <h2>Your existing OpenAI client works</h2>
-      <p class="sub">Change one <code>base_url</code> and every OpenAI-shaped endpoint follows. Where OpenAI has no shape, omni invents a small, consistent one.</p>
-    </header>
+    <div class="playground-grid">
+      <div class="reveal">
+        <header class="section-head section-head-left">
+          <p class="kicker">Playground</p>
+          <h2>Try every model from your browser</h2>
+          <p class="sub">No terminal needed after step 3. Each role has a page to test it, swap its model and watch its logs.</p>
+        </header>
 
-    <div class="code-tabs reveal" data-tabs>
-      <div class="tab-bar" role="tablist">
-        <button class="tab is-active" role="tab" data-tab="py">Python</button>
-        <button class="tab" role="tab" data-tab="curl">cURL</button>
-        <button class="tab" role="tab" data-tab="decide">Decide</button>
-        <button class="tab" role="tab" data-tab="media">Audio</button>
-      </div>
+        <ul class="feature-list">
+          <li><b>Test</b> — chat, decide, embed, image, video, speech in one place, each with its raw JSON and a copyable cURL.</li>
+          <li><b>Swap</b> — search Hugging Face or Ollama, install, make it the default in a click.</li>
+          <li><b>Control</b> — keep a model warm, restart a worker, watch RAM and CPU.</li>
+        </ul>
 
-      <div class="tab-panel is-active" data-panel="py">
-        <div class="code-block">
-          <div class="code-head"><span class="code-lang">python</span><button class="copy-btn" data-copy="#codePy" aria-label="Copy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg></button></div>
-          <pre id="codePy"><code>from openai import OpenAI
-
-client = OpenAI(base_url="http://127.0.0.1:10000/v1", api_key="local")
-
-# chat — streams, uses the configured chat model
-client.chat.completions.create(
-    model="qwen2.5:0.5b",
-    messages=[{"role": "user", "content": "Summarise this ticket."}],
-)
-
-# embeddings — "embed" means the configured embed model
-vectors = client.embeddings.create(model="embed", input=["refund policy"])
-
-# image — returns base64 PNG
-client.images.generate(model="image", prompt="a lighthouse at dawn", size="1024x1024")
-
-# speech — a wav on disk
-client.audio.speech.create(model="tts", voice="af_heart", input="Hello from omni.").write_to_file("out.wav")</code></pre>
+        <div class="theme-toggle" role="group" aria-label="Screenshot theme">
+          <span>Theme</span>
+          <button type="button" class="is-active" data-shot-theme="dark" aria-pressed="true">Dark</button>
+          <button type="button" data-shot-theme="light" aria-pressed="false">Light</button>
         </div>
       </div>
 
-      <div class="tab-panel" data-panel="curl">
-        <div class="code-block">
-          <div class="code-head"><span class="code-lang">shell</span><button class="copy-btn" data-copy="#codeCurl" aria-label="Copy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg></button></div>
-          <pre id="codeCurl"><code># chat (streaming)
-curl -N localhost:10000/v1/chat/completions -H 'content-type: application/json' \
-  -d '{"messages":[{"role":"user","content":"Say hi"}],"stream":true}'
-
-# embeddings — input_type is "query" or "document"
-curl localhost:10000/v1/embeddings -H 'content-type: application/json' \
-  -d '{"input":"how do I get a refund?","input_type":"query"}'
-
-# image -> png
-curl localhost:10000/v1/images/generations -H 'content-type: application/json' \
-  -d '{"prompt":"a lighthouse at dawn","size":"1024x1024","steps":20}' \
-  | jq -r '.data[0].b64_json' | base64 -d > out.png
-
-# health
-curl localhost:10000/health</code></pre>
-        </div>
-      </div>
-
-      <div class="tab-panel" data-panel="decide">
-        <div class="code-block">
-          <div class="code-head"><span class="code-lang">json</span><button class="copy-btn" data-copy="#codeDecide" aria-label="Copy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg></button></div>
-          <pre id="codeDecide"><code>curl localhost:10000/v1/systemone -H 'content-type: application/json' -d '{
-  "state": "I have asked three times and still no refund!",
-  "questions": {
-    "is_frustrated": {"type": "noul", "instructions": "Does the customer sound frustrated?"},
-    "topic": {"type": "choice", "instructions": "What is this about?",
-              "criteria": {"billing": "money, refunds", "shipping": "delivery"}}
-  }
-}'
-
-# noul, choice and score answers come back with calibrated
-# probabilities per option — no generated text to parse</code></pre>
-        </div>
-      </div>
-
-      <div class="tab-panel" data-panel="media">
-        <div class="code-block">
-          <div class="code-head"><span class="code-lang">shell</span><button class="copy-btn" data-copy="#codeMedia" aria-label="Copy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg></button></div>
-          <pre id="codeMedia"><code># text to speech -> wav
-curl localhost:10000/v1/audio/speech -H 'content-type: application/json' \
-  -d '{"input":"Hello from omni.","voice":"af_heart"}' -o hello.wav
-
-# speech to text — json | text | verbose_json
-curl localhost:10000/v1/audio/transcriptions \
-  -F file=@hello.wav -F response_format=verbose_json
-
-# video — create a job, poll it, fetch the mp4
-curl localhost:10000/v1/videos -H 'content-type: application/json' \
-  -d '{"prompt": "a paper boat in the rain", "size": "704x480", "seconds": 4}'
-curl localhost:10000/v1/videos/video_abc123
-curl localhost:10000/v1/videos/video_abc123/content -o clip.mp4</code></pre>
-        </div>
-      </div>
+      <figure class="shot reveal">
+        <img data-theme-img="dark" src="assets/playground-chat-dark.png" alt="The omni playground: role cards in the left rail and a streaming chat reply on the right (dark theme)" width="1600" height="1000">
+        <img data-theme-img="light" src="assets/playground-chat-light.png" alt="The omni playground: role cards in the left rail and a streaming chat reply on the right (light theme)" width="1600" height="1000">
+      </figure>
     </div>
-
-    <p class="api-note reveal">
-      Every endpoint, including the admin routes, answers errors as
-      <code>{"error": {"message": "...", "type": "..."}}</code>. The admin routes
-      (<code>/admin/models</code>, <code>/admin/workers</code>, <code>/admin/pins</code>,
-      <code>/admin/memory</code>, <code>/admin/server</code>, <code>/admin/logs</code> and
-      <code>/admin/requests</code>) are what the playground itself uses.
-    </p>
   </div>
 </section>
 
-<!-- ───────────────────────────── numbers ───────────────────────────── -->
-<section class="section section-tight" id="numbers">
-  <div class="container">
+<!-- ───────────────────────────── api ───────────────────────────── -->
+<section class="section" id="api">
+  <div class="container container-narrow">
     <header class="section-head reveal">
-      <p class="kicker">Measured</p>
-      <h2>On Apple Silicon, out of the box</h2>
+      <p class="kicker">Build</p>
+      <h2>Your OpenAI client already works</h2>
+      <p class="sub">Change one <code>base_url</code>. Full endpoint reference is in the <a href="https://github.com/nvkudva/omni-api#readme" target="_blank" rel="noopener">README</a>.</p>
     </header>
 
-    <div class="numbers">
-      <div class="number reveal" style="--c:var(--cyan)">
-        <p class="num"><span class="count" data-count="140">140</span><span class="unit">tok/s</span></p>
-        <p class="num-label">chat streaming speed</p>
-      </div>
-      <div class="number reveal" style="--c:var(--lime)">
-        <p class="num"><span class="count" data-count="0.03" data-decimals="2">0.03</span><span class="unit">s</span></p>
-        <p class="num-label">warm embedding</p>
-      </div>
-      <div class="number reveal" style="--c:var(--rose)">
-        <p class="num"><span class="count" data-count="12">12</span><span class="unit">× realtime</span></p>
-        <p class="num-label">text to speech</p>
-      </div>
-      <div class="number reveal" style="--c:var(--pink)">
-        <p class="num"><span class="count" data-count="27">27</span><span class="unit">voices</span></p>
-        <p class="num-label">Kokoro speech</p>
-      </div>
+    <div class="code-block reveal">
+      <div class="code-head"><span class="code-lang">python</span><button class="copy-btn" data-copy="#codePy" aria-label="Copy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg></button></div>
+      <pre id="codePy"><code>from openai import OpenAI
+
+client = OpenAI(base_url="http://127.0.0.1:10000/v1", api_key="local")
+
+client.chat.completions.create(model="qwen2.5:0.5b", messages=[{"role": "user", "content": "Hi!"}])
+client.embeddings.create(model="embed", input=["refund policy"])
+client.images.generate(model="image", prompt="a lighthouse at dawn")
+client.audio.speech.create(model="tts", voice="af_heart", input="Hello from omni.")</code></pre>
     </div>
   </div>
 </section>
@@ -662,41 +331,25 @@ curl localhost:10000/v1/videos/video_abc123/content -o clip.mp4</code></pre>
   <div class="container container-narrow">
     <header class="section-head reveal">
       <p class="kicker">FAQ</p>
-      <h2>Questions people actually ask</h2>
+      <h2>Good to know</h2>
     </header>
 
     <div class="faq">
       <details class="reveal">
         <summary>Does anything leave my machine?</summary>
-        <p>No. omni binds to <code>127.0.0.1</code> and talks to local engines over Unix sockets. The only network traffic is the first model download from Ollama or Hugging Face. A non-loopback <code>--host</code> is refused unless you set <code>OMNI_ALLOW_NON_LOOPBACK=1</code>.</p>
-      </details>
-      <details class="reveal">
-        <summary>Do I need to install a server for every model?</summary>
-        <p>No. <code>omni init</code> installs Ollama when it is missing and pulls the models you need. The Python roles — image, video, speech — run inside omni's own workers, each in its own process.</p>
+        <p>No. omni binds to <code>127.0.0.1</code>. The only network traffic is the first model download from Ollama or Hugging Face.</p>
       </details>
       <details class="reveal">
         <summary>What happens when a model crashes?</summary>
-        <p>The supervisor health-checks every worker every two seconds and restarts a failed one with exponential backoff. A worker stuck starting for 120 seconds is restarted too. One role going down never takes the others with it.</p>
+        <p>Every worker is health-checked and restarted automatically. One role going down never takes the others with it.</p>
       </details>
       <details class="reveal">
         <summary>Is the first request slow?</summary>
-        <p>Yes — it loads the model, and some roles download on first use. Pin the roles you use often and they stay loaded: <code>omni</code> re-loads them before they would idle out, and pins persist across restarts.</p>
-      </details>
-      <details class="reveal">
-        <summary>Can I use it with my own app?</summary>
-        <p>Point any OpenAI client at <code>http://127.0.0.1:10000/v1</code> and change <code>base_url</code>. Roles that OpenAI does not model — decide, video — have their own small endpoints with the same error shape.</p>
-      </details>
-      <details class="reveal">
-        <summary>What is the playground for?</summary>
-        <p>It is a workbench for every endpoint: a form, the raw JSON and a copyable cURL for the exact request, plus the answer, its timing and the role's log. You can change a role's model, install another one and restart a worker without touching your app.</p>
-      </details>
-      <details class="reveal">
-        <summary>Can I swap a model later?</summary>
-        <p>Yes. Every role maps to a model in your config, and the playground changes that mapping in one click — search Hugging Face or Ollama for a model the role can actually run, install it, make it the default. Your app still calls the role.</p>
+        <p>Yes — it loads the model. Pin the roles you use often and they stay loaded across restarts.</p>
       </details>
       <details class="reveal">
         <summary>Which platforms are supported?</summary>
-        <p>macOS on Apple Silicon runs every role. Linux serves chat, decide and embed through Ollama, and adds speech and video with the media extra. The image worker renders on Metal, so it stays macOS-only.</p>
+        <p>macOS on Apple Silicon runs every role. Linux serves chat, decide and embed through Ollama, and adds speech and video with the media extra. Image generation is macOS-only.</p>
       </details>
     </div>
   </div>
@@ -707,7 +360,7 @@ curl localhost:10000/v1/videos/video_abc123/content -o clip.mp4</code></pre>
   <div class="container container-narrow">
     <div class="cta reveal">
       <h2>Run your own models.<br>Keep them to yourself.</h2>
-      <p>One install, one port, seven roles.</p>
+      <p>One install, one port, every model your app needs.</p>
       <div class="hero-cta">
         <a class="btn btn-primary" href="#quickstart">Install omni</a>
         <a class="btn btn-ghost" href="https://github.com/nvkudva/omni-api" target="_blank" rel="noopener">Browse the source</a>
