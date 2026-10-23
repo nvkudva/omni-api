@@ -4,8 +4,9 @@
 #   curl -fsSL https://raw.githubusercontent.com/nvkudva/omni-api/main/install.sh | sh
 #
 # It puts uv in place (the only prerequisite), installs omni as a uv tool, and
-# leaves a global `omni` on your PATH. Models are not downloaded here: `omni init`
-# pulls the Ollama ones, and the speech/image/video models download on first use.
+# leaves a global `omni` on your PATH, with every runtime the playground can start (speech,
+# image, video). Models are not downloaded here: `omni init` downloads chat, decide, embed,
+# speech-to-text and text-to-speech; image and video download on first use.
 #
 # Every failure prints a `fix:` line. Nothing is written until the checks pass.
 set -u
@@ -385,7 +386,8 @@ fi
 if [ "$on_path" -eq 1 ]; then run="omni"; else run="$BIN_DIR/omni"; fi
 say ""
 say "next:"
-say "  $run init     # once: install Ollama and pull chat, decide, embed"
+say "  $run init     # once: install Ollama, download chat, decide, embed, stt, tts (several GB)"
+say "                # image and video are tens of GB: first use, or \`$run init --media\`"
 say "  $run up       # start the gateway in the background"
 say "  $run status   # what is running"
 say "then open http://127.0.0.1:10000/"

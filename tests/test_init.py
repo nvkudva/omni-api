@@ -20,6 +20,10 @@ SETTINGS = {
     "chat": {"model": "llama3.2"},
     "decide": {"model": "llama3.2"},
     "embed": {"model": "embeddinggemma-2"},
+    "stt": {"model": "parakeet"},
+    "tts": {"model": "kokoro"},
+    "image": {"model": "qwen-image"},
+    "video": {"model": "ltx"},
 }
 
 
@@ -182,6 +186,20 @@ class Pulling(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertIn("ready: embeddinggemma-2, llama3.2", out)
         self.assertIn("http://127.0.0.1:10000/", out)
+
+    def test_the_plan_lists_what_downloads_and_what_waits(self):
+        code, out, _ = run_init(which=which_from("ollama"), get=serve_api(["llama3.2", "embeddinggemma-2"]))
+        self.assertEqual(code, 0)
+        self.assertIn("omni init will download:", out)
+        self.assertIn("stt: parakeet", out)
+        self.assertIn("tts: kokoro", out)
+        self.assertIn("image, video: not now", out)
+
+    def test_the_plan_says_when_a_speech_runtime_is_missing(self):
+        reason = "stt cannot run: this install has no mlx"
+        with patch.object(init.registry, "unavailable_reason", side_effect=lambda role: reason if role == "stt" else None):
+            lines = init.plan_lines(SETTINGS, all_media=False)
+        self.assertIn(f"  stt: parakeet  (skipped: {reason})", lines)
 
     def test_success_downloads_and_starts_the_speech_models(self):
         warm_calls = []

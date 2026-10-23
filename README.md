@@ -185,7 +185,7 @@ On macOS (Apple Silicon) this installs every role. On Linux the default install 
 curl -fsSL https://raw.githubusercontent.com/nvkudva/omni-api/main/install.sh | sh
 ```
 
-That installs the global `omni` command. Homebrew users on macOS can tap this repo instead:
+That installs the global `omni` command and every runtime the playground can start, but no models. Run `omni init` once afterwards: it installs Ollama if missing and downloads the chat, decide, embed, speech-to-text and text-to-speech models (several GB). Image and video are tens of GB, so they wait until first use or `omni init --media`. Homebrew users on macOS can tap this repo instead:
 
 ```sh
 brew tap nvkudva/omni
@@ -194,6 +194,8 @@ brew install omni
 ```
 
 The first install downloads about 1.5 GB of Python packages (MLX, torch) and prints uv's progress as it goes; wheels are cached under `~/Library/Caches/Homebrew/uv`, so a reinstall or upgrade takes under a minute.
+
+Homebrew installs the command and its runtimes but no models, because a formula must not download them. Run `omni init` once afterwards.
 
 From a clone, for development (`-e` makes edits take effect immediately):
 
