@@ -788,6 +788,23 @@ code {
 .code-block pre .s { color: var(--lime); }
 .code-block pre .f { color: var(--cyan); }
 
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.tab {
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--stroke);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--dim);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.tab:hover { color: var(--text); }
+.tab.is-active { color: var(--text); border-color: var(--cyan); }
+.tab-panel[hidden] { display: none; }
+.playground-models { margin-top: 72px; }
+
 /* ───────────── faq ───────────── */
 
 .faq { display: grid; gap: 12px; }

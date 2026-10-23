@@ -103,3 +103,17 @@ document.querySelectorAll("[data-shot-theme]").forEach((button) => {
     });
   });
 });
+
+// ── API example tabs ──────────────────────────────────────────────────────
+document.querySelectorAll("[data-tab]").forEach((tab) => {
+  tab.addEventListener("click", () => {
+    document.querySelectorAll("[data-tab]").forEach((other) => {
+      const isActive = other === tab;
+      other.classList.toggle("is-active", isActive);
+      other.setAttribute("aria-selected", String(isActive));
+    });
+    document.querySelectorAll("[data-tab-panel]").forEach((panel) => {
+      panel.hidden = panel.dataset.tabPanel !== tab.dataset.tab;
+    });
+  });
+});
