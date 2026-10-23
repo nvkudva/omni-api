@@ -64,7 +64,7 @@ const UNKNOWN = {
   held: false,
 };
 
-const MINI_TITLE = { stt: "STT", tts: "TTS" };
+const MINI_TITLE = { stt: "Speech to text", tts: "Text to speech" };
 
 const STATE_LABEL = { ready: "ready", missing: "needs setup", incompatible: "needs setup", unknown: "checking…" };
 

@@ -93,6 +93,7 @@ export function Workbench({ title, subtitle, readout, single, modelRole, headerT
           <div class={styles.barHead}>
             <div class={styles.titleRow}>
               <h1 class={styles.title}>{title}</h1>
+              {!ready && <NotReady role={modelRole} state={state} />}
               {(headerTools || modelRole) && (
                 <div class={styles.barTools}>
                   {headerTools}
@@ -108,7 +109,6 @@ export function Workbench({ title, subtitle, readout, single, modelRole, headerT
               )}
             </div>
             {subtitle && <p class={styles.subtitle}>{subtitle}</p>}
-            {!ready && <NotReady role={modelRole} state={state} />}
           </div>
           {readout && <Readout fields={readout} />}
         </div>

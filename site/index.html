@@ -91,12 +91,6 @@
         </button>
       </div>
 
-      <dl class="hero-stats reveal">
-        <div><dt>Roles served</dt><dd><span class="count" data-count="7">7</span></dd></div>
-        <div><dt>Ports exposed</dt><dd><span class="count" data-count="1">1</span></dd></div>
-        <div><dt>Chat speed</dt><dd><span class="count" data-count="140">140</span><span class="unit">tok/s</span></dd></div>
-        <div><dt>Data leaves machine</dt><dd class="nowrap">never</dd></div>
-      </dl>
     </div>
 
     <div class="hero-visual reveal" aria-hidden="true">
@@ -138,41 +132,6 @@
   <div class="ticker-track">
     <span>chat</span><span>decide</span><span>embed</span><span>image</span><span>video</span><span>stt</span><span>tts</span>
     <span>chat</span><span>decide</span><span>embed</span><span>image</span><span>video</span><span>stt</span><span>tts</span>
-  </div>
-</section>
-
-<!-- ───────────────────────────── problem ───────────────────────────── -->
-<section class="section" id="why">
-  <div class="container">
-    <header class="section-head reveal">
-      <p class="kicker">The problem</p>
-      <h2>Three ports, three download steps, model names in your code</h2>
-      <p class="sub">A local-first app usually ends up juggling a chat server, an embedding server and a speech model — and hard-coding every model name.</p>
-    </header>
-
-    <div class="split">
-      <article class="card card-muted reveal">
-        <h3 class="card-title bad">Before</h3>
-        <ul class="check-list bad-list">
-          <li>Ollama on :11434, embeddings on :8000, speech on :9000</li>
-          <li>A different download step, start command and RAM profile per model</li>
-          <li><code>model="qwen2.5:3b"</code> sprinkled through the codebase</li>
-          <li>Swapping a model breaks the app that called it</li>
-          <li>One model crashing takes the whole stack down</li>
-        </ul>
-      </article>
-
-      <article class="card card-accent reveal">
-        <h3 class="card-title good">After</h3>
-        <ul class="check-list good-list">
-          <li>One gateway on <code>127.0.0.1:10000</code> for every role</li>
-          <li><code>omni init</code> pulls, warms and supervises everything</li>
-          <li>Your app calls <code>chat</code>, <code>embed</code>, <code>tts</code></li>
-          <li>Config maps role → model, so swapping never breaks an app</li>
-          <li>Each role runs in its own process and restarts itself</li>
-        </ul>
-      </article>
-    </div>
   </div>
 </section>
 
@@ -229,13 +188,48 @@
   </div>
 </section>
 
+<!-- ───────────────────────────── problem ───────────────────────────── -->
+<section class="section" id="why">
+  <div class="container">
+    <header class="section-head reveal">
+      <p class="kicker">The problem</p>
+      <h2>Three ports, three download steps, model names in your code</h2>
+      <p class="sub">A local-first app usually ends up juggling a chat server, an embedding server and a speech model — and hard-coding every model name.</p>
+    </header>
+
+    <div class="split">
+      <article class="card card-muted reveal">
+        <h3 class="card-title bad">Before</h3>
+        <ul class="check-list bad-list">
+          <li>Ollama on :11434, embeddings on :8000, speech on :9000</li>
+          <li>A different download step, start command and RAM profile per model</li>
+          <li><code>model="qwen2.5:3b"</code> sprinkled through the codebase</li>
+          <li>Swapping a model breaks the app that called it</li>
+          <li>One model crashing takes the whole stack down</li>
+        </ul>
+      </article>
+
+      <article class="card card-accent reveal">
+        <h3 class="card-title good">After</h3>
+        <ul class="check-list good-list">
+          <li>One gateway on <code>127.0.0.1:10000</code> for every role</li>
+          <li><code>omni init</code> pulls, warms and supervises everything</li>
+          <li>Your app calls <code>chat</code>, <code>embed</code>, <code>tts</code></li>
+          <li>Config maps role → model, so swapping never breaks an app</li>
+          <li>Each role runs in its own process and restarts itself</li>
+        </ul>
+      </article>
+    </div>
+  </div>
+</section>
+
 <!-- ───────────────────────────── roles ───────────────────────────── -->
 <section class="section" id="roles">
   <div class="container">
     <header class="section-head reveal">
-      <p class="kicker">Roles</p>
-      <h2>Seven roles, one consistent API</h2>
-      <p class="sub">Each role has one endpoint, one default model and one engine — and you can swap any of them without touching your app.</p>
+      <p class="kicker">Models</p>
+      <h2>Seven models, one consistent API</h2>
+      <p class="sub">Each model has one endpoint, one default model and one engine — and you can swap any of them without touching your app.</p>
     </header>
 
     <div class="role-grid">
@@ -374,28 +368,6 @@
       </figure>
     </div>
 
-    <div class="shots reveal">
-      <figure class="shot">
-        <img data-theme-img="dark" src="assets/playground-decide-dark.png" alt="The decide page scoring a support ticket as probability bars (dark theme)" width="1600" height="1000" loading="lazy">
-        <img data-theme-img="light" src="assets/playground-decide-light.png" alt="The decide page scoring a support ticket as probability bars (light theme)" width="1600" height="1000" loading="lazy">
-        <figcaption>Decide — probabilities per option, no text to parse</figcaption>
-      </figure>
-      <figure class="shot">
-        <img data-theme-img="dark" src="assets/playground-embed-dark.png" alt="The embed page searching an indexed file by meaning (dark theme)" width="1600" height="1000" loading="lazy">
-        <img data-theme-img="light" src="assets/playground-embed-light.png" alt="The embed page searching an indexed file by meaning (light theme)" width="1600" height="1000" loading="lazy">
-        <figcaption>Embed — your own files, searchable by meaning</figcaption>
-      </figure>
-      <figure class="shot">
-        <img data-theme-img="dark" src="assets/playground-models-dark.png" alt="The models settings page listing the models of the chat role and what is on disk (dark theme)" width="1600" height="1000" loading="lazy">
-        <img data-theme-img="light" src="assets/playground-models-light.png" alt="The models settings page listing the models of the chat role and what is on disk (light theme)" width="1600" height="1000" loading="lazy">
-        <figcaption>Settings → Models — every role's models, what is on disk, what is loaded</figcaption>
-      </figure>
-      <figure class="shot">
-        <img data-theme-img="dark" src="assets/playground-server-dark.png" alt="The server settings page with the gateway, Ollama and the memory and CPU meters (dark theme)" width="1600" height="1000" loading="lazy">
-        <img data-theme-img="light" src="assets/playground-server-light.png" alt="The server settings page with the gateway, Ollama and the memory and CPU meters (light theme)" width="1600" height="1000" loading="lazy">
-        <figcaption>Settings → Server — the gateway, Ollama, the workers and the meters</figcaption>
-      </figure>
-    </div>
   </div>
 </section>
 
@@ -625,35 +597,6 @@ curl localhost:10000/v1/videos/video_abc123/content -o clip.mp4</code></pre>
       <code>/admin/memory</code>, <code>/admin/server</code>, <code>/admin/logs</code> and
       <code>/admin/requests</code>) are what the playground itself uses.
     </p>
-  </div>
-</section>
-
-<!-- ───────────────────────────── numbers ───────────────────────────── -->
-<section class="section section-tight" id="numbers">
-  <div class="container">
-    <header class="section-head reveal">
-      <p class="kicker">Measured</p>
-      <h2>On Apple Silicon, out of the box</h2>
-    </header>
-
-    <div class="numbers">
-      <div class="number reveal" style="--c:var(--cyan)">
-        <p class="num"><span class="count" data-count="140">140</span><span class="unit">tok/s</span></p>
-        <p class="num-label">chat streaming speed</p>
-      </div>
-      <div class="number reveal" style="--c:var(--lime)">
-        <p class="num"><span class="count" data-count="0.03" data-decimals="2">0.03</span><span class="unit">s</span></p>
-        <p class="num-label">warm embedding</p>
-      </div>
-      <div class="number reveal" style="--c:var(--rose)">
-        <p class="num"><span class="count" data-count="12">12</span><span class="unit">× realtime</span></p>
-        <p class="num-label">text to speech</p>
-      </div>
-      <div class="number reveal" style="--c:var(--pink)">
-        <p class="num"><span class="count" data-count="27">27</span><span class="unit">voices</span></p>
-        <p class="num-label">Kokoro speech</p>
-      </div>
-    </div>
   </div>
 </section>
 
