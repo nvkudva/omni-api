@@ -8,9 +8,9 @@ The first client is Hyperlight.
 
 ## Screenshots
 
-[![omni in 43 seconds: the launch film](docs/screenshots/omni-launch-poster.jpg)](marketing/omni-launch-16x9.mp4)
+[![omni in 53 seconds: the launch film](docs/screenshots/omni-launch-poster.jpg)](marketing/omni-launch-16x9.mp4)
 
-A 43 s silent tour: one base URL, seven roles, the real playground. [Watch the film](marketing/omni-launch-16x9.mp4) or open the [product page](https://nvkudva.github.io/omni-api/). Every screenshot below is the real playground, in the dark and the light theme (the toggle sits in the top bar; it follows your system until you pick one).
+A 53 s silent tour: why one app needs many models, how omni sets them up, the real playground, and the install commands. [Watch the film](marketing/omni-launch-16x9.mp4) or open the [product page](https://nvkudva.github.io/omni-api/). Every screenshot below is the real playground, in the dark and the light theme (the toggle sits in the top bar; it follows your system until you pick one).
 
 | Dark | Light |
 |---|---|
