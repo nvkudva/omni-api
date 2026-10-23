@@ -152,6 +152,9 @@ def register(app: FastAPI, ctx: Context) -> None:
         default = settings[role]["model"]
         match = next((entry for entry in available if registry.matches(entry["name"], default)), None)
         total = sum(entry.get("size_bytes") or 0 for entry in available)
+        runtime_reason = registry.unavailable_reason(role)
+        if runtime_reason:
+            return {"state": "incompatible", "reason": runtime_reason, "total_bytes": total}
         if match is not None:
             return {"state": "ready", "reason": None, "total_bytes": total}
         if _unsupported(role, default):

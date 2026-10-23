@@ -165,6 +165,9 @@ def register(app: FastAPI, ctx: Context) -> None:
         if name not in pool.workers:
             if name == "chat":
                 return error_response(409, f"ollama runs outside omni at {ctx.chat_url}; manage it there", "conflict")
+            reason = registry.unavailable_reason(name)
+            if reason:
+                return error_response(409, reason, "conflict")
             return error_response(404, f"no worker named {name}", "not_found")
         if action not in ("start", "stop", "restart"):
             return error_response(400, "action: start, stop or restart", "invalid_request_error")

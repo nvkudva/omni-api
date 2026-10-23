@@ -121,8 +121,8 @@
 
   --background: #05060f;
   --foreground: #f8f9ff;
-  /* A lifted navy, not a veil: the aurora behind must not wash through text. */
-  --card: rgba(30, 38, 74, 0.94);
+  /* A lifted, desaturated slate, not a veil: the aurora behind must not wash through text. */
+  --card: rgba(25, 28, 42, 0.94);
   --card-foreground: #f8f9ff;
   --popover: rgba(14, 18, 38, 0.94);
   --popover-foreground: #eef1ff;
