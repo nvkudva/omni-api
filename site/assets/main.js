@@ -1,4 +1,4 @@
-// omni product site — nav, copy buttons, tabs, reveal, counters, card glow.
+// omni product site — nav, copy buttons, reveal, counters, screenshot theme.
 
 const nav = document.getElementById("nav");
 const navLinks = document.getElementById("navLinks");
@@ -52,20 +52,6 @@ document.querySelectorAll(".copy-btn").forEach((button) => {
   });
 });
 
-// ── code tabs ─────────────────────────────────────────────────────────────
-document.querySelectorAll("[data-tabs]").forEach((group) => {
-  const tabs = group.querySelectorAll(".tab");
-  const panels = group.querySelectorAll(".tab-panel");
-  tabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      tabs.forEach((other) => other.classList.toggle("is-active", other === tab));
-      panels.forEach((panel) => {
-        panel.classList.toggle("is-active", panel.dataset.panel === tab.dataset.tab);
-      });
-    });
-  });
-});
-
 // ── reveal on scroll ──────────────────────────────────────────────────────
 const revealer = new IntersectionObserver(
   (entries) => {
@@ -104,14 +90,6 @@ const counter = new IntersectionObserver(
   { threshold: 0.6 }
 );
 document.querySelectorAll(".count").forEach((element) => counter.observe(element));
-
-// ── role card glow follows the pointer ────────────────────────────────────
-document.querySelectorAll(".role-card").forEach((card) => {
-  card.addEventListener("pointermove", (event) => {
-    const bounds = card.getBoundingClientRect();
-    card.style.setProperty("--mx", `${event.clientX - bounds.left}px`);
-  });
-});
 
 // ── playground screenshot theme ───────────────────────────────────────────
 const playground = document.getElementById("playground");
