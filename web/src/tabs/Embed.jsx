@@ -3,16 +3,13 @@ import { readDataUrl, record } from "../api/client.js";
 import { describeImage, embed, transcribe } from "../api/endpoints.js";
 import { cancelExec, newExecId } from "../api/execs.js";
 import { models } from "../api/models.js";
-import { ExecStrip } from "../components/ActivityStrips.jsx";
 import * as dialog from "../components/Confirm.jsx";
-import { shortModel, since, size } from "../lib/format.js";
+import { since, size } from "../lib/format.js";
 import { uid } from "../lib/uid.js";
 import { cx } from "../lib/cx.js";
 import * as corpus from "../lib/corpus.js";
 import * as storage from "../lib/storage.js";
-import * as thumbnail from "../lib/thumbnail.js";
 import * as vectorstore from "../lib/vectorstore.js";
-import { Icon } from "../components/Icon.jsx";
 import * as ui from "../components/ui.jsx";
 import { Panel, Turn, Workbench, useTurnState } from "../components/workbench.jsx";
 import { LogsCard } from "../components/LogsCard.jsx";
@@ -21,7 +18,6 @@ import styles from "./Embed.module.css";
 const BATCH = 64;
 const TOP_K = 5;
 const STATUS_BY_KIND = { text: "reading", image: "captioning", audio: "transcribing" };
-const ICON_BY_KIND = { text: "logs", image: "image", audio: "stt" };
 
 function visionModel() {
   const { data, defaults } = models.value;
@@ -102,16 +98,14 @@ function Stats({ done, storedBytes }) {
     chars: done.reduce((sum, file) => sum + file.chars, 0),
     ms: done.reduce((sum, file) => sum + file.ms, 0),
   };
-  const models = new Set(done.map((file) => file.model));
   const cells = [
     ["Files", totals.files],
     ["Chunks", totals.chunks],
     ["Stored", `≈ ${size(storedBytes)}`],
     ["Dims", done[0]?.dims ?? "—"],
-    ["Model", models.size > 1 ? "mixed" : shortModel(done[0]?.model) || "—"],
     ["Tokens", totals.tokens.toLocaleString()],
-    ["Text", `${textSize(totals.chars)} chars`],
-    ["Embed time", duration(totals.ms)],
+    ["Text", textSize(totals.chars)],
+    ["Time", duration(totals.ms)],
   ];
   return (
     <dl class={styles.stats}>
@@ -122,32 +116,40 @@ function Stats({ done, storedBytes }) {
   );
 }
 
-function FileLead({ job }) {
-  if (job.thumb) return <img class={styles.thumb} src={job.thumb} alt="" />;
-  return <span class={styles.kindIcon}><Icon name={ICON_BY_KIND[job.kind] ?? "logs"} size={16} /></span>;
-}
-
-function fileDetail(job, bytes) {
-  if (job.status === "embedding") return `embedding ${job.done}/${job.total}`;
-  if (job.status !== "done") return job.status;
-  return [job.kind, size(job.bytes), `${job.chunks} ${job.chunks === 1 ? "chunk" : "chunks"}`, `≈ ${size(bytes)} stored`].join(" · ");
-}
-
-function FileRow({ job, bytes, onRemove }) {
-  const working = job.status !== "done" && job.status !== "error";
+function BatchRow({ paths, jobs, indexing, onDismiss }) {
+  const batch = jobs.filter((job) => paths.includes(job.name));
+  const finished = batch.filter((job) => job.status === "done" || job.status === "error");
+  const failed = batch.filter((job) => job.status === "error");
+  const embedded = batch.filter((job) => job.status === "done");
+  const chunks = embedded.reduce((sum, job) => sum + job.chunks, 0);
+  const current = batch.find((job) => !finished.includes(job));
+  const partial = current?.total ? current.done / current.total : 0;
+  const title = indexing
+    ? `Embedding file ${Math.min(finished.length + 1, paths.length)} of ${paths.length}`
+    : `Embedded ${embedded.length} of ${paths.length} ${paths.length === 1 ? "file" : "files"}`;
+  const detail = [indexing ? current?.name ?? "starting" : null, `${chunks} ${chunks === 1 ? "chunk" : "chunks"}`].filter(Boolean).join(" · ");
   return (
-    <li class={styles.file}>
-      <FileLead job={job} />
+    <div class={styles.batch}>
       <div class={styles.fileText}>
-        <span class={styles.fileName} title={job.name}>{job.name}</span>
-        <span class={cx(styles.fileDetail, job.status === "error" && styles.fileBad)}>
-          {job.status === "error" ? `${job.kind ?? "file"} · failed` : fileDetail(job, bytes)}
-        </span>
+        <span class={styles.fileName}>{title}</span>
+        <span class={styles.fileDetail} title={detail}>{detail}</span>
       </div>
-      {!working && <ui.IconButton icon="x" label={`Remove ${job.name}`} onClick={onRemove} />}
-      {working && <div class={styles.fileBar}><ui.Meter fraction={job.total ? job.done / job.total : 0} /></div>}
-      {job.error && <span class={styles.fileError}>{job.error}</span>}
-    </li>
+      {!indexing && <ui.IconButton icon="x" label="Dismiss" onClick={onDismiss} />}
+      {indexing && <div class={styles.fileBar}><ui.Meter fraction={(finished.length + partial) / paths.length} /></div>}
+      {failed.length > 0 && (
+        <div class={styles.failures}>
+          <span class={styles.failuresTitle}>{failed.length} {failed.length === 1 ? "file" : "files"} failed</span>
+          <ul>
+            {failed.map((job) => (
+              <li key={job.name}>
+                <code title={job.name}>{job.name}</code>
+                <span>{job.error}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -195,6 +197,7 @@ export default function Embed() {
   const [skipped, setSkipped] = useState(0);
   const [unsaved, setUnsaved] = useState(false);
   const [indexing, setIndexing] = useState(false);
+  const [batchPaths, setBatchPaths] = useState([]);
   const [over, setOver] = useState(false);
   const [query, setQuery] = useState("");
   const [turns, setTurns] = useState([]);
@@ -231,15 +234,10 @@ export default function Embed() {
   const indexOne = async ({ file, path }, run) => {
     const kind = corpus.kindOf(file.name, file.type);
     const start = performance.now();
-    let thumb = "";
-    upsert(path, { kind, thumb: "", status: STATUS_BY_KIND[kind], done: 0, total: 0, error: "" });
+    upsert(path, { kind, status: STATUS_BY_KIND[kind], done: 0, total: 0, error: "" });
     try {
       if (kind === "text" && file.size > corpus.MAX_TEXT_BYTES) throw new Error("larger than 2 MB");
       if (kind === "image" && file.size > corpus.MAX_IMAGE_BYTES) throw new Error("larger than 10 MB");
-      if (kind === "image") {
-        thumb = await thumbnail.of(file);
-        upsert(path, { thumb });
-      }
       const text = await extractText(file, kind, run);
       const pieces = corpus.chunkText(text);
       if (!pieces.length) throw new Error("no text found in this file");
@@ -248,7 +246,7 @@ export default function Embed() {
       const ms = since(start);
       record("embed", 200, ms);
       const entries = pieces.map((piece, index) => ({ id: `${path}#${index}`, file: path, index, text: piece, embedding: vectors[index] }));
-      const stored = { name: path, kind, bytes: file.size, thumb, chars: text.length, chunks: pieces.length, tokens, dims: vectors[0].length, model, ms, at: Date.now() };
+      const stored = { name: path, kind, bytes: file.size, chars: text.length, chunks: pieces.length, tokens, dims: vectors[0].length, model, ms, at: Date.now() };
       setChunks((current) => [...current.filter((chunk) => chunk.file !== path), ...entries]);
       upsert(path, { ...stored, status: "done", done: pieces.length, total: pieces.length });
       await vectorstore.putFile(stored, entries).catch(() => setUnsaved(true));
@@ -266,6 +264,10 @@ export default function Embed() {
     setNotice("");
     const usable = items.filter(({ file, path }) => !corpus.isSkippedPath(path) && corpus.kindOf(file.name, file.type));
     setSkipped(items.length - usable.length);
+    const queued = [...new Set(usable.map(({ path }) => path))];
+    setBatchPaths(queued);
+    // Reset every path first: a re-dropped file still reads "done" from its last run and would count as finished.
+    queued.forEach((path) => upsert(path, { status: "queued", error: "" }));
     setIndexing(true);
     const run = {
       controller: new AbortController(),
@@ -281,6 +283,7 @@ export default function Embed() {
       await indexOne(item, run);
     }
     indexRun.current = null;
+    setJobs((current) => current.map((job) => (job.status === "queued" ? { ...job, status: "error", error: "stopped" } : job)));
     setIndexing(false);
   };
 
@@ -296,15 +299,10 @@ export default function Embed() {
     cancelExec(indexRun.current?.controller, indexRun.current?.execId);
   };
 
-  const removeFile = async (name) => {
-    setJobs((current) => current.filter((job) => job.name !== name));
-    setChunks((current) => current.filter((chunk) => chunk.file !== name));
-    await vectorstore.remove(name).catch(() => setUnsaved(true));
-  };
-
   const clearIndex = async () => {
     setJobs([]);
     setChunks([]);
+    setBatchPaths([]);
     setTurns([]);
     await vectorstore.clear().catch(() => setUnsaved(true));
   };
@@ -424,7 +422,6 @@ export default function Embed() {
             }}
           />
         </div>
-        <ExecStrip role="embed" />
         {catalogLoaded && !canCaption && (
           <ui.Notice tone="warn">No installed chat model supports vision, so images cannot be embedded. Install one in Settings.</ui.Notice>
         )}
@@ -432,9 +429,8 @@ export default function Embed() {
         {notice && <ui.Notice tone="warn">{notice}</ui.Notice>}
         {skipped > 0 && <p class={styles.notes}>{skipped} unsupported or hidden {skipped === 1 ? "file" : "files"} skipped.</p>}
         {done.length > 0 && <Stats done={done} storedBytes={storage.total(footprints)} />}
-        {jobs.length > 0
-          ? <ul class={styles.files}>{jobs.map((job) => <FileRow key={job.name} job={job} bytes={footprints.get(job.name) ?? 0} onRemove={() => removeFile(job.name)} />)}</ul>
-          : <ui.Empty>Nothing embedded yet.</ui.Empty>}
+        {batchPaths.length > 0 && <BatchRow paths={batchPaths} jobs={jobs} indexing={indexing} onDismiss={() => setBatchPaths([])} />}
+        {jobs.length === 0 && <ui.Empty>Nothing embedded yet.</ui.Empty>}
         <FinePrint usage={usage} />
       </Panel>
 

@@ -60,7 +60,7 @@ class Workers(unittest.TestCase):
 
     def test_a_missing_dependency_reads_as_not_installed(self):
         with unittest.mock.patch.object(roles.importlib.util, "find_spec", return_value=None):
-            self.assertIn("missing", roles.unavailable_reason("stt"))
+            self.assertIn("media extra", roles.unavailable_reason("stt"))
 
 
 class Normalize(unittest.TestCase):

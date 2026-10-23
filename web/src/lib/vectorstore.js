@@ -68,14 +68,6 @@ export async function putFile(file, chunks) {
   await finished(transaction);
 }
 
-export async function remove(name) {
-  const database = await open();
-  const transaction = database.transaction([FILES, CHUNKS], "readwrite");
-  deleteChunksOf(transaction, name);
-  transaction.objectStore(FILES).delete(name);
-  await finished(transaction);
-}
-
 export async function clear() {
   const database = await open();
   const transaction = database.transaction([FILES, CHUNKS], "readwrite");

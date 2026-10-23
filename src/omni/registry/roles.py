@@ -30,7 +30,8 @@ def unavailable_reason(role: str) -> str | None:
         return None
     missing = [dep for dep in deps if importlib.util.find_spec(dep) is None]
     if missing:
-        return f"{role} is not installed here: {', '.join(missing)} missing (install the media extra)"
+        return (f"{role} cannot run: this install has no {', '.join(missing)}, which come with the media extra. "
+                'Reinstall with it: uv tool install --force "omni-api[media]" (or brew reinstall omni if you installed with Homebrew)')
     if role in MPS_ROLES and sys.platform != "darwin":
         return f"{role} renders on Metal (MPS), which this {sys.platform} machine does not have"
     return None

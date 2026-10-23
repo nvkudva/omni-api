@@ -52,7 +52,7 @@
 .button {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
   height: var(--control-h); padding: 0.5rem 1rem;
-  border: 1px solid transparent; border-radius: var(--radius-md);
+  border: 0; border-radius: var(--radius-md);
   font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; white-space: nowrap;
   cursor: pointer; user-select: none; -webkit-user-select: none;
   transition: background-color 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
@@ -72,9 +72,9 @@
   }
   &.primary:hover:not(:disabled) { filter: brightness(1.08); }
 
-  /* outline: border bg-background shadow-xs hover:bg-accent
+  /* outline: bg-background shadow-xs (flat, no border) hover:bg-accent
      (dark:bg-input/30 — --raised carries the light/dark difference). */
-  &.outline { background: var(--raised); color: var(--foreground); border-color: var(--input); box-shadow: var(--shadow-xs); }
+  &.outline { background: var(--raised); color: var(--foreground); box-shadow: var(--shadow-xs); }
   &.outline:hover:not(:disabled) { background: var(--accent); color: var(--accent-foreground); }
 
   /* secondary: bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80 */
@@ -90,6 +90,11 @@
   /* destructive: text-white, --destructive-fill carries the dark theme's 60%. */
   &.danger, &.stop { background: var(--destructive-fill); color: var(--destructive-foreground); box-shadow: var(--shadow-xs); }
   &.danger:hover:not(:disabled), &.stop:hover:not(:disabled) { background: var(--destructive-fill-hover); }
+}
+
+/* Shadows are dropped in forced-colors mode, so give the borderless button a real edge there. */
+@media (forced-colors: active) {
+  .button { border: 1px solid ButtonText; }
 }
 
 /* size-9 ghost icon button. */
@@ -163,9 +168,8 @@
     transition: transform 0.16s cubic-bezier(0.3, 0.7, 0.3, 1);
   }
   &.on {
-    background: var(--brand-gradient);
+    background: var(--brand-gradient) border-box;
     border-color: transparent;
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--brand-ink) 30%, transparent), var(--shadow-xs);
   }
   &.on::after { transform: translate(1rem, -50%); background: #fff; }
   &:disabled { opacity: 0.5; cursor: not-allowed; }

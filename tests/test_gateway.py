@@ -154,6 +154,12 @@ class Gateway(unittest.TestCase):
             else:
                 self.assertTrue(entry["reason"], role)
 
+    def test_admin_status_flags_a_role_whose_runtime_is_missing(self):
+        with patch("omni.registry.unavailable_reason", return_value="stt cannot run: this install has no mlx"):
+            body = self.client.get("/admin/models/status").json()
+        self.assertEqual(body["roles"]["stt"]["state"], "incompatible")
+        self.assertIn("cannot run", body["roles"]["stt"]["reason"])
+
     def test_admin_check_refuses_a_repo_the_runtime_cannot_run(self):
         response = self.client.get("/admin/models/check",
                                    params={"role": "video", "model": "https://huggingface.co/Qwen/Qwen-Image-2.1"})
@@ -240,6 +246,13 @@ class Gateway(unittest.TestCase):
         response = self.client.get("/admin/models/search", params={"role": "chat", "limit": 0})
         self.assertEqual(response.status_code, 422)
         self.assertEqual(_error(response)["type"], "invalid_request_error")
+
+    def test_admin_worker_start_explains_a_missing_media_install(self):
+        # the pool omits a worker whose runtime is missing; "nope" stands in for it
+        with patch("omni.registry.unavailable_reason", return_value="stt cannot run: this install has no mlx"):
+            response = self.client.post("/admin/workers/nope/start")
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("cannot run", _error(response)["message"])
 
     def test_admin_worker_unknown_name(self):
         response = self.client.post("/admin/workers/nope/start")
