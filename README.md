@@ -193,6 +193,8 @@ brew trust nvkudva/omni      # Homebrew 7+ refuses untrusted third-party taps
 brew install omni
 ```
 
+The first install downloads about 1.5 GB of Python packages (MLX, torch) and prints uv's progress as it goes; wheels are cached under `~/Library/Caches/Homebrew/uv`, so a reinstall or upgrade takes under a minute.
+
 From a clone, for development (`-e` makes edits take effect immediately):
 
 ```sh
