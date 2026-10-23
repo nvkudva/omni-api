@@ -341,6 +341,9 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
   const status = cardStatus(state, { checking, needsSetup, installing });
   const look = CARD_STATUS[status];
   const word = installing ? download?.status ?? look.word : look.word;
+  // Loading and starting have no byte count, so their bar pulses instead of filling.
+  const working = installing || status === "loading" || status === "starting";
+  const fraction = installing ? download.fraction || 0 : 0;
   const [warmBusy, flipWarm] = useWarmToggle(role, state.model, pinned, { onProblem: setProblem });
   const [startBusy, startWorker] = useStartWorker(role, setProblem);
 
@@ -448,16 +451,16 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
           />
         )}
       </span>
-      {installing && (
+      {working && (
         <span
-          class={cx(styles.download, !download.fraction && styles.waiting)}
+          class={cx(styles.download, !fraction && styles.waiting)}
           role="progressbar"
-          aria-label={`Downloading ${download.model}`}
+          aria-label={installing ? `Downloading ${download.model}` : word}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={Math.round((download.fraction || 0) * 100)}
+          aria-valuenow={Math.round(fraction * 100)}
         >
-          <span class={styles.downloadFill} style={{ width: `${Math.min(1, download.fraction || 0) * 100}%` }} />
+          <span class={styles.downloadFill} style={{ width: `${Math.min(1, fraction) * 100}%` }} />
         </span>
       )}
     </div>

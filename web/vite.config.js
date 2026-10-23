@@ -9,6 +9,6 @@ export default defineConfig({
   build: { outDir: "../src/omni/static/app", emptyOutDir: true },
   server: {
     port: 5180,
-    proxy: { "/v1": GATEWAY, "/admin": GATEWAY, "/health": GATEWAY },
+    proxy: Object.fromEntries(["/v1", "/admin", "/health"].map((path) => [path, { target: GATEWAY, changeOrigin: true, headers: { origin: GATEWAY } }])),
   },
 });
