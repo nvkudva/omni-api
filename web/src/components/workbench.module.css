@@ -83,8 +83,8 @@
 /* The header's line: what is missing, and the one action that fixes it. */
 .notReady {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  margin-top: 10px;
 }
+.notReady button { filter: saturate(0.7) brightness(0.97); }
 .notReadyText { color: var(--muted-foreground); font-size: 0.875rem; line-height: 1.5; }
 
 /* --- Panel: a shadcn Card with a header, a scrolling body and a footer ----- */
