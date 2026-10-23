@@ -2,6 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { ask, withForce } from "./Confirm.jsx";
 import { ROLE_META, WORKER_ROLES, downloadFor, install, pollRuntime, runtime, setPinned, stopDownload } from "../api/roles.js";
+import { notify } from "../api/notify.js";
 import { deleteModel, loadRole, saveSetting, setRoleDefault, unloadRole, workerAction } from "../api/endpoints.js";
 import { InstallProgress } from "./FindAndInstall.jsx";
 import { HealthCard } from "./HealthCard.jsx";
@@ -110,6 +111,7 @@ function useWarmToggle(role, model, pinned, { onChanged, onProblem } = {}) {
     } catch (error) {
       if (onProblem) onProblem(error.message);
       else onChanged?.(error.message);
+      notify(error.message, { title: `Could not keep ${ROLE_META[role]?.label ?? role} warm` });
     } finally {
       setBusy(false);
     }
@@ -133,6 +135,7 @@ function useStartWorker(role, onProblem) {
       await pollRuntime();
     } catch (error) {
       onProblem?.(error.message);
+      notify(error.message, { title: `Could not start ${ROLE_META[role]?.label ?? role}` });
     } finally {
       setBusy(false);
     }

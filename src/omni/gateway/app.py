@@ -22,7 +22,7 @@ log = logging.getLogger("omni.gateway")
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 PLAYGROUND_INDEX = STATIC_DIR / "app" / "index.html"
 PLAYGROUND_PATHS = tuple(
-    f"/{tab}" for tab in ("chat", "decide", "embed", "image", "video", "stt", "tts", "settings", "settings/server", "settings/models")
+    f"/{tab}" for tab in ("chat", "decide", "embed", "image", "video", "stt", "tts", "settings", "settings/server", "settings/models", "settings/problems")
 )
 LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
 SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}

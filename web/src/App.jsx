@@ -9,6 +9,7 @@ import { usePolling } from "./hooks/usePolling.js";
 import { useTheme } from "./hooks/useTheme.js";
 import { GatewayStatus, LastRequest } from "./components/GatewayStatus.jsx";
 import { ConfirmHost } from "./components/Confirm.jsx";
+import { Toasts } from "./components/Toasts.jsx";
 import { RoleModelCard } from "./components/RoleModelCard.jsx";
 import * as store from "./store.js";
 import styles from "./App.module.css";
@@ -35,7 +36,7 @@ function savedTab() {
 export function parsePath(path) {
   const [first, second, third] = path.split("/").filter(Boolean);
   if (first === "settings") {
-    const section = second === "models" || second === "server" ? second : store.get("omni.settings", "server") === "models" ? "models" : "server";
+    const section = second === "models" || second === "server" || second === "problems" ? second : store.get("omni.settings", "server") === "models" ? "models" : "server";
     return { tab: "settings", section, role: section === "models" && ROLE_ORDER.includes(third) ? third : null };
   }
   return { tab: ROLE_ORDER.includes(first) ? first : savedTab(), section: null, role: null };
@@ -167,6 +168,7 @@ export default function App() {
         </div>
       </div>
       <ConfirmHost />
+      <Toasts />
     </div>
   );
 }

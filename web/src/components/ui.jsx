@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from "preact/hooks";
 import { tintJson, tintShell } from "../lib/highlight.js";
 import { useModal } from "../hooks/useModal.js";
 import { Icon } from "./Icon.jsx";
+import { record } from "../api/notify.js";
 import styles from "./ui.module.css";
 
 // The module's class names, for the shared patterns other components reuse
@@ -176,7 +177,11 @@ export function Notice({ tone = "warn", children }) {
   return <p role={tone === "error" ? "alert" : "status"} class={cx(styles.notice, styles[tone])}>{children}</p>;
 }
 
+/** An inline error. It also lands in the Problems log; only plain-text messages are recorded. */
 export function ErrorText({ children }) {
+  const parts = toChildArray(children);
+  const text = parts.every((part) => typeof part === "string") ? parts.join("") : "";
+  useEffect(() => { if (text) record(text); }, [text]);
   return <Notice tone="error">{children}</Notice>;
 }
 

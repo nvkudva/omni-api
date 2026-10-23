@@ -1,8 +1,10 @@
 import { Icon } from "../components/Icon.jsx";
 import { cx } from "../lib/cx.js";
 import { ROLE_META } from "../api/roles.js";
+import { problems } from "../api/notify.js";
 import * as control from "./Control.jsx";
 import Models from "./Models.jsx";
+import Problems from "./Problems.jsx";
 import styles from "./Settings.module.css";
 
 export default function Settings({ section = "server", role = null, backTo = "chat", onNavigate, onBack }) {
@@ -34,10 +36,20 @@ export default function Settings({ section = "server", role = null, backTo = "ch
             <Icon name="models" />
             Models
           </button>
+          <button
+            type="button"
+            class={section === "problems" ? cx(styles.item, styles.on) : styles.item}
+            aria-current={section === "problems" ? "page" : undefined}
+            onClick={() => go("problems")}
+          >
+            <Icon name="warn" />
+            Problems{problems.value.length > 0 && <span class={styles.count}>{problems.value.length}</span>}
+          </button>
         </div>
       </nav>
       <div class={styles.content}>
         {section === "server" && <control.Server />}
+        {section === "problems" && <Problems />}
         {section === "models" && <Models role={role} onRole={(next) => onNavigate({ tab: "settings", section: "models", role: next })} />}
       </div>
     </div>
