@@ -323,6 +323,8 @@ code {
   max-width: 100%;
   overflow: hidden;
 }
+.install-label { margin: 16px 0 8px; font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--dim); }
+.install-line + .install-line { margin-top: 10px; }
 .install-line code {
   background: none;
   border: none;
