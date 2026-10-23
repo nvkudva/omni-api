@@ -120,10 +120,10 @@
   --aurora-indigo: rgba(129, 140, 248, 0.5);
 
   --background: #05060f;
-  --foreground: #eef1ff;
+  --foreground: #f8f9ff;
   /* A lifted navy, not a veil: the aurora behind must not wash through text. */
-  --card: rgba(17, 22, 46, 0.92);
-  --card-foreground: #eef1ff;
+  --card: rgba(30, 38, 74, 0.94);
+  --card-foreground: #f8f9ff;
   --popover: rgba(14, 18, 38, 0.94);
   --popover-foreground: #eef1ff;
   --primary: #818cf8;
@@ -131,12 +131,12 @@
   --secondary: rgba(255, 255, 255, 0.08);
   --secondary-foreground: #eef1ff;
   --muted: rgba(255, 255, 255, 0.06);
-  --muted-foreground: #98a1c6;
+  --muted-foreground: #c3cae8;
   --accent: rgba(129, 140, 248, 0.16);
   --accent-foreground: #eef1ff;
   --destructive: #fb7185;
   --destructive-foreground: #fecdd3;
-  --border: rgba(255, 255, 255, 0.10);
+  --border: rgba(255, 255, 255, 0.15);
   --input: rgba(255, 255, 255, 0.14);
   --ring: #22d3ee;
 
@@ -152,7 +152,7 @@
   --green: #4ade80;
   --orange: #fbbf24;
   --red: #fb7185;
-  --text-3: #7b84ad;
+  --text-3: #9fa8d0;
 
   --field: rgba(255, 255, 255, 0.05);
   --raised: rgba(255, 255, 255, 0.08);
@@ -166,7 +166,7 @@
   --switch-thumb: #05060f;
   --segment-on-border: var(--input);
   /* A 1px top light lifts a navy card off the near-black page, where the border alone is faint. */
-  --card-edge: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --card-edge: inset 0 1px 0 rgba(255, 255, 255, 0.09);
 
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23a1a1aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   color-scheme: dark;
