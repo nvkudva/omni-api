@@ -1,6 +1,6 @@
 [project]
 name = "omni-api"
-version = "0.8.0"
+version = "0.8.1"
 description = "One local gateway for chat, decide, embeddings, speech-to-text and text-to-speech"
 readme = "README.md"
 license = "MIT"
