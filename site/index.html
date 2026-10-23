@@ -68,19 +68,17 @@
       </p>
 
       <h1 class="reveal">
-        Every AI model your app needs.
-        <span class="grad-text">One install, zero setup pain.</span>
+        Every AI model you need,
+        <span class="grad-text">running locally in one place.</span>
       </h1>
 
       <p class="lede reveal">
-        Chat, speech, images, video and embeddings — running on your own machine behind a
-        single port. No terminals to juggle, no model hunting, no API keys.
-        Set it up in a couple of clicks and start building.
+        Multiple models expose their API behind a single port.
+        Set it all up in just a couple of clicks.
       </p>
 
       <div class="hero-cta reveal">
         <a class="btn btn-primary" href="#quickstart">Install omni</a>
-        <a class="btn btn-ghost" href="#film">Watch the film</a>
       </div>
 
       <div class="install-line reveal">
@@ -90,11 +88,13 @@
         </button>
       </div>
 
-      <dl class="hero-stats reveal">
-        <div><dt>AI roles</dt><dd><span class="count" data-count="7">7</span></dd></div>
-        <div><dt>Ports to manage</dt><dd><span class="count" data-count="1">1</span></dd></div>
-        <div><dt>Data leaves machine</dt><dd class="nowrap">never</dd></div>
-      </dl>
+      <div class="install-line reveal">
+        <code id="brewCmd">brew tap nvkudva/omni &amp;&amp; brew trust nvkudva/omni &amp;&amp; brew install omni</code>
+        <button class="copy-btn" data-copy="#brewCmd" aria-label="Copy Homebrew install command">
+          <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg>
+        </button>
+      </div>
+
     </div>
 
     <div class="hero-visual reveal" aria-hidden="true">
@@ -134,11 +134,6 @@
 <!-- ───────────────────────────── film ───────────────────────────── -->
 <section class="section section-film" id="film">
   <div class="container">
-    <header class="section-head reveal">
-      <p class="kicker">Watch</p>
-      <h2>omni in 53 seconds</h2>
-      <p class="sub">Why one app needs many models, how omni sets them up, and the install commands. No sound needed.</p>
-    </header>
     <figure class="film reveal">
       <video controls muted playsinline preload="metadata" poster="assets/omni-launch-poster.jpg" width="1920" height="1080">
         <source src="assets/omni-launch.mp4" type="video/mp4">
@@ -224,7 +219,7 @@
   <div class="container">
     <header class="section-head reveal">
       <p class="kicker">Quickstart</p>
-      <h2>Running in three commands</h2>
+      <h2>Install, run, stop, uninstall</h2>
       <p class="sub">Install, pull the models, start. Then open the playground and click.</p>
     </header>
 
@@ -233,12 +228,16 @@
         <span class="step-num">1</span>
         <div class="step-body">
           <h3>Install</h3>
-          <p>Brings Python and uv if they are missing, then installs the <code>omni</code> command. On macOS you can use Homebrew instead.</p>
+          <p>Brings Python and uv if they are missing, then installs the <code>omni</code> command. On macOS you can use Homebrew instead — each command below is its own copy button.</p>
           <div class="code-block">
             <div class="code-head"><span class="code-lang">shell</span><button class="copy-btn" data-copy="#codeInstall" aria-label="Copy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg></button></div>
-            <pre id="codeInstall"><code>curl -fsSL https://raw.githubusercontent.com/nvkudva/omni-api/main/install.sh | sh
-
-# or: brew tap nvkudva/omni &amp;&amp; brew trust nvkudva/omni &amp;&amp; brew install omni</code></pre>
+            <pre id="codeInstall"><code>curl -fsSL https://raw.githubusercontent.com/nvkudva/omni-api/main/install.sh | sh</code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-head"><span class="code-lang">shell</span><button class="copy-btn" data-copy="#codeBrew" aria-label="Copy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg></button></div>
+            <pre id="codeBrew"><code>brew tap nvkudva/omni
+brew trust nvkudva/omni
+brew install omni</code></pre>
           </div>
         </div>
       </li>
@@ -268,6 +267,7 @@ omni init --media    # also image and video</code></pre>
         </div>
       </li>
     </ol>
+
   </div>
 </section>
 
@@ -300,6 +300,25 @@ omni init --media    # also image and video</code></pre>
         <img data-theme-img="light" src="assets/playground-chat-light.png" alt="The omni playground: role cards in the left rail and a streaming chat reply on the right (light theme)" width="1600" height="1000">
       </figure>
     </div>
+    <div class="playground-grid playground-models">
+      <figure class="shot reveal">
+        <img data-theme-img="dark" src="assets/playground-models-dark.png" alt="The omni playground Settings page listing every role's models, with install, default and remove actions (dark theme)" width="1600" height="1000">
+        <img data-theme-img="light" src="assets/playground-models-light.png" alt="The omni playground Settings page listing every role's models, with install, default and remove actions (light theme)" width="1600" height="1000">
+      </figure>
+
+      <div class="reveal">
+        <header class="section-head section-head-left">
+          <p class="kicker">Models</p>
+          <h2>Manage models in your browser</h2>
+          <p class="sub">Settings lists every model for every role. Add one, make it the default, or remove it without touching a config file.</p>
+        </header>
+        <ul class="feature-list">
+          <li><b>Add</b> — search Hugging Face or Ollama and install with one click.</li>
+          <li><b>Default</b> — pick which model each role serves.</li>
+          <li><b>Fit</b> — see the size up front and get warned before a model won't fit your RAM.</li>
+        </ul>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -309,19 +328,52 @@ omni init --media    # also image and video</code></pre>
     <header class="section-head reveal">
       <p class="kicker">Build</p>
       <h2>Your OpenAI client already works</h2>
-      <p class="sub">Change one <code>base_url</code>. Full endpoint reference is in the <a href="https://github.com/nvkudva/omni-api#readme" target="_blank" rel="noopener">README</a>.</p>
+      <p class="sub">Change one <code>base_url</code>; the Python tabs reuse the <code>client</code> from Chat. Full endpoint reference is in the <a href="https://github.com/nvkudva/omni-api#readme" target="_blank" rel="noopener">README</a>.</p>
     </header>
 
-    <div class="code-block reveal">
-      <div class="code-head"><span class="code-lang">python</span><button class="copy-btn" data-copy="#codePy" aria-label="Copy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg></button></div>
-      <pre id="codePy"><code>from openai import OpenAI
+    <div class="tabs reveal" role="tablist" aria-label="Role examples"><button type="button" role="tab" class="tab is-active" data-tab="chat" aria-selected="true">Chat</button><button type="button" role="tab" class="tab" data-tab="decide" aria-selected="false">Decide</button><button type="button" role="tab" class="tab" data-tab="embed" aria-selected="false">Embed</button><button type="button" role="tab" class="tab" data-tab="tts" aria-selected="false">TTS</button><button type="button" role="tab" class="tab" data-tab="stt" aria-selected="false">STT</button><button type="button" role="tab" class="tab" data-tab="image" aria-selected="false">Image</button></div>
+    <div class="reveal">
+      <div class="code-block tab-panel" data-tab-panel="chat">
+        <div class="code-head"><span class="code-lang">python</span><button class="copy-btn" data-copy="#code-chat" aria-label="Copy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg></button></div>
+        <pre id="code-chat"><code>from openai import OpenAI
 
 client = OpenAI(base_url="http://127.0.0.1:10000/v1", api_key="local")
 
-client.chat.completions.create(model="qwen2.5:0.5b", messages=[{"role": "user", "content": "Hi!"}])
-client.embeddings.create(model="embed", input=["refund policy"])
-client.images.generate(model="image", prompt="a lighthouse at dawn")
-client.audio.speech.create(model="tts", voice="af_heart", input="Hello from omni.")</code></pre>
+reply = client.chat.completions.create(
+    model="qwen2.5:0.5b",
+    messages=[{"role": "user", "content": "Hi!"}],
+)
+print(reply.choices[0].message.content)</code></pre>
+      </div>
+      <div class="code-block tab-panel" data-tab-panel="decide" hidden>
+        <div class="code-head"><span class="code-lang">shell</span><button class="copy-btn" data-copy="#code-decide" aria-label="Copy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg></button></div>
+        <pre id="code-decide"><code>curl localhost:10000/v1/systemone -H 'content-type: application/json' -d '{
+  "state": "I have asked three times and still no refund!",
+  "questions": {
+    "is_frustrated": {"type": "noul", "instructions": "Does the customer sound frustrated?"},
+    "topic": {"type": "choice", "instructions": "What is this about?",
+              "criteria": {"billing": "money, refunds", "shipping": "delivery"}}
+  }
+}'</code></pre>
+      </div>
+      <div class="code-block tab-panel" data-tab-panel="embed" hidden>
+        <div class="code-head"><span class="code-lang">python</span><button class="copy-btn" data-copy="#code-embed" aria-label="Copy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg></button></div>
+        <pre id="code-embed"><code>client.embeddings.create(model="embed", input=["refund policy", "shipping times"])</code></pre>
+      </div>
+      <div class="code-block tab-panel" data-tab-panel="tts" hidden>
+        <div class="code-head"><span class="code-lang">python</span><button class="copy-btn" data-copy="#code-tts" aria-label="Copy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg></button></div>
+        <pre id="code-tts"><code>client.audio.speech.create(
+    model="tts", voice="af_heart", input="Hello from omni."
+).write_to_file("out.wav")</code></pre>
+      </div>
+      <div class="code-block tab-panel" data-tab-panel="stt" hidden>
+        <div class="code-head"><span class="code-lang">python</span><button class="copy-btn" data-copy="#code-stt" aria-label="Copy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg></button></div>
+        <pre id="code-stt"><code>client.audio.transcriptions.create(model="stt", file=open("out.wav", "rb"))</code></pre>
+      </div>
+      <div class="code-block tab-panel" data-tab-panel="image" hidden>
+        <div class="code-head"><span class="code-lang">python</span><button class="copy-btn" data-copy="#code-image" aria-label="Copy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg></button></div>
+        <pre id="code-image"><code>client.images.generate(model="image", prompt="a lighthouse at dawn", size="1024x1024")</code></pre>
+      </div>
     </div>
   </div>
 </section>

@@ -197,6 +197,24 @@ The first install downloads about 1.5 GB of Python packages (MLX, torch) and pri
 
 Homebrew installs the command and its runtimes but no models, because a formula must not download them. Run `omni init` once afterwards.
 
+### Uninstall
+
+Installed with the script:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/nvkudva/omni-api/main/uninstall.sh | sh
+# add --purge to also delete ~/.omni-api (config, pins, logs):  ... | sh -s -- --purge
+```
+
+Installed with Homebrew:
+
+```sh
+brew uninstall omni
+brew untap nvkudva/omni      # optional
+```
+
+Both leave downloaded models alone (`~/.ollama`, `~/.cache/huggingface`); delete those yourself to reclaim the disk. Run `omni down` first if the gateway is still running (the script does it for you).
+
 From a clone, for development (`-e` makes edits take effect immediately):
 
 ```sh
