@@ -280,8 +280,10 @@ def warm_media(host: str, port: int, wanted_roles: tuple[str, ...]) -> int:
     except (httpx.HTTPError, ValueError):
         return error(f"omni is running but /health does not answer on {host}:{port}")
     roles = [role for role in wanted_roles if role in served]
+    for role in wanted_roles:
+        if role not in served:
+            print(f"{role}: skipped, {registry.unavailable_reason(role) or 'its worker is not running'}")
     if not roles:
-        print("no media role is served by this install; nothing to warm")
         return 0
     failed = 0
     for role in roles:
@@ -298,6 +300,19 @@ def warm_media(host: str, port: int, wanted_roles: tuple[str, ...]) -> int:
             continue
         print(f"{role}: loaded")
     return 1 if failed else 0
+
+
+def plan_lines(settings: dict, all_media: bool) -> list[str]:
+    """What this run downloads and what it leaves for later, so a multi-GB wait is never a surprise."""
+    wanted = MEDIA_ROLES if all_media else SPEECH_ROLES
+    lines = ["omni init will download:",
+             f"  chat, decide, embed (Ollama): {', '.join(sorted({settings[role]['model'] for role in registry.OLLAMA_ROLES}))}"]
+    for role in wanted:
+        reason = registry.unavailable_reason(role)
+        lines.append(f"  {role}: {settings[role]['model']}" + (f"  (skipped: {reason})" if reason else ""))
+    if not all_media:
+        lines.append("  image, video: not now (tens of GB); they download on first use, or run `omni init --media`")
+    return lines
 
 
 def run(all_media: bool = False) -> int:
@@ -326,6 +341,8 @@ def _run(all_media: bool, started: list[subprocess.Popen]) -> int:
     except config.ConfigError as failure:
         return error(f"omni: {failure}", "  fix or unset OLLAMA_HOST and run `omni init` again")
 
+    for line in plan_lines(settings, all_media):
+        print(line)
     present, installed_now = require_ollama()
     if not present:
         return 1

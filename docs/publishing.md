@@ -12,7 +12,7 @@ curl -fsSL https://raw.githubusercontent.com/nvkudva/omni-api/main/install.sh | 
 
 It installs `uv` when missing, then `uv tool install git+https://github.com/nvkudva/omni-api@main`, verifies the binary, and reports whether the target directory is on `PATH`.
 
-Options: `--from` (any uv tool spec: a local path, a git URL, a package), `--version TAG` (a release tag), `--init` (also run `omni init`), `--bin-dir`, `--modify-path`.
+Options: `--from` (any uv tool spec: a local path, a git URL, a package), `--version TAG` (a release tag), `--no-init` (skip `omni init`, which runs by default and downloads every model except image and video), `--bin-dir`, `--modify-path`.
 
 Why `uv tool install` and not `pip`: `pyproject.toml` pins four dependencies that PyPI does not serve — the git revisions of `diffusers`, `ltx-core-mlx` and `ltx-pipelines-mlx`, plus the spaCy wheel URL for `en-core-web-sm`. Those live in `[tool.uv.sources]`, which only uv reads. `uv tool install` therefore installs exactly what this repo tests against.
 

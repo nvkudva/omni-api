@@ -4,8 +4,9 @@
 #   curl -fsSL https://raw.githubusercontent.com/nvkudva/omni-api/main/install.sh | sh
 #
 # It puts uv in place (the only prerequisite), installs omni as a uv tool, and
-# leaves a global `omni` on your PATH. Models are not downloaded here: `omni init`
-# pulls the Ollama ones, and the speech/image/video models download on first use.
+# leaves a global `omni` on your PATH, then runs `omni init`, which installs Ollama if it
+# is missing and downloads the chat, decide, embed, speech-to-text and text-to-speech
+# models. Image and video are tens of GB, so they download on first use. --no-init skips it.
 #
 # Every failure prints a `fix:` line. Nothing is written until the checks pass.
 set -u
@@ -14,7 +15,7 @@ REPO="https://github.com/nvkudva/omni-api"
 DEFAULT_REF="main"
 SOURCE=""
 VERSION=""
-RUN_INIT=0
+RUN_INIT=1
 MODIFY_PATH=0
 MEDIA=0
 BIN_DIR="${OMNI_BIN_DIR:-${UV_TOOL_BIN_DIR:-$HOME/.local/bin}}"
@@ -41,8 +42,10 @@ Options:
                    (a local path, a git URL, or a package name). A local
                    checkout on macOS also gets the media extra.
   --version TAG    Install the release tag TAG (v0.2.0 counts as 0.2.0).
-  --init           Run `omni init` afterwards: install Ollama and pull the
-                   chat, decide and embed models (a few GB).
+  --no-init        Skip `omni init`. By default it runs afterwards: installs
+                   Ollama if missing, then downloads the chat, decide, embed,
+                   speech-to-text and text-to-speech models (several GB).
+                   Image and video download on first use (or `omni init --media`).
   --media          Also install the speech and video workers. Already the
                    default on macOS; on Linux it is opt-in and needs glibc
                    2.35 or newer (Ubuntu 22.04, Debian 12 and later).
@@ -75,6 +78,7 @@ while [ $# -gt 0 ]; do
       shift 2
       ;;
     --init) RUN_INIT=1; shift ;;
+    --no-init) RUN_INIT=0; shift ;;
     --media) MEDIA=1; shift ;;
     --modify-path) MODIFY_PATH=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -156,12 +160,16 @@ case "$os" in
     ;;
 esac
 
+# the models init downloads need room beyond the packages
+if [ "$RUN_INIT" -eq 1 ] && [ "$minimum_kb" -lt 8388608 ]; then minimum_kb=8388608; fi
+
 available_kb="$(df -Pk "$HOME" 2>/dev/null | awk 'NR==2 {print $4}')"
 if [ -n "${available_kb:-}" ] && [ "$available_kb" -lt "$minimum_kb" ]; then
   available_gb="$(awk -v kb="$available_kb" 'BEGIN {printf "%.1f", kb / 1048576}')"
   die "only ${available_gb} GB free in $HOME" \
     "free up space, then rerun" \
-    "the models omni init pulls need another 20 GB afterwards"
+    "or install the CLI only and download models later: rerun with --no-init" \
+    "image and video models need another 45 GB if you add them later"
 fi
 
 if ! mkdir -p "$BIN_DIR" 2>/dev/null; then
@@ -376,6 +384,9 @@ fi
 # --- init -------------------------------------------------------------------
 if [ "$RUN_INIT" -eq 1 ]; then
   say ""
+  say "next, the models: omni init installs Ollama if it is missing (Homebrew or ollama.com),"
+  say "downloads chat, decide, embed, speech-to-text and text-to-speech, then starts omni."
+  say "this can take several minutes; rerun with --no-init to skip it."
   "$BIN_DIR/omni" init < /dev/null || die "omni init failed (the failing step is printed above)" \
     "fix that step, then run: \"$BIN_DIR/omni\" init" \
     "the CLI itself is installed; models are only needed to serve them"
@@ -384,10 +395,17 @@ fi
 # --- done -------------------------------------------------------------------
 if [ "$on_path" -eq 1 ]; then run="omni"; else run="$BIN_DIR/omni"; fi
 say ""
-say "next:"
-say "  $run init     # once: install Ollama and pull chat, decide, embed"
-say "  $run up       # start the gateway in the background"
-say "  $run status   # what is running"
-say "then open http://127.0.0.1:10000/"
+if [ "$RUN_INIT" -eq 1 ]; then
+  say "omni is running. Open http://127.0.0.1:10000/"
+  say "  $run status   # what is running"
+  say "  $run down     # stop it;  $run up  starts it again"
+  say "  $run init --media   # download the image and video models now (tens of GB)"
+else
+  say "next:"
+  say "  $run init     # once: install Ollama and download chat, decide, embed, stt, tts"
+  say "  $run up       # start the gateway in the background"
+  say "  $run status   # what is running"
+  say "then open http://127.0.0.1:10000/"
+fi
 say ""
 say "uninstall: uv tool uninstall omni-api"
