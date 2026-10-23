@@ -88,7 +88,10 @@ case "$BIN_DIR" in
 esac
 
 WORK=""
-cleanup() { [ -n "$WORK" ] && rm -rf "$WORK"; }
+cleanup() {
+  [ -z "${heartbeat_pid:-}" ] || kill "$heartbeat_pid" 2>/dev/null
+  [ -z "$WORK" ] || rm -rf "$WORK"
+}
 trap cleanup EXIT
 trap 'cleanup; exit 130' INT TERM HUP
 
@@ -246,8 +249,11 @@ fi
 say "installing omni from $spec"
 if [ -n "$EXTRAS" ]; then
   say "  a first install downloads about 1.5 GB of Python packages (MLX, torch); this takes a few minutes"
+  say "  a reinstall reuses uv's cache ($(uv cache dir 2>/dev/null || echo ~/.cache/uv)) and is much faster"
 fi
 export UV_TOOL_BIN_DIR="$BIN_DIR"
+# torch wheels are large; uv's 30s default read timeout fails on slow links.
+export UV_HTTP_TIMEOUT="${UV_HTTP_TIMEOUT:-120}"
 
 run_uv_install() {
   uv tool install --force --python 3.12 "$spec" < /dev/null 2>&1
@@ -264,8 +270,20 @@ show_uv_steps() {
   done
 }
 
+# Cloning and building the git packages prints nothing for a while; say we are alive.
+heartbeat() {
+  started=$(date +%s)
+  while sleep 20; do
+    say "  still working... $(( $(date +%s) - started ))s elapsed (downloads and builds can be quiet)"
+  done
+}
+
 : > "$LOG"
+heartbeat &
+heartbeat_pid=$!
 run_uv_install | show_uv_steps
+kill "$heartbeat_pid" 2>/dev/null
+wait "$heartbeat_pid" 2>/dev/null
 if [ "$(cat "$WORK/uv.status" 2>/dev/null)" != "0" ]; then
   tail -n 20 "$LOG" >&2
   if grep -qi "failed to download\|error sending request\|dns error\|timed out\|connection" "$LOG"; then
