@@ -107,3 +107,20 @@ class SearchFilters(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DoctorRuntimes(unittest.TestCase):
+    def test_every_worker_runtime_present_is_ok(self):
+        from omni.commands import doctor
+        with unittest.mock.patch.object(doctor.registry, "unavailable_reason", return_value=None):
+            level, _, detail = doctor._check_runtimes()
+        self.assertEqual(level, doctor.OK)
+        self.assertIn("image", detail)
+
+    def test_a_missing_runtime_is_a_warning_with_the_fix(self):
+        from omni.commands import doctor
+        reason = "video cannot run: this install has no mlx"
+        with unittest.mock.patch.object(doctor.registry, "unavailable_reason", side_effect=lambda role: reason if role == "video" else None):
+            level, _, detail = doctor._check_runtimes()
+        self.assertEqual(level, doctor.WARN)
+        self.assertEqual(detail, reason)

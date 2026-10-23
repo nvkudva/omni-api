@@ -25,6 +25,7 @@ def run() -> int:
         _check_ollama_binary(),
         _check_ollama_server(),
         _check_models(settings),
+        _check_runtimes(),
         _check_gateway(settings),
         _check_disk(),
     ]
@@ -90,6 +91,15 @@ def _check_models(settings: dict | None) -> Finding:
     if missing:
         return FAIL, "models", f"missing {', '.join(missing)}; `omni init`"
     return OK, "models", f"{', '.join(wanted)} present"
+
+
+def _check_runtimes() -> Finding:
+    """The speech, image and video runtimes a person can start from the playground, whatever the defaults."""
+    missing = {role: registry.unavailable_reason(role) for role in registry.PYTHON_WORKERS}
+    problems = {role: reason for role, reason in missing.items() if reason}
+    if not problems:
+        return OK, "runtimes", f"{', '.join(registry.PYTHON_WORKERS)} can run here"
+    return WARN, "runtimes", "; ".join(problems.values())
 
 
 def _check_gateway(settings: dict | None) -> Finding:
