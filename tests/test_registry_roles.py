@@ -123,4 +123,5 @@ class DoctorRuntimes(unittest.TestCase):
         with unittest.mock.patch.object(doctor.registry, "unavailable_reason", side_effect=lambda role: reason if role == "video" else None):
             level, _, detail = doctor._check_runtimes()
         self.assertEqual(level, doctor.WARN)
-        self.assertEqual(detail, reason)
+        self.assertTrue(detail.startswith("video cannot run here."))
+        self.assertIn(reason, detail)

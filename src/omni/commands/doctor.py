@@ -99,7 +99,7 @@ def _check_runtimes() -> Finding:
     problems = {role: reason for role, reason in missing.items() if reason}
     if not problems:
         return OK, "runtimes", f"{', '.join(registry.PYTHON_WORKERS)} can run here"
-    return WARN, "runtimes", "; ".join(problems.values())
+    return WARN, "runtimes", f"{', '.join(problems)} cannot run here. {next(iter(problems.values()))}"
 
 
 def _check_gateway(settings: dict | None) -> Finding:
