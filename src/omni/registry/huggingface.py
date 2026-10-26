@@ -23,6 +23,7 @@ ERRORS = (HfHubHTTPError, OSError)
 SPEECH_FILES = {"decide": schemas.DECIDE_FILES, "stt": schemas.STT_FILES, "tts": schemas.TTS_FILES}
 CACHE_TTL_SECONDS = 30.0
 _installed_cache: tuple[float, list[dict]] | None = None
+_cached_files: dict[str, list[str]] = {}
 
 
 def installed(force: bool = False) -> list[dict]:
@@ -37,8 +38,21 @@ def installed(force: bool = False) -> list[dict]:
         return []
     models = [{"name": repo.repo_id, "size_bytes": repo.size_on_disk}
               for repo in cache.repos if repo.repo_type == "model"]
+    _cached_files.clear()
+    for repo in cache.repos:
+        _cached_files[repo.repo_id] = [str(file.file_path.relative_to(revision.snapshot_path))
+                                       for revision in repo.revisions for file in revision.files]
     _installed_cache = (now, models)
     return models
+
+
+def holds(role: str, repo_id: str) -> bool:
+    """Whether the cached repo carries every file this role's runtime reads (roles that load a fixed layout)."""
+    patterns = SPEECH_FILES.get(role)
+    if patterns is None:
+        return True
+    files = _cached_files.get(repo_id, [])
+    return all(any(fnmatch.fnmatch(name, pattern) for name in files) for pattern in patterns)
 
 
 def invalidate() -> None:

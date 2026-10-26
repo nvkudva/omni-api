@@ -111,6 +111,8 @@ def supports(role: str, name: str) -> bool:
     The marker is the role's own search family, so cached repos are held to the same standard the
     search endpoint applies: `Qwen/Qwen-Image-2.1` is offered to image, `someone/Qwen-Image-XL` is not.
     """
+    if "mlx" in name.lower():  # Apple's MLX weights: no worker here reads them
+        return False
     markers = family(role)
     return not markers or any(marker in name.lower() for marker in markers)
 

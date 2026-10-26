@@ -26,7 +26,7 @@ export const MODEL_CRITERIA = {
 
 const FALLBACK_CRITERIA = {
   ollama: MODEL_CRITERIA.chat,
-  other: { kind: "Hugging Face repo", family: null, accepts: "Hugging Face repo id or page URL, e.g. mlx-community/whisper-large-v3-turbo. Downloads to the HF cache.", example: "mlx-community/whisper-large-v3-turbo" },
+  other: { kind: "Hugging Face repo", family: null, accepts: "Hugging Face repo id or page URL, e.g. istupakov/parakeet-tdt-0.6b-v2-onnx. Downloads to the HF cache.", example: "istupakov/parakeet-tdt-0.6b-v2-onnx" },
 };
 
 /** Criteria for a role; unknown roles fall back by runner, never by copying a sibling role. */

@@ -137,3 +137,9 @@ class DoctorRuntimes(unittest.TestCase):
         self.assertEqual(level, doctor.WARN)
         self.assertTrue(detail.startswith("video cannot run here."))
         self.assertIn(reason, detail)
+
+
+class Incompatible(unittest.TestCase):
+    def test_mlx_weights_are_never_offered(self):
+        self.assertFalse(roles.supports("tts", "mlx-community/Kokoro-82M-bf16"))
+        self.assertFalse(roles.supports("video", "baa-ai/LTX-2.3-22B-RAM-12GB-MLX"))

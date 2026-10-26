@@ -12,6 +12,7 @@ from omni.registry.huggingface import (
 )
 from omni.registry.huggingface import (
     cache_dir,
+    holds,
     folder_size,
     invalidate,
     search,
@@ -134,7 +135,7 @@ async def installed_for(role: str, client: httpx.AsyncClient) -> list[dict]:
     """Models this role could actually load: Ollama's list, or cached repos its runtime supports."""
     if runner(role) != "ollama":
         cached = await asyncio.to_thread(hf_installed)
-        return [model for model in cached if supports(role, model["name"])]
+        return [model for model in cached if supports(role, model["name"]) and holds(role, model["name"])]
     models = await ollama_installed(client)
     found = await ollama_capabilities(client, [model["name"] for model in models])
     usable = []

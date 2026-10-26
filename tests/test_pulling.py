@@ -33,17 +33,17 @@ class Tracker(unittest.TestCase):
         self.addCleanup(pulling.TASKS.clear)
 
     def test_track_and_snapshot_report_an_in_flight_download(self):
-        pulling.track("stt", "mlx/parakeet", 100, 25)
+        pulling.track("stt", "onnx/parakeet", 100, 25)
         entries = pulling.snapshot()
         self.assertEqual(len(entries), 1)
         self.assertEqual(entries[0]["role"], "stt")
-        self.assertEqual(entries[0]["model"], "mlx/parakeet")
+        self.assertEqual(entries[0]["model"], "onnx/parakeet")
         self.assertEqual(entries[0]["total"], 100)
         self.assertEqual(entries[0]["completed"], 25)
 
     def test_finish_drops_the_download(self):
-        pulling.track("stt", "mlx/parakeet", 100, 25)
-        pulling.finish("mlx/parakeet")
+        pulling.track("stt", "onnx/parakeet", 100, 25)
+        pulling.finish("onnx/parakeet")
         self.assertEqual(pulling.snapshot(), [])
 
     def test_a_pull_clears_its_tracker_entry_when_done(self):
@@ -56,7 +56,7 @@ class Tracker(unittest.TestCase):
                 yield event
 
         async def run():
-            async for _ in pulling.pull(None, "stt", "mlx/parakeet"):
+            async for _ in pulling.pull(None, "stt", "onnx/parakeet"):
                 pass
 
         with patch.object(pulling, "_hf_pull", fake_hf):
@@ -72,15 +72,15 @@ class Tracker(unittest.TestCase):
             pulling.finish(model)
 
         async def run():
-            first = pulling.ensure_started("stt", "mlx/parakeet", None)
-            second = pulling.ensure_started("stt", "mlx/parakeet", None)
+            first = pulling.ensure_started("stt", "onnx/parakeet", None)
+            second = pulling.ensure_started("stt", "onnx/parakeet", None)
             self.assertIs(first, second)
             await asyncio.gather(first, second)
 
         with patch.object(pulling, "pull", fake_pull):
             asyncio.run(run())
-        self.assertEqual(runs, ["mlx/parakeet"])
-        self.assertEqual(pulling.outcome("mlx/parakeet")["status"], "success")
+        self.assertEqual(runs, ["onnx/parakeet"])
+        self.assertEqual(pulling.outcome("onnx/parakeet")["status"], "success")
         self.assertEqual(pulling.snapshot(), [])
 
     def test_a_pull_that_raises_still_clears_its_tracker_entry(self):
@@ -90,12 +90,12 @@ class Tracker(unittest.TestCase):
             raise ValueError("boom")
 
         async def run():
-            await pulling.ensure_started("stt", "mlx/parakeet", None)
+            await pulling.ensure_started("stt", "onnx/parakeet", None)
 
         with patch.object(pulling, "_hf_pull", fake_hf):
             asyncio.run(run())
         self.assertEqual(pulling.snapshot(), [])
-        self.assertIn("boom", pulling.outcome("mlx/parakeet")["error"])
+        self.assertIn("boom", pulling.outcome("onnx/parakeet")["error"])
 
     def test_fit_warnings_reach_progress_and_outcome(self):
         async def fake_hf(role, model):
@@ -106,11 +106,11 @@ class Tracker(unittest.TestCase):
             yield {"status": "success"}
 
         async def run():
-            await pulling.ensure_started("stt", "mlx/parakeet", None)
+            await pulling.ensure_started("stt", "onnx/parakeet", None)
 
         with patch.object(pulling, "_hf_pull", fake_hf):
             asyncio.run(run())
-        self.assertEqual(pulling.outcome("mlx/parakeet")["warnings"], ["not enough disk"])
+        self.assertEqual(pulling.outcome("onnx/parakeet")["warnings"], ["not enough disk"])
 
     def test_a_failed_background_download_records_its_error(self):
         async def fake_pull(client, role, model):
@@ -135,15 +135,15 @@ class Tracker(unittest.TestCase):
             yield {"status": "success"}
 
         async def run():
-            task = pulling.ensure_started("stt", "mlx/parakeet", None)
+            task = pulling.ensure_started("stt", "onnx/parakeet", None)
             await asyncio.sleep(0)
-            self.assertTrue(pulling.stop("mlx/parakeet"))
+            self.assertTrue(pulling.stop("onnx/parakeet"))
             await task
-            self.assertFalse(pulling.stop("mlx/parakeet"))
+            self.assertFalse(pulling.stop("onnx/parakeet"))
 
         with patch.object(pulling, "pull", fake_pull):
             asyncio.run(run())
-        terminal = pulling.outcome("mlx/parakeet")
+        terminal = pulling.outcome("onnx/parakeet")
         self.assertTrue(terminal["cancelled"])
         self.assertIn("stopped", terminal["error"])
         self.assertEqual(pulling.TASKS, {})
@@ -158,7 +158,7 @@ class Tracker(unittest.TestCase):
             pulling.finish(model)
 
         async def run():
-            task = pulling.ensure_started("stt", "mlx/parakeet", None)
+            task = pulling.ensure_started("stt", "onnx/parakeet", None)
 
             async def watch():
                 await asyncio.shield(task)
@@ -176,13 +176,13 @@ class Tracker(unittest.TestCase):
 
         with patch.object(pulling, "pull", fake_pull):
             asyncio.run(run())
-        self.assertEqual(pulling.outcome("mlx/parakeet")["status"], "success")
+        self.assertEqual(pulling.outcome("onnx/parakeet")["status"], "success")
 
     def test_a_hf_download_publishes_progress_while_it_runs(self):
         seen = []
 
         async def run():
-            async for event in pulling.pull(None, "stt", "mlx/parakeet"):
+            async for event in pulling.pull(None, "stt", "onnx/parakeet"):
                 seen.append(event)
 
         with patch.object(pulling.huggingface, "download_plan", return_value=huggingface.Plan(None, 100)), \

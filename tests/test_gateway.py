@@ -173,10 +173,10 @@ class Gateway(unittest.TestCase):
         started.assert_not_called()
 
     def test_admin_delete_refuses_a_model_that_is_downloading(self):
-        pulling.track("stt", "mlx/parakeet", 100, 25)
+        pulling.track("stt", "onnx/parakeet", 100, 25)
         self.addCleanup(pulling.ACTIVE.clear)
         with patch("omni.gateway.routes.admin_models.registry.hf_delete") as deleted:
-            response = self.client.post("/admin/models/delete", json={"role": "stt", "model": "mlx/parakeet"})
+            response = self.client.post("/admin/models/delete", json={"role": "stt", "model": "onnx/parakeet"})
         self.assertEqual(response.status_code, 409)
         self.assertIn("downloading", _error(response)["message"])
         deleted.assert_not_called()
@@ -327,11 +327,11 @@ class Gateway(unittest.TestCase):
         self.assertEqual(_error(response)["type"], "conflict")
 
     def test_downloads_lists_in_flight_downloads_for_progress_bars(self):
-        pulling.track("stt", "mlx/parakeet", 100, 40)
+        pulling.track("stt", "onnx/parakeet", 100, 40)
         try:
             response = self.client.get("/admin/models/downloads")
         finally:
-            pulling.finish("mlx/parakeet")
+            pulling.finish("onnx/parakeet")
         self.assertEqual(response.status_code, 200)
         downloads = response.json()["downloads"]
         self.assertEqual(len(downloads), 1)
@@ -350,7 +350,7 @@ class Gateway(unittest.TestCase):
         self.assertEqual(response.json(), {"downloads": [], "recent": []})
 
     def test_downloads_reports_recently_finished_downloads(self):
-        pulling.DONE["mlx/parakeet"] = {"role": "stt", "model": "mlx/parakeet",
+        pulling.DONE["onnx/parakeet"] = {"role": "stt", "model": "onnx/parakeet",
                                         "status": "success", "finished_at": 1.0}
         try:
             with patch.object(pulling, "RECENT_TTL_SECONDS", 10**9):
@@ -358,16 +358,16 @@ class Gateway(unittest.TestCase):
         finally:
             pulling.DONE.clear()
         self.assertEqual(response.status_code, 200)
-        self.assertEqual([entry["model"] for entry in response.json()["recent"]], ["mlx/parakeet"])
+        self.assertEqual([entry["model"] for entry in response.json()["recent"]], ["onnx/parakeet"])
 
     def test_pull_streams_the_shared_download_to_success(self):
-        outcome = {"role": "tts", "model": "mlx-community/Kokoro-82M-bf16", "status": "success"}
+        outcome = {"role": "tts", "model": "onnx-community/Kokoro-82M-v1.0-ONNX", "status": "success"}
         task = Mock(done=lambda: True)
         with patch("omni.registry.ensure_started", return_value=task), \
                 patch("omni.registry.outcome", return_value=outcome):
             response = self.client.post("/admin/models/pull",
                                         json={"role": "tts",
-                                              "model": "mlx-community/Kokoro-82M-bf16"})
+                                              "model": "onnx-community/Kokoro-82M-v1.0-ONNX"})
         self.assertEqual(response.status_code, 200)
         lines = [json.loads(line) for line in response.text.splitlines() if line.strip()]
         self.assertTrue(lines)
@@ -378,21 +378,21 @@ class Gateway(unittest.TestCase):
         task = Mock(done=lambda: True)
         with patch("omni.registry.ensure_started", return_value=task), \
                 patch("omni.registry.outcome", return_value=outcome):
-            response = self.client.post("/admin/models/pull", json={"role": "tts", "model": "mlx-community/Kokoro-82M-bf16"})
+            response = self.client.post("/admin/models/pull", json={"role": "tts", "model": "onnx-community/Kokoro-82M-v1.0-ONNX"})
         lines = [json.loads(line) for line in response.text.splitlines() if line.strip()]
         self.assertTrue(lines[-1].get("error", "").startswith("huggingface: 401"))
 
     def test_stop_cancels_a_running_download(self):
         with patch("omni.registry.pulling.stop", return_value=True) as stop:
             response = self.client.post("/admin/models/pull/stop",
-                                        json={"role": "tts", "model": "mlx-community/Kokoro-82M-bf16"})
+                                        json={"role": "tts", "model": "onnx-community/Kokoro-82M-v1.0-ONNX"})
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"stopped": "mlx-community/Kokoro-82M-bf16"})
-        stop.assert_called_once_with("mlx-community/Kokoro-82M-bf16")
+        self.assertEqual(response.json(), {"stopped": "onnx-community/Kokoro-82M-v1.0-ONNX"})
+        stop.assert_called_once_with("onnx-community/Kokoro-82M-v1.0-ONNX")
 
     def test_stop_without_a_running_download_is_not_found(self):
         response = self.client.post("/admin/models/pull/stop",
-                                    json={"role": "tts", "model": "mlx-community/Kokoro-82M-bf16"})
+                                    json={"role": "tts", "model": "onnx-community/Kokoro-82M-v1.0-ONNX"})
         self.assertEqual(response.status_code, 404)
 
     def test_image_generation_downloads_the_model_first(self):
