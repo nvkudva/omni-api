@@ -10,6 +10,7 @@ from fastapi import File, Form, HTTPException, UploadFile
 from fastapi.responses import PlainTextResponse
 
 from omni import config, schemas, workers
+from omni.registry import roles
 
 SAMPLE_RATE = 16000
 # Attention grows with the square of the audio length, so a long file goes through in windows.
@@ -24,6 +25,7 @@ model_name = settings["stt"]["model"]
 def _load():
     import onnx_asr
 
+    roles.require("stt", model_name)
     return onnx_asr.load_model(model_name, quantization="int8").with_timestamps()
 
 

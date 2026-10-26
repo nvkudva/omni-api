@@ -125,7 +125,7 @@ A request that is still running can be stopped, and a finished one is kept by th
 - **Find & Install:** per-role Hugging Face / Ollama search filtered to what that role's runtime can actually run, with gated-repo "accept terms" handling, live download progress and a stop button.
 - **Self-healing workers:** per-worker locks, exponential-backoff restarts, pid + argv verification so a recycled pid is never signalled, and no orphan processes on `omni down`.
 - **One error shape everywhere:** gateway, workers, routing 404/405 and validation 422 all return `{"error": {"message", "type"}}`.
-- **Hardened local surface:** 8 MB JSON body caps (413), finite upstream timeouts, loopback-only by default — a non-loopback `--host` is refused unless `OMNI_ALLOW_NON_LOOPBACK=1` (admin routes have no auth, by design for a local-only tool).
+- **Hardened local surface:** 8 MB JSON body caps (413), raised only where a request carries an image, audio or video, finite upstream timeouts, loopback-only by default — a non-loopback `--host` is refused unless `OMNI_ALLOW_NON_LOOPBACK=1` (admin routes have no auth, by design for a local-only tool).
 
 ---
 
@@ -155,7 +155,7 @@ omni brings all of that together:
 | Role | Endpoint | Default model | Engine |
 |---|---|---|---|
 | **chat** | `POST /v1/chat/completions` (streaming) | `qwen2.5:0.5b` | Ollama |
-| **decide** | `POST /v1/systemone` | `nvkudva/vega-onnx-q8` (8-bit ONNX, ~0.97 GB) | ONNX Runtime (Vega) |
+| **decide** | `POST /v1/systemone` | `nvkudva/vega-onnx-q8` (8-bit ONNX, ~0.93 GB) | ONNX Runtime (Vega) |
 | **embed** | `POST /v1/embeddings` | `embeddinggemma-2:270m` (text) | Ollama |
 | **image** | `POST /v1/images/generations` | `unsloth/Qwen-Image-2.1-Turbo-GGUF` | diffusers (MPS, Q8_0) |
 | **video** | `POST /v1/videos`, `GET /v1/videos/{id}`, `GET /v1/videos/{id}/content` | `QuantStack/Wan2.2-TI2V-5B-GGUF` (Wan 2.2 TI2V-5B, Q8_0) | diffusers (also runs LTX-Video GGUFs) |
@@ -193,7 +193,7 @@ brew trust nvkudva/omni      # Homebrew 7+ refuses untrusted third-party taps
 brew install omni
 ```
 
-The first install downloads about 1.5 GB of Python packages (MLX, torch) and prints uv's progress as it goes; wheels are cached under `~/Library/Caches/Homebrew/uv`, so a reinstall or upgrade takes under a minute.
+The first install downloads the Python packages the workers need (torch, diffusers, ONNX Runtime) and prints uv's progress as it goes; wheels are cached under `~/Library/Caches/Homebrew/uv`, so a reinstall or upgrade takes under a minute.
 
 Homebrew installs the command and its runtimes but no models, because a formula must not download them. Run `omni init` once afterwards.
 
@@ -233,7 +233,7 @@ omni up       # gateway and workers in the background
 
 `omni init` validates `~/.omni-api/config.toml`, asks whether to install Ollama when the binary is missing (it stops if you say no), starts the server it just installed, pulls the chat and embed models and confirms they landed, then starts the gateway and loads the decide, stt and tts models (downloading them first); every failure prints the command to fix it and a link. The image and video models download on first use, or now with `omni init --media`. When something is wrong and you would rather not install anything, `omni doctor` runs the same checks read-only and prints one line per check. Release and packaging notes live in [`docs/publishing.md`](docs/publishing.md).
 
-The shipped defaults are the small profile: `qwen2.5:0.5b` (chat), `vega-onnx-q8` (decide, 0.97 GB), `embeddinggemma-2:270m` (embed), `parakeet-tdt-0.6b-v2-onnx` (stt, 0.7 GB), `Kokoro-82M-v1.0-ONNX` (tts, 0.12 GB), `Qwen-Image-2.1-Turbo` at Q8_0 (image, 7.6 GB transformer, about 26 GB once the shared text encoder and VAE land) and `Wan2.2-TI2V-5B` at Q8_0 (video, 5.4 GB transformer, about 20 GB with its text encoder and VAE). Any role can be changed in the playground (add a model, set it as default) or in `~/.omni-api/config.toml`; each role's list keeps the bigger models one click away.
+The shipped defaults are the small profile: `qwen2.5:0.5b` (chat), `vega-onnx-q8` (decide, 0.93 GB), `embeddinggemma-2:270m` (embed), `parakeet-tdt-0.6b-v2-onnx` (stt, 0.7 GB), `Kokoro-82M-v1.0-ONNX` (tts, 0.12 GB), `Qwen-Image-2.1-Turbo` at Q8_0 (image, 7.6 GB transformer, about 26 GB once the shared text encoder and VAE land) and `Wan2.2-TI2V-5B` at Q8_0 (video, 5.4 GB transformer, about 20 GB with its text encoder and VAE). Any role can be changed in the playground (add a model, set it as default) or in `~/.omni-api/config.toml`; each role's list keeps the bigger models one click away.
 
 ---
 

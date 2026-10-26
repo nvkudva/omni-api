@@ -2,6 +2,7 @@
 import unittest
 import unittest.mock
 
+from omni import config
 from omni.registry import roles
 
 
@@ -38,6 +39,16 @@ class Supports(unittest.TestCase):
 
     def test_an_unrelated_repo_is_refused(self):
         self.assertFalse(roles.supports("video", "Qwen/Qwen-Image-2.1"))
+
+
+class Require(unittest.TestCase):
+    def test_the_shipped_defaults_and_a_loadable_pin_pass(self):
+        self.assertIsNone(roles.require("decide", "nvkudva/vega-onnx-q8"))
+        self.assertIsNone(roles.require("stt", "hf.co/istupakov/parakeet-tdt-0.6b-v2-onnx:Q8_0"))
+
+    def test_the_old_ollama_era_decide_pin_is_a_config_error(self):
+        with self.assertRaisesRegex(config.ConfigError, "decide.model"):
+            roles.require("decide", "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0")
 
 
 class Workers(unittest.TestCase):

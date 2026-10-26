@@ -14,6 +14,7 @@ from fastapi import HTTPException
 
 from omni import config, schemas, workers
 from omni.inference import vega
+from omni.registry import roles
 from omni.workers import pictures
 
 MAX_QUESTIONS = 32
@@ -126,6 +127,7 @@ class Decider:
 def _load() -> Decider:
     from huggingface_hub import snapshot_download
 
+    roles.require("decide", model_name)
     return Decider(_real_files(Path(snapshot_download(model_name, allow_patterns=schemas.DECIDE_FILES)) / RELEASE))
 
 

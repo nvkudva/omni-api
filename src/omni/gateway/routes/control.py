@@ -17,7 +17,6 @@ TUNABLE = {
     ("gateway", "idle_unload_minutes"): registry.PYTHON_WORKERS,
     ("tts", "voice"): ("tts",),
     ("image", "steps"): ("image",),
-    ("video", "frames"): ("video",),
     ("video", "fps"): ("video",),
 }
 

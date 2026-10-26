@@ -128,6 +128,20 @@ class Vision(unittest.TestCase):
         self.assertEqual(patches["pixels"].shape, (1200, 1536))
         self.assertAlmostEqual(float(patches["pixels"][0, 0]), 1.0)  # white, normalised around 0.5
 
+    def test_an_exif_rotation_is_applied_before_the_grid(self):
+        import io
+
+        from PIL import Image
+
+        picture = Image.new("RGB", (640, 480), (255, 255, 255))
+        orientation = Image.Exif()
+        orientation[0x0112] = 6  # stored landscape, meant to be read portrait
+        buffer = io.BytesIO()
+        picture.save(buffer, format="JPEG", exif=orientation)
+        with Image.open(buffer) as rotated:
+            patches = vega.preprocess_image(rotated, {"vision_merge_size": 2, "vision_max_pixels": 1_048_576})
+        self.assertEqual(patches["grid"], (1, 40, 30))
+
     def test_the_pad_expands_and_the_spans_after_it_shift(self):
         prompt = {"ids": [7, 8, 99, 9, 10], "state": (1, 4), "question": (4, 5), "options": [(0, 2)]}
         expanded = vega.expand_image(prompt, 99, 3)

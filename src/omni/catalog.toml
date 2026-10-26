@@ -7,7 +7,7 @@ idle_unload_minutes = 10
 model = "qwen2.5:0.5b"
 
 [decide]
-# Vega 0.8B (a frozen Qwen3.5 plus a physics engine), 8-bit ONNX: about 970 MB.
+# Vega 0.8B (a frozen Qwen3.5 plus a physics engine), 8-bit ONNX: about 930 MB.
 model = "nvkudva/vega-onnx-q8"
 
 [embed]
@@ -37,5 +37,4 @@ steps = 8
 # downloads about 20 GB. `file` pins a GGUF by hand; `steps` overrides the family default.
 model = "QuantStack/Wan2.2-TI2V-5B-GGUF"
 base = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
-frames = 97
 fps = 24

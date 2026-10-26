@@ -10,6 +10,7 @@ from fastapi import HTTPException
 from fastapi.responses import Response
 
 from omni import config, schemas, workers
+from omni.registry import roles
 
 VOICES = schemas.TTS_VOICES
 SAMPLE_RATE = 24000
@@ -70,6 +71,7 @@ class Speaker:
 def _load() -> Speaker:
     from huggingface_hub import snapshot_download
 
+    roles.require("tts", model_name)
     return Speaker(Path(snapshot_download(model_name, allow_patterns=schemas.TTS_FILES)))
 
 

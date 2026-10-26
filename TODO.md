@@ -10,10 +10,9 @@
 - [x] Image default switched to Qwen-Image-2.1-Turbo at 8 steps, with the checkpoint's `sample_sigmas` passed explicitly (pinned diffusers ignores it)
 - [ ] Verify Qwen-Image-2.1-Turbo generation end to end through the gateway (load time, s/step at 1024²)
 - [x] Playground audio fix; chat image attach gated on Ollama vision capability
-- [x] Video role (LTX-2.5 distilled on MLX) with job API and playground Video tab
+- [x] Video role (diffusers: Wan 2.2 TI2V and LTX-Video) with job API and playground Video tab
 - [x] Models admin: list/install/delete/set default per role, memory check and warnings; playground Models tab
-- [ ] Verify LTX-2.5 video generation end to end (the 4-bit pack, ~51 GB; q8 was ~75 GB)
-- [ ] Retry Ollama pulls for embeddinggemma-2 and OneJev 0.8B (failed: IPv6 network unreachable)
+- [ ] Verify Wan 2.2 text-to-video and image-to-video end to end through the gateway (load time, s/frame)
 - [x] Playground rebuilt as Preact + CSS modules + Vite (web/ → src/omni/static/app), Apple-style light/dark design
 - [x] Model management: HF search filtered per role, load/unload, worker start/stop/restart, CPU/load overload checks with force override; Models tab UI
 - [ ] Embed tab: optional "write an answer" step (RAG): pass top chunks to the chat model for a grounded answer with citations; opt-in, disabled when no chat model is loaded

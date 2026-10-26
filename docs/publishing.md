@@ -14,7 +14,7 @@ It installs `uv` when missing, then `uv tool install git+https://github.com/nvku
 
 Options: `--from` (any uv tool spec: a local path, a git URL, a package), `--version TAG` (a release tag), `--init` (also run `omni init`), `--bin-dir`, `--modify-path`.
 
-Why `uv tool install` and not `pip`: `pyproject.toml` pins four dependencies that PyPI does not serve — the git revisions of `diffusers`, `ltx-core-mlx` and `ltx-pipelines-mlx`, plus the spaCy wheel URL for `en-core-web-sm`. Those live in `[tool.uv.sources]`, which only uv reads. `uv tool install` therefore installs exactly what this repo tests against.
+Why `uv tool install` and not `pip`: `pyproject.toml` pins two dependencies that PyPI does not serve — the git revision of `diffusers`, plus the spaCy wheel URL for `en-core-web-sm`. Those live in `[tool.uv.sources]`, which only uv reads. `uv tool install` therefore installs exactly what this repo tests against.
 
 ## 2. Homebrew tap
 
@@ -50,9 +50,9 @@ brew audit --strict --formula Formula/omni.rb
 
 Before the first tap release the formula still carries `REPLACE_WITH_TARBALL_SHA256`; `script/release --push` fills it. `brew audit --strict` needs that sha256 and the `license "MIT"` line, both now in place.
 
-The formula requires macOS on Apple Silicon: `mlx`'s macOS wheels are arm64-only, and the image worker renders on Metal. It installs the `media` extra, since the tap is macOS-only.
+The formula requires macOS on Apple Silicon: `torch`'s Metal (MPS) backend is arm64-only, and the image worker renders on Metal. It installs the `media` extra, since the tap is macOS-only.
 
-On Linux, `install.sh` installs the base package by default — chat, decide and embed through Ollama. `--media` adds the extra: MLX ships CUDA and CPU wheels for glibc 2.35 and newer (Ubuntu 22.04, Debian 12 and later), so stt, tts and video install there too. Only macOS gets Metal, so the image worker stays out of the supervisor on Linux, and any worker whose extra is missing is left out as well; its endpoints answer 503 with the reason.
+On Linux, `install.sh` installs the base package by default — chat, decide and embed. `--media` adds the extra: `torch` ships CUDA and CPU wheels for glibc 2.35 and newer (Ubuntu 22.04, Debian 12 and later), and `diffusers` and onnx-asr are pure Python, so stt, tts and video install there too. Only macOS gets Metal, so the image worker stays out of the supervisor on Linux, and any worker whose extra is missing is left out as well; its endpoints answer 503 with the reason.
 
 ## 3. PyPI — blocked on the source pins
 
@@ -65,13 +65,13 @@ uv publish          # needs a PyPI token
 
 Do not publish yet. Three problems, all real:
 
-1. PyPI rejects metadata containing direct URL requirements. `en-core-web-sm` is a wheel URL and the three git packages are git URLs, so the upload would either be refused or, with the URLs stripped, produce metadata naming packages PyPI does not have.
+1. PyPI rejects metadata containing direct URL requirements. `en-core-web-sm` is a wheel URL and `diffusers` a git URL, so the upload would either be refused or, with the URLs stripped, produce metadata naming packages PyPI does not have.
 2. Even if it accepted them, `diffusers` is pinned to a revision that carries `QwenImage21Pipeline`. An unpinned PyPI install would get a diffusers without it, and the image role would fail at load.
 3. An sdist install is already broken today: `uv tool install dist/omni_api-0.1.0.tar.gz` fails with `no versions of en-core-web-sm`, because `[tool.uv.sources]` is read only from a project directory or a git checkout, never from installed metadata. Installing the same tree as a directory works, which is why the brew formula passes `buildpath` rather than the tarball.
 
 To unblock PyPI you need one of:
 
-- a fork of the pinned diffusers and ltx packages published to PyPI, with `[tool.uv.sources]` dropped;
+- a fork of the pinned diffusers published to PyPI, with `[tool.uv.sources]` dropped;
 - or extras: keep the heavy media stack out of the base install (`pip install omni-api[media]`) and accept that the base install serves chat/decide/embed only.
 
 Until then, the install script and the tap are the working distribution path.

@@ -12,6 +12,7 @@ import json
 import math
 
 import numpy as np
+from PIL import ImageOps
 
 QUESTION_TYPES = {"choice": 0, "score": 1, "boolean": 2}
 MAX_OPTIONS = 14
@@ -168,8 +169,10 @@ def preprocess_image(picture, config: dict) -> dict:
     Resized to the pixel budget, normalised, and cut into 2 x 16 x 16 patches in Qwen2-VL's layout.
     """
     merge = config["vision_merge_size"]
-    height, width = smart_resize(picture.height, picture.width, PATCH_SIZE * merge, config["vision_max_pixels"])
-    resized = picture.convert("RGB").resize((width, height), resample=3)  # 3 = bicubic
+    # a phone photo carries its rotation in EXIF rather than in its pixels
+    upright = ImageOps.exif_transpose(picture)
+    height, width = smart_resize(upright.height, upright.width, PATCH_SIZE * merge, config["vision_max_pixels"])
+    resized = upright.convert("RGB").resize((width, height), resample=3)  # 3 = bicubic
     pixels = (np.asarray(resized, dtype=np.float32) / 255.0 - IMAGE_MEAN) / IMAGE_STD
     frames = np.tile(pixels.transpose(2, 0, 1)[None], (TEMPORAL_PATCH_SIZE, 1, 1, 1))  # (t, c, h, w)
     grid_h, grid_w = height // PATCH_SIZE, width // PATCH_SIZE

@@ -95,6 +95,11 @@ function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+/** The payload the JSON and cURL panes show: a picked image is a huge data URL, so only its head. */
+export function shortenedImage(body, image) {
+  return image ? { ...body, image: shorten(image.url) } : body;
+}
+
 const EXAMPLE_BASE = import.meta.env.BASE_URL ?? "/";
 
 function adoptRequest(body) {
@@ -134,8 +139,8 @@ export default function Decide() {
     questions: questionSet.questionsFromRows(rows, { strict: false }),
     ...(effectiveModel ? { model: effectiveModel } : {}),
   };
-  const json = useJsonRequest(view, image ? { ...body, image: shorten(image.url) } : body);
-  const curl = curlJson("/v1/systemone", view === "json" && !json.error ? json.body : body);
+  const json = useJsonRequest(view, shortenedImage(body, image));
+  const curl = curlJson("/v1/systemone", shortenedImage(view === "json" && !json.error ? json.body : body, image));
 
   const editState = (text) => {
     setState(text);

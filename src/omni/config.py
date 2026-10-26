@@ -31,7 +31,7 @@ _SCHEMA: dict[str, dict[str, type]] = {
     "stt": {"model": str},
     "tts": {"model": str, "voice": str},
     "image": {"model": str, "steps": int},
-    "video": {"model": str, "frames": int, "fps": int},
+    "video": {"model": str, "fps": int},
 }
 
 # Keys a section may carry without needing them. `image.file` (and `video.file`) names a GGUF
@@ -97,8 +97,8 @@ def validate(settings: dict) -> None:
             raise ConfigError(f"{section}.model must not be empty")
     if not 1 <= settings["image"]["steps"] <= 100:
         raise ConfigError("image.steps must be between 1 and 100")
-    if not 1 <= settings["video"]["frames"] <= 1000 or not 1 <= settings["video"]["fps"] <= 60:
-        raise ConfigError("video.frames must be 1..1000 and video.fps 1..60")
+    if not 1 <= settings["video"]["fps"] <= 60:
+        raise ConfigError("video.fps must be between 1 and 60")
 
 
 def _read(path: Path) -> dict:

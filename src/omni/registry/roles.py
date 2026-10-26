@@ -113,3 +113,10 @@ def supports(role: str, name: str) -> bool:
     """
     markers = family(role)
     return not markers or any(marker in name.lower() for marker in markers)
+
+
+def require(role: str, name: str) -> None:
+    """Refuse a pinned model this role's runtime cannot load, before anything is downloaded."""
+    if not supports(role, bare_repo_id(name)):
+        raise config.ConfigError(
+            f"{role}.model {name!r} is not a {', '.join(family(role))} repo, which is what this role's runtime loads")
