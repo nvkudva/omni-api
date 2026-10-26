@@ -4,7 +4,6 @@ Jobs are capped, expire on a TTL and their mp4s are deleted, so a long session c
 """
 import asyncio
 import inspect
-import json
 import logging
 import re
 import subprocess
@@ -59,20 +58,10 @@ def _source() -> tuple[str | None, str]:
 
 
 def _components(repo: str) -> str:
-    """Download everything of a diffusers repo except the transformer weights, and return the folder.
+    """Download the diffusers repo's text encoder, VAE and configs, and return the folder."""
+    from huggingface_hub import snapshot_download
 
-    The GGUF replaces the transformer, so its 20 GB of bf16 shards are never read; the repo's
-    own single-file checkpoints (LTX-Video ships several) are skipped the same way.
-    """
-    from huggingface_hub import hf_hub_download, snapshot_download
-
-    try:
-        index = json.loads(Path(hf_hub_download(repo, "model_index.json")).read_text())
-    except Exception:  # noqa: BLE001 - a card's base_model may name the original, not the diffusers conversion
-        repo = f"{repo}-Diffusers"
-        index = json.loads(Path(hf_hub_download(repo, "model_index.json")).read_text())
-    others = [name for name, value in index.items() if isinstance(value, list) and value[0] and name != "transformer"]
-    allowed = ["model_index.json", "transformer/config.json", *(f"{name}/*" for name in others)]
+    repo, allowed = gguf.diffusers_files(repo)
     return snapshot_download(repo, allow_patterns=allowed)
 
 

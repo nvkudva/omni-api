@@ -223,6 +223,35 @@ export function downloadFor(role) {
     : downloads.value[role] ?? installs.value[role];
 }
 
+const WATCH_MS = 2000;
+const WATCH_MISSES = 30;
+
+/** After the pull stream drops, follow the download the server keeps running. Null on success, else the failure. */
+async function watchDownload(role, model) {
+  let misses = 0;
+  while (misses < WATCH_MISSES) {
+    await new Promise((resolve) => setTimeout(resolve, WATCH_MS));
+    let body;
+    try {
+      body = await getJson("/admin/models/downloads");
+    } catch {
+      misses += 1;
+      continue;
+    }
+    misses = 0;
+    const active = (body.downloads ?? []).find((entry) => entry.model === model);
+    if (active) {
+      const { status, fraction } = downloadProgressOf(active);
+      updateInstall(role, { status, fraction });
+      continue;
+    }
+    const finished = (body.recent ?? []).find((entry) => entry.model === model);
+    if (!finished) return { error: "The connection to the gateway dropped and the download is no longer running. Press download again to resume." };
+    return finished.error ? finished : null;
+  }
+  return { error: "Lost contact with the gateway while downloading. Press download again to resume." };
+}
+
 /** Download `model` for `role`, publishing progress in `installs`. Resolves true once it is on disk. */
 export async function install(role, model) {
   if (installs.value[role]?.busy) return false;
@@ -243,7 +272,17 @@ export async function install(role, model) {
     }
     updateInstall(role, { busy: false, status: `installed ${model}`, fraction: 1, code: "", acceptUrl: "" });
     return true;
-  } catch (error) {
+  } catch (caught) {
+    let error = caught;
+    if (caught instanceof TypeError) {
+      // fetch reports a dropped connection as a TypeError; the server keeps downloading regardless
+      const lost = await watchDownload(role, model);
+      if (!lost) {
+        updateInstall(role, { busy: false, status: `installed ${model}`, fraction: 1, code: "", acceptUrl: "" });
+        return true;
+      }
+      error = Object.assign(new Error(lost.error), { code: lost.code, acceptUrl: lost.accept_url, cancelled: Boolean(lost.cancelled) });
+    }
     if (error.cancelled) {
       updateInstall(role, { busy: false, status: "download stopped", fraction: 0, error: "", code: "", acceptUrl: "" });
       return false;

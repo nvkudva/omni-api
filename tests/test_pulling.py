@@ -195,6 +195,29 @@ class Tracker(unittest.TestCase):
         self.assertEqual(seen[-1], {"status": "success"})
 
 
+    def test_a_video_download_counts_its_base_repo_in_the_progress(self):
+        seen = []
+        downloaded = []
+
+        async def fake_download(repo, files=None):
+            downloaded.append(repo)
+
+        async def run():
+            async for event in pulling.pull(None, "video", "q/wan-gguf"):
+                seen.append(event)
+
+        with patch.object(pulling.huggingface, "download_plan", return_value=huggingface.Plan(["m-Q8_0.gguf"], 100)), \
+                patch.object(pulling, "_video_base", return_value=[("w/wan-diffusers", ["vae/*"], 50)]), \
+                patch.object(pulling.huggingface, "download", fake_download), \
+                patch.object(pulling.huggingface, "cache_dir", side_effect=lambda repo: repo), \
+                patch.object(pulling.huggingface, "folder_size", return_value=500), \
+                patch.object(pulling, "PROGRESS_SECONDS", 0.01):
+            asyncio.run(run())
+        self.assertEqual(downloaded, ["q/wan-gguf", "w/wan-diffusers"])
+        self.assertTrue(any(event.get("total") == 150 for event in seen))
+        self.assertTrue(all(event.get("completed", 0) <= 150 for event in seen))
+
+
 SLEEPER = [sys.executable, "-c", "import time; print('up', flush=True); time.sleep(60)"]
 
 

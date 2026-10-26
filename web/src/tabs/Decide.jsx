@@ -292,6 +292,7 @@ export default function Decide() {
                 )
                 : "Drop an invoice, receipt or letter here, or click to choose"}
             </ui.DropZone>
+            {image && <img class={styles.preview} src={image.url} alt={image.name} />}
             {image && (
               <ui.Button small onClick={() => setImage(null)}>Use the state text instead</ui.Button>
             )}
@@ -324,6 +325,9 @@ export default function Decide() {
                   summary={turn.request?.state || (turn.request?.image ? `image · ${String(turn.request.image).slice(0, 32)}` : "")}
                   wire={{ request: turn.request, response: turn.response }}
                 >
+                  {typeof turn.request?.image === "string" && turn.request.image.startsWith("data:image/") && (
+                    <img class={styles.preview} src={turn.request.image} alt="image sent with this request" />
+                  )}
                   <Answers questions={turn.request?.questions} data={turn.response} />
                 </Turn>
               ))}

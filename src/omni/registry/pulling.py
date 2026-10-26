@@ -7,6 +7,7 @@ in DONE afterwards; read them with snapshot() and recent(). Attaching to a downl
 watches it: dropping the watcher changes nothing about the download itself.
 """
 import asyncio
+import fnmatch
 import json
 import time
 from collections.abc import AsyncIterator
@@ -14,6 +15,7 @@ from collections.abc import AsyncIterator
 import httpx
 from huggingface_hub.errors import GatedRepoError, HfHubHTTPError
 
+from omni import config
 from omni.registry import huggingface
 from omni.registry.memory import fit_blockers
 from omni.registry.roles import runner
@@ -198,22 +200,52 @@ async def _ollama_pull(client: httpx.AsyncClient, role: str, model: str) -> Asyn
         yield {"error": f"ollama: {error}"}
 
 
+async def _download_all(targets: list[tuple[str, list[str] | None, int]]) -> None:
+    for repo, files, _ in targets:
+        await huggingface.download(repo, files)
+
+
+def _video_base(role: str, repo_id: str, plan: huggingface.Plan) -> list[tuple[str, list[str], int]]:
+    """The diffusers repo behind a GGUF video model, so its text encoder and VAE download with it.
+
+    The worker would fetch them on its first load otherwise, many GB with no progress to show.
+    """
+    from omni.workers import gguf
+
+    if role != "video" or not plan.files or not plan.files[0].endswith(".gguf"):
+        return []
+    video = config.load()["video"]
+    try:
+        base = (video.get("base") if repo_id == video["model"] else None) or gguf.base_repo(repo_id)
+        repo, patterns = gguf.diffusers_files(base)
+        siblings = huggingface.HfApi().model_info(repo, files_metadata=True).siblings or []
+    except (HfHubHTTPError, OSError, ValueError):
+        return []
+    size = sum(sibling.size or 0 for sibling in siblings
+               if any(fnmatch.fnmatch(sibling.rfilename, pattern) for pattern in patterns))
+    return [(repo, patterns, size)]
+
+
 async def _hf_pull(role: str, repo_id: str) -> AsyncIterator[dict]:
     try:
         plan = await asyncio.to_thread(huggingface.download_plan, role, repo_id)
     except (HfHubHTTPError, OSError) as error:
         yield gated_event(repo_id) if is_gated(error) else {"error": f"huggingface: {error}"}
         return
-    for warning in fit_blockers(plan.size):
+    extras = await asyncio.to_thread(_video_base, role, repo_id, plan)
+    targets = [(repo_id, plan.files, plan.size), *extras]
+    total = sum(size for _, _, size in targets)
+    for warning in fit_blockers(total):
         yield {"warning": warning}
-    track(role, repo_id, plan.size, 0)
-    download = asyncio.create_task(huggingface.download(repo_id, plan.files))
-    folder = huggingface.cache_dir(repo_id)
+    track(role, repo_id, total, 0)
+    download = asyncio.create_task(_download_all(targets))
     try:
         while not download.done():
-            completed = await asyncio.to_thread(huggingface.folder_size, folder)
-            track(role, repo_id, plan.size, completed)
-            yield {"status": f"downloading {repo_id}", "total": plan.size, "completed": completed}
+            completed = 0
+            for repo, _, size in targets:
+                completed += min(size, await asyncio.to_thread(huggingface.folder_size, huggingface.cache_dir(repo)))
+            track(role, repo_id, total, completed)
+            yield {"status": f"downloading {repo_id}", "total": total, "completed": completed}
             await asyncio.wait({download}, timeout=PROGRESS_SECONDS)
         download.result()
     except (HfHubHTTPError, OSError) as error:

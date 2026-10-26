@@ -107,3 +107,17 @@ class MissingCache(unittest.TestCase):
         with patch.object(huggingface, "scan_cache_dir", side_effect=CacheNotFound("missing", cache_dir="x")), \
                 self.assertRaises(FileNotFoundError):
             huggingface.delete("a/b")
+
+
+class FolderSize(unittest.TestCase):
+    def test_a_finished_blob_linked_into_a_shared_store_still_counts(self):
+        with tempfile.TemporaryDirectory() as root:
+            shared = Path(root) / "blobs" / "ab"
+            shared.mkdir(parents=True)
+            (shared / "done").write_bytes(b"x" * 100)
+            repo = Path(root) / "models--a--b"
+            (repo / "blobs").mkdir(parents=True)
+            (repo / "blobs" / "done").symlink_to(shared / "done")
+            (repo / "blobs" / "other").symlink_to(shared / "done")
+            (repo / "blobs" / "partial.incomplete").write_bytes(b"y" * 7)
+            self.assertEqual(huggingface.folder_size(repo), 107)

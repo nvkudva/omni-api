@@ -8,6 +8,7 @@ import { since, size } from "../lib/format.js";
 import { uid } from "../lib/uid.js";
 import { cx } from "../lib/cx.js";
 import * as corpus from "../lib/corpus.js";
+import { thumbnail } from "../lib/thumbnail.js";
 import * as storage from "../lib/storage.js";
 import * as vectorstore from "../lib/vectorstore.js";
 import * as ui from "../components/ui.jsx";
@@ -130,6 +131,7 @@ function BatchRow({ paths, jobs, indexing, onDismiss }) {
   const detail = [indexing ? current?.name ?? "starting" : null, `${chunks} ${chunks === 1 ? "chunk" : "chunks"}`].filter(Boolean).join(" · ");
   return (
     <div class={styles.batch}>
+      {indexing && current?.thumb && <img class={styles.embedding} src={current.thumb} alt={`${current.name} being embedded`} />}
       <div class={styles.fileText}>
         <span class={styles.fileName}>{title}</span>
         <span class={styles.fileDetail} title={detail}>{detail}</span>
@@ -175,7 +177,7 @@ function FinePrint({ usage }) {
   );
 }
 
-function Passages({ hits }) {
+function Passages({ hits, thumbs }) {
   return (
     <ol class={styles.passages}>
       {hits.map(({ chunk, score }) => (
@@ -184,6 +186,7 @@ function Passages({ hits }) {
             <span>{chunk.file} #{chunk.index}</span>
             <span class={styles.passageScore}>{score.toFixed(3)}</span>
           </div>
+          {thumbs[chunk.file] && <img class={styles.hitImage} src={thumbs[chunk.file]} alt={chunk.file} />}
           <p class={styles.passageText}>{chunk.text}</p>
         </li>
       ))}
@@ -235,6 +238,8 @@ export default function Embed() {
     const kind = corpus.kindOf(file.name, file.type);
     const start = performance.now();
     upsert(path, { kind, status: STATUS_BY_KIND[kind], done: 0, total: 0, error: "" });
+    const thumb = kind === "image" ? await thumbnail(file) : "";
+    if (thumb) upsert(path, { thumb });
     try {
       if (kind === "text" && file.size > corpus.MAX_TEXT_BYTES) throw new Error("larger than 2 MB");
       if (kind === "image" && file.size > corpus.MAX_IMAGE_BYTES) throw new Error("larger than 10 MB");
@@ -246,7 +251,7 @@ export default function Embed() {
       const ms = since(start);
       record("embed", 200, ms);
       const entries = pieces.map((piece, index) => ({ id: `${path}#${index}`, file: path, index, text: piece, embedding: vectors[index] }));
-      const stored = { name: path, kind, bytes: file.size, chars: text.length, chunks: pieces.length, tokens, dims: vectors[0].length, model, ms, at: Date.now() };
+      const stored = { name: path, kind, bytes: file.size, chars: text.length, chunks: pieces.length, tokens, dims: vectors[0].length, model, ms, at: Date.now(), thumb };
       setChunks((current) => [...current.filter((chunk) => chunk.file !== path), ...entries]);
       upsert(path, { ...stored, status: "done", done: pieces.length, total: pieces.length });
       await vectorstore.putFile(stored, entries).catch(() => setUnsaved(true));
@@ -335,6 +340,7 @@ export default function Embed() {
   };
 
   const done = jobs.filter((job) => job.status === "done");
+  const thumbs = Object.fromEntries(jobs.filter((job) => job.thumb).map((job) => [job.name, job.thumb]));
   const footprints = storage.footprints(done, chunks);
   const canCaption = Boolean(visionModel());
   const catalogLoaded = models.value.data.length > 0;
@@ -457,7 +463,7 @@ export default function Embed() {
                   summary={turn.query}
                   wire={{ request: turn.request, response: turn.response }}
                 >
-                  <Passages hits={turn.hits} />
+                  <Passages hits={turn.hits} thumbs={thumbs} />
                 </Turn>
               ))}
             </div>

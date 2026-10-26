@@ -84,16 +84,24 @@ def cache_dir(repo_id: str) -> Path:
 
 
 def folder_size(folder: Path) -> int:
-    """Bytes downloaded so far. HF keeps the real blobs under `blobs/`, so walk only that when it exists."""
+    """Bytes downloaded so far. HF keeps the real blobs under `blobs/`, so walk only that when it exists.
+
+    A finished blob can be a link into a store shared by every repo, so links are followed and each
+    real file is counted once; otherwise the total would fall each time a file completes.
+    """
     blobs = folder / "blobs"
     root = blobs if blobs.is_dir() else folder
     if not root.exists():
         return 0
+    seen: set[Path] = set()
     total = 0
     for entry in root.rglob("*"):
         try:
-            if entry.is_file() and not entry.is_symlink():
-                total += entry.stat().st_size
+            real = entry.resolve()
+            if real in seen or not real.is_file():
+                continue
+            seen.add(real)
+            total += real.stat().st_size
         except OSError:
             continue
     return total
