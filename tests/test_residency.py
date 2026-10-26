@@ -319,7 +319,7 @@ class KeepWarmLoop(unittest.TestCase):
         load.assert_not_called()
 
     def test_an_idle_unpinned_worker_is_unloaded(self):
-        worker = ready_worker("tts", loaded=True, last_used=0.0)
+        worker = ready_worker("tts", loaded=True, last_used=-1e9)
         with patch.object(residency, "set_residency", AsyncMock()) as unload:
             asyncio.run(self.loop({"tts": worker}).refresh())
         unload.assert_awaited_once()
