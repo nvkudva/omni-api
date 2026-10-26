@@ -17,7 +17,7 @@ export const RECOMMENDED = {
     { model: "gemma4:12b", gb: 8.0, note: "smallest of the fast ones" },
   ],
   decide: [
-    { model: "nvkudva/vega-onnx-q8", gb: 0.85, note: "shipped default — Vega 0.8B, 8-bit ONNX; calibrated, with prediction sets and abstain" },
+    { model: "nvkudva/vega-onnx-q8", gb: 0.97, note: "shipped default — Vega 0.8B, 8-bit ONNX; calibrated, with prediction sets and abstain" },
   ],
   embed: [
     { model: "embeddinggemma-2:270m", gb: 0.3, note: "shipped default — smallest" },

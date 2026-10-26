@@ -3,10 +3,7 @@
 Jobs are capped, expire on a TTL and their mp4s are deleted, so a long session cannot grow without bound.
 """
 import asyncio
-import base64
-import binascii
 import inspect
-import io
 import json
 import logging
 import re
@@ -19,11 +16,11 @@ from pathlib import Path
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 
 from omni import config, schemas, workers
 from omni.registry import pulling
-from omni.workers import gguf
+from omni.workers import gguf, pictures
 
 log = logging.getLogger("omni.worker.video")
 
@@ -128,23 +125,6 @@ def _frames(seconds: float) -> int:
     return max(1, round(seconds * fps / 8)) * 8 + 1
 
 
-def _decode_frame(data: str) -> bytes:
-    """Validate a base64 first frame up front, so a bad one is a 400 and not a failed job."""
-    raw = data.split(",", 1)[-1] if data.startswith("data:") else data
-    try:
-        blob = base64.b64decode(raw, validate=True)
-    except (binascii.Error, ValueError) as error:
-        raise HTTPException(400, "image: not valid base64") from error
-    if len(blob) > schemas.IMAGE_MAX_FRAME_BYTES:
-        raise HTTPException(413, "image: first frame is too large")
-    try:
-        with Image.open(io.BytesIO(blob)) as picture:
-            picture.verify()
-    except (UnidentifiedImageError, OSError) as error:
-        raise HTTPException(400, "image: first frame is not a decodable image") from error
-    return blob
-
-
 def _public(job_id: str) -> dict:
     return {key: value for key, value in list(jobs[job_id].items()) if key != "path"}
 
@@ -195,7 +175,7 @@ def _generate(job_id: str, req: schemas.VideoRequest, width: int, height: int) -
     image_path = config.VIDEO_DIR / f"{job_id}.png" if req.image else None
     try:
         if image_path is not None:
-            image_path.write_bytes(_decode_frame(req.image))
+            image_path.write_bytes(pictures.decode(req.image))
         with model.use() as pipe:
             if not _live(job_id, job):
                 return
@@ -298,7 +278,7 @@ async def create(req: schemas.VideoRequest) -> dict:
     except ValueError as error:
         raise HTTPException(400, str(error)) from error
     if req.image:
-        await asyncio.to_thread(_decode_frame, req.image)
+        await asyncio.to_thread(pictures.decode, req.image)
     job_id = f"video_{uuid.uuid4().hex[:16]}"
     frames = _frames(req.seconds)
     jobs[job_id] = {"id": job_id, "object": "video", "model": model_name, "status": "queued",

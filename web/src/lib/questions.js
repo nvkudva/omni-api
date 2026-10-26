@@ -70,6 +70,19 @@ export function questionsFromRows(rows, { strict = true } = {}) {
 }
 
 export const EXAMPLES = {
+  invoice: {
+    label: "Invoice photo",
+    image: "invoice.png",
+    state: "",
+    questions: {
+      kind: {
+        type: "choice",
+        instructions: "What kind of document is this?",
+        criteria: { invoice: "a bill", receipt: "proof of payment", letter: "correspondence", other: "none of these" },
+      },
+      money: { type: "noul", instructions: "Does this document ask for a payment?" },
+    },
+  },
   triage: {
     label: "Support triage",
     state: "I was charged twice for order 8841 and support has not replied in four days. I want the second charge refunded today or I am cancelling my plan.",

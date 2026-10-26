@@ -5,7 +5,8 @@ port of the PyTorch reference. A frozen Qwen3.5-0.8B reads the state and one typ
 physics engine turns the pooled hidden states into option logits; a per-type temperature and a
 conformal threshold turn those into calibrated probabilities, a prediction set and an abstain flag.
 Token-for-token equality with the reference prompt is the contract, so every slice bound and template
-string below is load-bearing. Text states only (`views=1`); the image path is not ported.
+string below is load-bearing. `views=1` only. An image can stand in for the state text (zero-shot:
+the engine was trained on text features), as in the reference `vega_vision.py`.
 """
 import json
 import math
@@ -22,6 +23,13 @@ MIN_INSTRUCTION_TOKENS = 8
 RESERVED_TOKENS = 16
 TAU_RANGE = (0.2, 20.0)
 DEFAULT_ALPHA = "0.1"
+
+# The state text an image replaces: its single pad token is expanded to one per image feature.
+VISION_STATE = "<|vision_start|><|image_pad|><|vision_end|>"
+PATCH_SIZE = 16
+TEMPORAL_PATCH_SIZE = 2
+MIN_PIXELS = 65536
+IMAGE_MEAN = IMAGE_STD = 0.5
 
 HEAD = "Observation:\n"
 QUESTION = "\n\nMeasurement ({t}): {ins}\nPossible outcomes:"
@@ -139,16 +147,89 @@ def build_prompt(encode, state_text: str, rendered: dict, config: dict) -> dict:
             "options": option_spans}
 
 
+def smart_resize(height: int, width: int, factor: int, max_pixels: int) -> tuple[int, int]:
+    """Qwen2-VL's resize target: multiples of `factor` that keep the aspect ratio inside the pixel budget."""
+    resized_height = max(factor, round(height / factor) * factor)
+    resized_width = max(factor, round(width / factor) * factor)
+    if resized_height * resized_width > max_pixels:
+        shrink = math.sqrt(height * width / max_pixels)
+        resized_height = max(factor, math.floor(height / shrink / factor) * factor)
+        resized_width = max(factor, math.floor(width / shrink / factor) * factor)
+    elif resized_height * resized_width < MIN_PIXELS:
+        grow = math.sqrt(MIN_PIXELS / (height * width))
+        resized_height = math.ceil(height * grow / factor) * factor
+        resized_width = math.ceil(width * grow / factor) * factor
+    return resized_height, resized_width
+
+
+def preprocess_image(picture, config: dict) -> dict:
+    """A PIL image -> the vision encoder's patches, shaped (patches, 1536), and its (t, h, w) grid in patches.
+
+    Resized to the pixel budget, normalised, and cut into 2 x 16 x 16 patches in Qwen2-VL's layout.
+    """
+    merge = config["vision_merge_size"]
+    height, width = smart_resize(picture.height, picture.width, PATCH_SIZE * merge, config["vision_max_pixels"])
+    resized = picture.convert("RGB").resize((width, height), resample=3)  # 3 = bicubic
+    pixels = (np.asarray(resized, dtype=np.float32) / 255.0 - IMAGE_MEAN) / IMAGE_STD
+    frames = np.tile(pixels.transpose(2, 0, 1)[None], (TEMPORAL_PATCH_SIZE, 1, 1, 1))  # (t, c, h, w)
+    grid_h, grid_w = height // PATCH_SIZE, width // PATCH_SIZE
+    patches = frames.reshape(1, TEMPORAL_PATCH_SIZE, 3, grid_h // merge, merge, PATCH_SIZE, grid_w // merge, merge, PATCH_SIZE)
+    patches = patches.transpose(0, 3, 6, 4, 7, 2, 1, 5, 8)
+    return {"pixels": patches.reshape(grid_h * grid_w, 3 * TEMPORAL_PATCH_SIZE * PATCH_SIZE * PATCH_SIZE),
+            "grid": (1, grid_h, grid_w), "tokens": grid_h * grid_w // (merge * merge)}
+
+
+def expand_image(prompt: dict, pad_id: int, count: int) -> dict:
+    """Replace the prompt's single image pad with `count` pads, shifting every span after it."""
+    ids = prompt["ids"]
+    at = ids.index(pad_id)
+
+    def shift(position: int) -> int:
+        return position + count - 1 if position > at else position
+
+    return {"ids": [*ids[:at], *([pad_id] * count), *ids[at + 1:]],
+            "state": (prompt["state"][0], shift(prompt["state"][1])),
+            "question": tuple(shift(position) for position in prompt["question"]),
+            "options": [tuple(shift(position) for position in span) for span in prompt["options"]]}
+
+
+def rope_index(ids: list[int], pad_id: int, grid: tuple[int, int, int] | None, merge: int) -> np.ndarray:
+    """Qwen3.5's rotary positions, shaped (3, length), for a sequence with at most one image.
+
+    Text tokens count up on all three rows; the image block is its (t, h, w) grid offset by the
+    current position, which then advances by the larger side of the merged grid.
+    """
+    length = len(ids)
+    positions = np.zeros((3, length), dtype=np.int64)
+    current = 0
+    index = 0
+    while index < length:
+        if grid is not None and ids[index] == pad_id:
+            frames, rows, columns = grid[0], grid[1] // merge, grid[2] // merge
+            count = frames * rows * columns
+            time_axis, row_axis, column_axis = np.meshgrid(np.arange(frames), np.arange(rows), np.arange(columns), indexing="ij")
+            positions[0, index:index + count] = current + time_axis.reshape(-1)
+            positions[1, index:index + count] = current + row_axis.reshape(-1)
+            positions[2, index:index + count] = current + column_axis.reshape(-1)
+            current += max(rows, columns)
+            index += count
+        else:
+            positions[:, index] = current
+            current += 1
+            index += 1
+    return positions
+
+
 def _mean(hidden: np.ndarray, start: int, stop: int) -> np.ndarray:
     return hidden[start:stop].mean(axis=0) if stop > start else np.zeros(HIDDEN_SIZE, dtype=np.float32)
 
 
-def pool(config: dict, layer13: np.ndarray, layer19: np.ndarray, prompt: dict) -> dict:
+def pool(config: dict, layer13: np.ndarray, layer19: np.ndarray, prompt: dict, with_chunks: bool = True) -> dict:
     """The engine's inputs from two hidden-state layers, each shaped (tokens, hidden).
 
     Per layer: the state-span mean, the question-span mean and the final token. Per option: the span
     mean at the deepest layer. And the state cut into up to `memory_chunks` equal pieces, mean-pooled
-    at the deepest layer, for the engine's memory reader.
+    at the deepest layer, for the engine's memory reader. An image state gets no chunks.
     """
     last = len(prompt["ids"]) - 1
     features = np.stack([
@@ -160,7 +241,7 @@ def pool(config: dict, layer13: np.ndarray, layer19: np.ndarray, prompt: dict) -
     chunk_mask = np.zeros(chunk_count, dtype=bool)
     span_start, span_stop = prompt["state"]
     length = span_stop - span_start
-    if length >= max(config["memory_min_tokens"], 2):
+    if with_chunks and length >= max(config["memory_min_tokens"], 2):
         used = max(2, min(chunk_count, length // max(1, config["memory_chunk_tokens"])))
         # token i of the span goes to chunk i * used // length
         owner = np.arange(length) * used // length

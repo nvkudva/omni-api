@@ -61,7 +61,7 @@ apps ──► 127.0.0.1:10000  omni gateway (FastAPI + httpx streaming proxy)
   - `process.py` records each child's pid and command line, so on `down` only a pid that is still ours is signalled; leftover workers from an earlier run are cleaned up on start.
 - **Workers** (`src/omni/workers/`): each role runs in its own uvicorn process, so a crash or memory spike in one model never takes down the others. Each loads its model on first use behind one lock and unloads it when idle.
 - **Chat and embed** use the machine's own Ollama address (`OLLAMA_HOST`, else `127.0.0.1:11434`). If nothing answers there, omni spawns `ollama serve` on that same address; it never moves Ollama to another port.
-- **Decide** (`src/omni/workers/decide.py`, `src/omni/inference/vega.py`) runs [Vega](https://huggingface.co/nvkudva/vega-onnx-q8) on ONNX Runtime, in its own worker. A frozen Qwen3.5-0.8B reads the state and one typed question; a small physics engine turns the pooled hidden states into option logits; a per-type temperature and a conformal threshold turn those into calibrated probabilities, a prediction set, and `abstain` and `unbound` flags. It is not a generative model. The prompt, pooling and calibration are a port of the [browser runtime](https://github.com/nvkudva/vega-web), checked against its parity set (identical token ids and spans; every argmax kept). Text states only; the image-as-state path is not ported.
+- **Decide** (`src/omni/workers/decide.py`, `src/omni/inference/vega.py`) runs [Vega](https://huggingface.co/nvkudva/vega-onnx-q8) on ONNX Runtime, in its own worker. A frozen Qwen3.5-0.8B reads the state and one typed question; a small physics engine turns the pooled hidden states into option logits; a per-type temperature and a conformal threshold turn those into calibrated probabilities, a prediction set, and `abstain` and `unbound` flags. It is not a generative model. The prompt, pooling and calibration are a port of the [browser runtime](https://github.com/nvkudva/vega-web), checked against its parity set (identical token ids and spans; every argmax kept). An image can stand in for the text state (zero-shot: the engine was trained on text features).
 - **Image** (`src/omni/workers/image.py`) runs `QwenImage21Pipeline` from diffusers on MPS in bf16. `[image] steps` sets the default step count.
 
 ---
@@ -155,7 +155,7 @@ omni brings all of that together:
 | Role | Endpoint | Default model | Engine |
 |---|---|---|---|
 | **chat** | `POST /v1/chat/completions` (streaming) | `qwen2.5:0.5b` | Ollama |
-| **decide** | `POST /v1/systemone` | `nvkudva/vega-onnx-q8` (8-bit ONNX, ~0.85 GB) | ONNX Runtime (Vega) |
+| **decide** | `POST /v1/systemone` | `nvkudva/vega-onnx-q8` (8-bit ONNX, ~0.97 GB) | ONNX Runtime (Vega) |
 | **embed** | `POST /v1/embeddings` | `embeddinggemma-2:270m` (text) | Ollama |
 | **image** | `POST /v1/images/generations` | `unsloth/Qwen-Image-2.1-Turbo-GGUF` | diffusers (MPS, Q8_0) |
 | **video** | `POST /v1/videos`, `GET /v1/videos/{id}`, `GET /v1/videos/{id}/content` | `QuantStack/Wan2.2-TI2V-5B-GGUF` (Wan 2.2 TI2V-5B, Q8_0) | diffusers (also runs LTX-Video GGUFs) |
@@ -233,7 +233,7 @@ omni up       # gateway and workers in the background
 
 `omni init` validates `~/.omni-api/config.toml`, asks whether to install Ollama when the binary is missing (it stops if you say no), starts the server it just installed, pulls the chat and embed models and confirms they landed, then starts the gateway and loads the decide, stt and tts models (downloading them first); every failure prints the command to fix it and a link. The image and video models download on first use, or now with `omni init --media`. When something is wrong and you would rather not install anything, `omni doctor` runs the same checks read-only and prints one line per check. Release and packaging notes live in [`docs/publishing.md`](docs/publishing.md).
 
-The shipped defaults are the small profile: `qwen2.5:0.5b` (chat), `vega-onnx-q8` (decide, 0.85 GB), `embeddinggemma-2:270m` (embed), `parakeet-tdt-0.6b-v2-onnx` (stt, 0.7 GB), `Kokoro-82M-v1.0-ONNX` (tts, 0.12 GB), `Qwen-Image-2.1-Turbo` at Q8_0 (image, 7.6 GB transformer, about 26 GB once the shared text encoder and VAE land) and `Wan2.2-TI2V-5B` at Q8_0 (video, 5.4 GB transformer, about 20 GB with its text encoder and VAE). Any role can be changed in the playground (add a model, set it as default) or in `~/.omni-api/config.toml`; each role's list keeps the bigger models one click away.
+The shipped defaults are the small profile: `qwen2.5:0.5b` (chat), `vega-onnx-q8` (decide, 0.97 GB), `embeddinggemma-2:270m` (embed), `parakeet-tdt-0.6b-v2-onnx` (stt, 0.7 GB), `Kokoro-82M-v1.0-ONNX` (tts, 0.12 GB), `Qwen-Image-2.1-Turbo` at Q8_0 (image, 7.6 GB transformer, about 26 GB once the shared text encoder and VAE land) and `Wan2.2-TI2V-5B` at Q8_0 (video, 5.4 GB transformer, about 20 GB with its text encoder and VAE). Any role can be changed in the playground (add a model, set it as default) or in `~/.omni-api/config.toml`; each role's list keeps the bigger models one click away.
 
 ---
 

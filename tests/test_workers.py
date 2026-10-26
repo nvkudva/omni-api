@@ -281,6 +281,11 @@ class DecideValidation(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("state", response.json()["error"]["message"])
 
+    def test_an_image_that_is_not_one_is_a_400(self):
+        response = self.post({"image": "not base64", "questions": {"q": {"instructions": "?", "criteria": ["A", "B"]}}})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("base64", response.json()["error"]["message"])
+
     def test_a_malformed_question_is_a_400(self):
         response = self.post({"state": "x", "questions": {"q": {"type": "mystery", "instructions": "?"}}})
         self.assertEqual(response.status_code, 400)
@@ -295,7 +300,7 @@ class DecideValidation(unittest.TestCase):
         from unittest.mock import patch
 
         class FakeDecider:
-            def decide(self, state_text, rendered):
+            def decide(self, state_text, rendered, image=None):
                 return {"type": "noul", "noul": 0.9, "abstain": False}, 12
 
         original = decide.model

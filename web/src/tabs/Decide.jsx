@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import { record } from "../api/client.js";
+import { readDataUrl, record } from "../api/client.js";
 import { decide } from "../api/endpoints.js";
 import { cancelExec, newExecId } from "../api/execs.js";
 import { models } from "../api/models.js";
 import { curlJson } from "../lib/curl.js";
 import { uid } from "../lib/uid.js";
-import { since } from "../lib/format.js";
+import { shorten, since } from "../lib/format.js";
 import * as questionSet from "../lib/questions.js";
 import * as store from "../store.js";
 import * as ui from "../components/ui.jsx";
@@ -95,12 +95,15 @@ function isPlainObject(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+const EXAMPLE_BASE = import.meta.env.BASE_URL ?? "/";
+
 function adoptRequest(body) {
   if (!isPlainObject(body)) throw new Error("the body must be a JSON object");
-  if (typeof body.state !== "string") throw new Error("state must be a string");
+  const hasImage = typeof body.image === "string" && Boolean(body.image.trim());
+  if (!hasImage && typeof body.state !== "string") throw new Error("state must be a string, or an image");
   if (!isPlainObject(body.questions)) throw new Error("questions must be an object");
   return {
-    state: body.state,
+    state: typeof body.state === "string" ? body.state : "",
     rows: questionSet.rowsFromQuestions(body.questions),
     model: typeof body.model === "string" ? body.model : "",
   };
@@ -109,6 +112,7 @@ function adoptRequest(body) {
 export default function Decide() {
   const [model, setModel] = useState(() => store.get("omni.decide.model", ""));
   const [state, setState] = useState(() => store.get("omni.decide.state", questionSet.EXAMPLES[questionSet.DEFAULT_EXAMPLE].state));
+  const [image, setImage] = useState(null);
   const [rows, setRows] = useState(initialRows);
   const [turns, setTurns] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -126,16 +130,32 @@ export default function Decide() {
   const rowsError = validationError(rows);
 
   const body = {
-    state,
+    ...(image ? { image: image.url } : { state }),
     questions: questionSet.questionsFromRows(rows, { strict: false }),
     ...(effectiveModel ? { model: effectiveModel } : {}),
   };
-  const json = useJsonRequest(view, body);
+  const json = useJsonRequest(view, image ? { ...body, image: shorten(image.url) } : body);
   const curl = curlJson("/v1/systemone", view === "json" && !json.error ? json.body : body);
 
   const editState = (text) => {
     setState(text);
     store.set("omni.decide.state", text);
+  };
+
+  const chooseImage = async (file) => {
+    if (!file.type.startsWith("image/")) return;
+    setImage({ name: file.name, url: await readDataUrl(file) });
+  };
+
+  const loadExampleImage = async (name) => {
+    try {
+      const response = await fetch(`${EXAMPLE_BASE}examples/${name}`);
+      if (!response.ok) throw new Error(String(response.status));
+      setImage({ name, url: await readDataUrl(await response.blob()) });
+    } catch {
+      setImage(null);
+      setRequestError(`The example image ${name} did not load.`);
+    }
   };
 
   const editRows = (next) => {
@@ -151,9 +171,11 @@ export default function Decide() {
   const loadExample = (key) => {
     const example = questionSet.EXAMPLES[key];
     if (!example) return;
-    editState(example.state);
+    editState(example.state ?? "");
     editRows(questionSet.rowsFromQuestions(example.questions));
     setRequestError("");
+    if (example.image) loadExampleImage(example.image);
+    else setImage(null);
   };
 
   const changeView = (next) => {
@@ -175,8 +197,10 @@ export default function Decide() {
   };
 
   const send = async () => {
-    const payload = view === "json" ? json.body : body;
+    const payload = view === "json" ? { ...(json.body ?? {}) } : body;
     if (!payload || (view === "ui" && rowsError)) return;
+    // The JSON pane shows a shortened data URL; send the picked image instead.
+    if (typeof payload.image === "string" && payload.image.endsWith("…") && image) payload.image = image.url;
     setBusy(true);
     setError("");
     const start = performance.now();
@@ -204,8 +228,8 @@ export default function Decide() {
   };
 
   const disableSend = busy || (view === "json"
-    ? !json.body || Boolean(json.error) || !String(json.body.state ?? "").trim()
-    : Boolean(rowsError) || !state.trim());
+    ? !json.body || Boolean(json.error) || (!String(json.body.state ?? "").trim() && !json.body.image)
+    : Boolean(rowsError) || (!state.trim() && !image));
 
   const sendOnShortcut = (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !disableSend) {
@@ -252,6 +276,21 @@ export default function Decide() {
         )}
       >
         <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error} curl={curl}>
+          <ui.Field label="Image" hint={image ? "replaces the state text" : "optional, instead of the state text"}>
+            <ui.DropZone accept="image/*" onFile={chooseImage}>
+              {image
+                ? (
+                  <span class={styles.image}>
+                    <img class={styles.thumb} src={image.url} alt={image.name} />
+                    {image.name} — click to change
+                  </span>
+                )
+                : "Drop an invoice, receipt or letter here, or click to choose"}
+            </ui.DropZone>
+            {image && (
+              <ui.Button small onClick={() => setImage(null)}>Use the state text instead</ui.Button>
+            )}
+          </ui.Field>
           <ui.Field label="State" hint="⌘/Ctrl + Enter to decide">
             <textarea rows={4} value={state} onInput={(event) => editState(event.currentTarget.value)} onKeyDown={sendOnShortcut} />
           </ui.Field>
@@ -277,7 +316,7 @@ export default function Decide() {
                   onView={(next) => turnState.setViewOf(turn.id, next)}
                   open={openId === turn.id}
                   onToggle={() => turnState.toggle(turn.id)}
-                  summary={turn.request?.state}
+                  summary={turn.request?.state || (turn.request?.image ? `image · ${String(turn.request.image).slice(0, 32)}` : "")}
                   wire={{ request: turn.request, response: turn.response }}
                 >
                   <Answers questions={turn.request?.questions} data={turn.response} />

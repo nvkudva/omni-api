@@ -146,9 +146,9 @@ describe("the Find and Install popup", () => {
     expect(chat).not.toContain("parakeet");
     const stt = render(<FindAndInstall role="stt" onClose={noop} onInstalled={noop} />);
     expect(stt).toContain("Find &amp; install — Speech to text");
-    expect(stt).toContain("MLX · Parakeet speech-to-text");
+    expect(stt).toContain("ONNX · Parakeet speech-to-text");
     expect(stt).toContain("parakeet");
-    expect(stt).toContain("mlx-community/parakeet-tdt-0.6b-v3");
+    expect(stt).toContain("istupakov/parakeet-tdt-0.6b-v2-onnx");
   });
 
   test("a recommended table lists the role's candidates with their download state", () => {

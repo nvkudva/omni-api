@@ -109,6 +109,44 @@ class Pooling(unittest.TestCase):
         self.assertFalse(vega.pool(CONFIG, layer, layer, prompt)["chunk_mask"].any())
 
 
+class Vision(unittest.TestCase):
+    def test_resize_keeps_the_frame_inside_the_pixel_budget(self):
+        self.assertEqual(vega.smart_resize(480, 640, 32, 1_048_576), (480, 640))
+        height, width = vega.smart_resize(200, 300, 32, 1_048_576)
+        self.assertGreaterEqual(height * width, vega.MIN_PIXELS)
+        self.assertEqual((height % 32, width % 32), (0, 0))
+        height, width = vega.smart_resize(4000, 4000, 32, 1_048_576)
+        self.assertLessEqual(height * width, 1_048_576)
+
+    def test_an_image_becomes_patches_and_a_grid(self):
+        from PIL import Image
+
+        picture = Image.new("RGB", (640, 480), (255, 255, 255))
+        patches = vega.preprocess_image(picture, {"vision_merge_size": 2, "vision_max_pixels": 1_048_576})
+        self.assertEqual(patches["grid"], (1, 30, 40))
+        self.assertEqual(patches["tokens"], 300)
+        self.assertEqual(patches["pixels"].shape, (1200, 1536))
+        self.assertAlmostEqual(float(patches["pixels"][0, 0]), 1.0)  # white, normalised around 0.5
+
+    def test_the_pad_expands_and_the_spans_after_it_shift(self):
+        prompt = {"ids": [7, 8, 99, 9, 10], "state": (1, 4), "question": (4, 5), "options": [(0, 2)]}
+        expanded = vega.expand_image(prompt, 99, 3)
+        self.assertEqual(expanded["ids"], [7, 8, 99, 99, 99, 9, 10])
+        self.assertEqual(expanded["state"], (1, 6))
+        self.assertEqual(expanded["question"], (6, 7))
+        self.assertEqual(expanded["options"], [(0, 2)])
+
+    def test_rope_positions_step_the_image_block_by_its_grid(self):
+        positions = vega.rope_index([10, 11, 99, 99, 99, 99, 12], 99, (1, 2, 2), 1)
+        self.assertEqual(positions.tolist(), [
+            [0, 1, 2, 2, 2, 2, 4],
+            [0, 1, 2, 2, 3, 3, 4],
+            [0, 1, 2, 3, 2, 3, 4],
+        ])
+        text = vega.rope_index([10, 11, 12], 99, None, 1)
+        self.assertEqual(text.tolist(), [[0, 1, 2]] * 3)
+
+
 class Calibration(unittest.TestCase):
     def engine(self, logits=(2.0, 0.0), gates=(0.0,), nearest=0.0):
         return {"logits": list(logits), "kinetic": 0.0, "nearest": nearest, "steps": 12, "gates": list(gates)}
