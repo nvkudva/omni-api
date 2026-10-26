@@ -185,7 +185,8 @@ class Tracker(unittest.TestCase):
             async for event in pulling.pull(None, "stt", "onnx/parakeet"):
                 seen.append(event)
 
-        with patch.object(pulling.huggingface, "download_plan", return_value=huggingface.Plan(None, 100)), \
+        with patch.object(pulling.huggingface, "bundle", return_value=[huggingface.Part("onnx/parakeet", None, 100)]), \
+                patch.object(pulling.huggingface, "save_manifest"), \
                 patch.object(pulling.huggingface, "download", return_value="/cache"), \
                 patch.object(pulling.huggingface, "cache_dir", return_value="/none"), \
                 patch.object(pulling.huggingface, "folder_size", side_effect=[10, 100]), \
@@ -195,7 +196,7 @@ class Tracker(unittest.TestCase):
         self.assertEqual(seen[-1], {"status": "success"})
 
 
-    def test_a_video_download_counts_its_base_repo_in_the_progress(self):
+    def test_a_bundle_download_counts_its_base_repo_and_remembers_the_bundle(self):
         seen = []
         downloaded = []
 
@@ -206,14 +207,16 @@ class Tracker(unittest.TestCase):
             async for event in pulling.pull(None, "video", "q/wan-gguf"):
                 seen.append(event)
 
-        with patch.object(pulling.huggingface, "download_plan", return_value=huggingface.Plan(["m-Q8_0.gguf"], 100)), \
-                patch.object(pulling, "_video_base", return_value=[("w/wan-diffusers", ["vae/*"], 50)]), \
+        parts = [huggingface.Part("q/wan-gguf", ["m-Q8_0.gguf"], 100), huggingface.Part("w/wan-diffusers", ["vae/*"], 50)]
+        with patch.object(pulling.huggingface, "bundle", return_value=parts), \
+                patch.object(pulling.huggingface, "save_manifest") as save, \
                 patch.object(pulling.huggingface, "download", fake_download), \
                 patch.object(pulling.huggingface, "cache_dir", side_effect=lambda repo: repo), \
                 patch.object(pulling.huggingface, "folder_size", return_value=500), \
                 patch.object(pulling, "PROGRESS_SECONDS", 0.01):
             asyncio.run(run())
         self.assertEqual(downloaded, ["q/wan-gguf", "w/wan-diffusers"])
+        save.assert_called_once_with("video", "q/wan-gguf", parts)
         self.assertTrue(any(event.get("total") == 150 for event in seen))
         self.assertTrue(all(event.get("completed", 0) <= 150 for event in seen))
 

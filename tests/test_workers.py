@@ -22,7 +22,7 @@ from omni.workers.runtime import Lazy
 class LazyModel(unittest.TestCase):
     def test_loads_on_first_use_and_drops_on_unload(self):
         dropped = []
-        lazy = Lazy(lambda: 42, idle_seconds=10_000, after_unload=lambda: dropped.append(True))
+        lazy = Lazy(lambda: 42, after_unload=lambda: dropped.append(True))
         self.assertFalse(lazy.loaded)
         with lazy.use() as model:
             self.assertEqual(model, 42)
@@ -35,22 +35,6 @@ class LazyModel(unittest.TestCase):
         # dropping an already dropped model is a no-op
         lazy.unload()
         self.assertEqual(dropped, [True])
-
-    def test_zero_idle_seconds_never_unloads(self):
-        # 0 is "never": the model stays resident no matter how long it sits unused.
-        with patch.object(runtime, "IDLE_CHECK_SECONDS", 0.01):
-            lazy = Lazy(lambda: 42, idle_seconds=0)
-            lazy.load()
-            time.sleep(0.05)
-            self.assertTrue(lazy.loaded)
-
-    def test_positive_idle_seconds_drops_after_the_window(self):
-        # the control for the test above: with a real window the idle thread does drop the model
-        with patch.object(runtime, "IDLE_CHECK_SECONDS", 0.01):
-            lazy = Lazy(lambda: 42, idle_seconds=0.01)
-            lazy.load()
-            time.sleep(0.2)
-            self.assertFalse(lazy.loaded)
 
     def test_requests_past_the_cap_are_refused_not_queued(self):
         executor = runtime.ModelExecutor("test-model", max_pending=1)
@@ -67,21 +51,6 @@ class LazyModel(unittest.TestCase):
 
         self.assertEqual(asyncio.run(run()), 429)
         self.assertEqual(executor.pending, 0)
-
-    def test_idle_unload_runs_on_the_loading_thread(self):
-        executor = runtime.ModelExecutor("test-model")
-        threads = {}
-
-        def load():
-            threads["load"] = threading.current_thread()
-            return 42
-
-        with patch.object(runtime, "IDLE_CHECK_SECONDS", 0.01):
-            lazy = Lazy(load, idle_seconds=0.01, after_unload=lambda: threads.setdefault("drop", threading.current_thread()))
-            asyncio.run(executor.run(lazy.load))
-            time.sleep(0.3)
-        self.assertFalse(lazy.loaded)
-        self.assertIs(threads["drop"], threads["load"])
 
 
 class VideoExpiry(unittest.TestCase):
@@ -104,7 +73,7 @@ class VideoExpiry(unittest.TestCase):
         job = {"id": "video_0", "status": "queued", "created_at": 0}
         video.jobs["video_0"] = job
         req = video.schemas.VideoRequest(prompt="x")
-        with patch.object(video, "model", Lazy(object, idle_seconds=0)), \
+        with patch.object(video, "model", Lazy(object)), \
                 patch.object(video, "_render", render), patch.object(video, "_write_mp4", write_mp4):
             video._generate("video_0", req, 64, 64)
         return job
@@ -165,7 +134,7 @@ class SttTranscription(unittest.TestCase):
                                        timestamps=[0.1, 0.5, 0.6, 1.2])
 
         original = stt.model
-        stt.model = Lazy(FakeTranscriber, idle_seconds=10_000)
+        stt.model = Lazy(FakeTranscriber)
         try:
             silence = np.zeros(stt.SAMPLE_RATE * 2, dtype=np.float32)
             with patch.object(stt, "_decode", return_value=silence), TestClient(stt.app) as client:
@@ -304,7 +273,7 @@ class DecideValidation(unittest.TestCase):
                 return {"type": "noul", "noul": 0.9, "abstain": False}, 12
 
         original = decide.model
-        decide.model = Lazy(FakeDecider, idle_seconds=10_000)
+        decide.model = Lazy(FakeDecider)
         try:
             with patch.object(decide, "executor", decide.executor):
                 body = self.post({"state": {"a": 1}, "questions": {"q": {"type": "noul", "instructions": "Is it?"}}}).json()

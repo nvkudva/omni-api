@@ -11,9 +11,10 @@ from omni.registry.huggingface import (
     ERRORS as HF_ERRORS,
 )
 from omni.registry.huggingface import (
+    bundle,
     cache_dir,
-    holds,
     folder_size,
+    held_size,
     invalidate,
     search,
 )
@@ -21,12 +22,10 @@ from omni.registry.huggingface import (
     delete as hf_delete,
 )
 from omni.registry.huggingface import (
-    download_plan as hf_plan,
-)
-from omni.registry.huggingface import (
     installed as hf_installed,
 )
 from omni.registry.memory import (
+    GB,
     fit_blockers,
     memory,
     overload_advisories,
@@ -56,9 +55,9 @@ from omni.registry.pulling import (
     snapshot,
 )
 from omni.registry.roles import (
-    HF_ROLES,
     OLLAMA_ROLES,
     PYTHON_WORKERS,
+    ROLE_SPECS,
     ROLES,
     bare_repo_id,
     canonical,
@@ -73,12 +72,14 @@ from omni.registry.roles import (
 )
 
 __all__ = [
+    "GB",
     "HF_ERRORS",
-    "HF_ROLES",
     "OLLAMA_ROLES",
     "PYTHON_WORKERS",
     "ROLES",
+    "ROLE_SPECS",
     "bare_repo_id",
+    "bundle",
     "cache_dir",
     "canonical",
     "capabilities",
@@ -86,9 +87,9 @@ __all__ = [
     "family",
     "fit_blockers",
     "folder_size",
+    "held_size",
     "hf_delete",
     "hf_installed",
-    "hf_plan",
     "installed_for",
     "invalidate",
     "matches",
@@ -135,7 +136,13 @@ async def installed_for(role: str, client: httpx.AsyncClient) -> list[dict]:
     """Models this role could actually load: Ollama's list, or cached repos its runtime supports."""
     if runner(role) != "ollama":
         cached = await asyncio.to_thread(hf_installed)
-        return [model for model in cached if supports(role, model["name"]) and holds(role, model["name"])]
+        usable = []
+        for model in cached:
+            size = held_size(role, model["name"]) if supports(role, model["name"]) else None
+            if size is not None:
+                # what a load reads, the whole bundle, so fit and memory checks count every part
+                usable.append({**model, "size_bytes": size})
+        return usable
     models = await ollama_installed(client)
     found = await ollama_capabilities(client, [model["name"] for model in models])
     usable = []

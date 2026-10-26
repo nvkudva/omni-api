@@ -169,18 +169,35 @@ def register(app: FastAPI, ctx: Context) -> None:
                 "reason": f"{default} is not downloaded yet; loading downloads it first",
                 "total_bytes": total}
 
+    def recommended(role: str, available: list[dict]) -> list[dict]:
+        """The role's curated models, its live default first, each with what stands in its way here."""
+        rows = [{"model": model, "gb": size, "note": note} for model, size, note in registry.ROLE_SPECS[role]["recommended"]]
+        default = settings[role]["model"]
+        if not any(registry.matches(row["model"], default) for row in rows):
+            rows.insert(0, {"model": default, "gb": None, "note": "current default"})
+        for row in rows:
+            match = next((entry for entry in available if registry.matches(entry["name"], row["model"])), None)
+            size = match["size_bytes"] if match else int((row["gb"] or 0) * registry.GB)
+            row["installed"] = match is not None
+            row["blockers"] = registry.fit_blockers(size, on_disk=match is not None) if size else []
+        return rows
+
     @app.get("/admin/models/status")
     async def admin_status() -> JSONResponse:
-        """One setup summary per role: its default, what is on disk for it, and whether the default can run."""
+        """One summary per role: its spec, its default, what is on disk for it, whether the default can
+        run, and the recommended models with what stands in their way on this machine."""
         roles = {}
         for role in registry.ROLES:
             try:
                 available = await installed_for(role)
             except (httpx.HTTPError, *registry.HF_ERRORS):
                 available = []
-            state = setup_state(role, available)
+            spec = registry.ROLE_SPECS[role]
             roles[role] = {"default": settings[role]["model"], "runner": registry.runner(role),
-                           "installed": available, **state}
+                           "engine": spec["engine"], "kind": spec["kind"], "family": " or ".join(spec["family"]) or None,
+                           "accepts": spec["accepts"], "example": spec["example"],
+                           "recommended": recommended(role, available),
+                           "installed": available, **setup_state(role, available)}
         return JSONResponse({"roles": roles})
 
     @app.get("/admin/models/downloads")
@@ -212,7 +229,7 @@ def register(app: FastAPI, ctx: Context) -> None:
         gated = False
         if registry.runner(role) != "ollama":
             try:
-                size = (await asyncio.to_thread(registry.hf_plan, role, name)).size
+                size = sum(part.size for part in await asyncio.to_thread(registry.bundle, role, name))
             except GatedRepoError:
                 gated = True
             except registry.HF_ERRORS:

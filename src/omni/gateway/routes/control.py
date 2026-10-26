@@ -6,7 +6,7 @@ import psutil
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from omni import config, logs, registry, schemas, version
+from omni import config, logs, schemas, version
 from omni.commands import lifecycle
 from omni.errors import error_response
 from omni.gateway.context import Context
@@ -14,7 +14,7 @@ from omni.gateway.http import json_object
 
 # the settings a user may change at runtime, and the workers that read each one only when they start
 TUNABLE = {
-    ("gateway", "idle_unload_minutes"): registry.PYTHON_WORKERS,
+    ("gateway", "idle_unload_minutes"): (),  # the gateway's own unload loop reads it live
     ("tts", "voice"): ("tts",),
     ("image", "steps"): ("image",),
     ("video", "fps"): ("video",),

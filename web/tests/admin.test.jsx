@@ -15,13 +15,29 @@ const { health } = await import("../src/api/health.js");
 const Models = ModelsModule.default;
 const { RoleModelCard, Tunable } = await import("../src/components/RoleModelCard.jsx");
 const { FindAndInstall, InstallProgress, criteriaFor } = await import("../src/components/FindAndInstall.jsx");
-const { recommendedFor } = await import("../src/lib/recommended.js");
-const { runtime, ROLE_META, downloads, installs, downloadFor, pollDownloads } = await import("../src/api/roles.js");
+const { runtime, ROLE_META, downloads, installs, downloadFor, pollDownloads, specs } = await import("../src/api/roles.js");
 const { WorkerRows, ModelRows } = ModelsModule;
 const { models } = await import("../src/api/models.js");
 const { gb } = await import("../src/lib/format.js");
 
 const noop = () => {};
+
+// What `/admin/models/status` says about each role, trimmed to the fields the views read.
+const spec = (runner, engine, kind, family, example, recommended) => ({ runner, engine, kind, family, accepts: `e.g. ${example}`, example, recommended });
+specs.value = {
+  chat: spec("ollama", "ollama", "GGUF · text generation", null, "hf.co/user/repo-GGUF:Q4_K_M", [
+    { model: "qwen2.5:3b", gb: 1.9, note: "next step up", installed: true, blockers: [] },
+    { model: "qwen3.8:27b", gb: 17.7, note: "best all-round quality", installed: false, blockers: ["17.7 GB of weights but only 10.0 GB RAM free now"] },
+  ]),
+  embed: spec("ollama", "ollama", "GGUF · feature extraction", null, "hf.co/user/repo-GGUF:Q8_0", []),
+  decide: spec("huggingface", "onnxruntime", "ONNX · Vega typed decisions", "vega", "nvkudva/vega-onnx-q8", []),
+  stt: spec("huggingface", "onnx-asr", "ONNX · Parakeet speech-to-text", "parakeet", "istupakov/parakeet-tdt-0.6b-v2-onnx", []),
+  tts: spec("huggingface", "onnxruntime", "ONNX · Kokoro text-to-speech", "kokoro", "onnx-community/Kokoro-82M-v1.0-ONNX", []),
+  image: spec("huggingface", "diffusers", "Diffusers · Qwen-Image-2", "qwen-image-2", "Qwen/Qwen-Image-2.1", []),
+  video: spec("huggingface", "diffusers", "GGUF · Wan / LTX-Video", "wan or ltx", "QuantStack/Wan2.2-TI2V-5B-GGUF", []),
+};
+specs.value.chat.default = "qwen2.5:3b";
+specs.value.chat.accepts = "Ollama: a library name (qwen2.5vl:7b) or any GGUF repo on Hugging Face as hf.co/user/repo-GGUF:Q4_K_M.";
 
 const CATALOG = {
   roles: {
@@ -117,7 +133,7 @@ describe("a role's setup card", () => {
   test("search is per role and install shows the runner hint", () => {
     expect(render(<Search role="chat" onPick={noop} />)).toContain("blank: most downloaded");
     // the pump that follows a picked model is an effect, so it is not exercised here
-    const html = render(<Install role="chat" runner="ollama" initial={null} onInstalled={noop} />);
+    const html = render(<Install role="chat" initial={null} onInstalled={noop} />);
     expect(html).toContain("Check");
     expect(html).toContain("Install");
     expect(html).toContain("hf.co/user/repo-GGUF:Q4_K_M");
@@ -151,30 +167,23 @@ describe("the Find and Install popup", () => {
     expect(stt).toContain("istupakov/parakeet-tdt-0.6b-v2-onnx");
   });
 
-  test("a recommended table lists the role's candidates with their download state", () => {
-    models.value = { data: [], defaults: { chat: "qwen2.5:3b" } };
+  test("a recommended table lists the server's candidates with their download state and fit", () => {
     const html = render(<FindAndInstall role="chat" onClose={noop} onInstalled={noop} />);
     expect(html).toContain("Recommended");
     expect(html).toContain("qwen3.8:27b");
     expect(html).toContain("17.7 GB");
     expect(html).toContain("Downloaded");
-    // the configured default is always in the table, marked as such
-    expect(html).toContain("qwen2.5:3b");
+    expect(html).toContain("Fits here");
+    expect(html).toContain("only 10.0 GB RAM free");
+    // the configured default is marked as such
     expect(html).toContain("default");
-    models.value = { data: [], defaults: {} };
   });
 
-  test("a role's recommended list never repeats its default", () => {
-    const stt = recommendedFor("stt", "mlx-community/parakeet-tdt-0.6b-v3");
-    expect(stt.filter((row) => row.model === "mlx-community/parakeet-tdt-0.6b-v3")).toHaveLength(1);
-    const added = recommendedFor("stt", "mlx-community/parakeet-tdt-0.6b-v3-other");
-    expect(added[0].model).toBe("mlx-community/parakeet-tdt-0.6b-v3-other");
-  });
-
-  test("criteria fall back by runner for an unknown role, and an unknown role opens nothing", () => {
+  test("criteria come from the server's role specs, and an unknown role opens nothing", () => {
     expect(criteriaFor("chat").kind).toContain("GGUF");
     expect(criteriaFor("stt").family).toBe("parakeet");
     expect(criteriaFor("image").family).toBe("qwen-image-2");
+    expect(criteriaFor("nope").kind).toBe("Hugging Face repo");
     expect(render(<FindAndInstall role={null} onClose={noop} onInstalled={noop} />)).toBe("");
   });
 });

@@ -1,5 +1,5 @@
 import { health } from "../api/health.js";
-import { OLLAMA_ROLES } from "../api/roles.js";
+import { isOllama } from "../api/roles.js";
 import * as ui from "./ui.jsx";
 import styles from "./HealthCard.module.css";
 
@@ -28,7 +28,7 @@ export function HealthCard({ role, label }) {
         : (
           <div class={styles.empty}>
             <ui.Meta>
-              {OLLAMA_ROLES.has(role)
+              {isOllama(role)
                 ? "Served by Ollama — see the Ollama card under Server."
                 : "No health data yet."}
             </ui.Meta>

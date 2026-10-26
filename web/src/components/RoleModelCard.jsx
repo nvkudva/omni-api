@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { ask, withForce } from "./Confirm.jsx";
-import { ROLE_META, WORKER_ROLES, downloadFor, install, pollRuntime, runtime, setPinned, stopDownload } from "../api/roles.js";
+import { ROLE_META, isWorker, downloadFor, install, pollRuntime, runtime, setPinned, stopDownload } from "../api/roles.js";
 import { notify } from "../api/notify.js";
 import { deleteModel, loadRole, saveSetting, setRoleDefault, unloadRole, workerAction } from "../api/endpoints.js";
 import { InstallProgress } from "./FindAndInstall.jsx";
@@ -355,7 +355,7 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
   const action = installing ? "stop"
     : needsSetup ? "setup"
     : status === "stopped" || status === "failed"
-      ? (WORKER_ROLES.has(role) ? "start" : "server")
+      ? (isWorker(role) ? "start" : "server")
       : "warm";
 
   const flip = (event) => {

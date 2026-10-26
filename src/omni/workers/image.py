@@ -18,14 +18,6 @@ default_steps = settings["image"]["steps"]
 _saved_sigmas: list[float] | None = None
 
 
-def _source() -> tuple[str | None, str]:
-    """(the GGUF file in `model`, or None; the repo that supplies the text encoder and VAE)."""
-    file = settings["image"].get("file") or gguf.find_file(model_name)
-    if not file:
-        return None, model_name
-    return file, settings["image"].get("base") or gguf.base_repo(model_name)
-
-
 def _read_saved_sigmas(repo: str) -> list[float] | None:
     """The checkpoint's own denoising schedule, when it ships one (Turbo does as `sample_sigmas`)."""
     try:
@@ -50,16 +42,14 @@ def _sigmas_for(steps: int) -> list[float] | None:
 def _load():
     import torch
     from diffusers import QwenImage21Pipeline
-    from huggingface_hub import hf_hub_download
 
     global _saved_sigmas
-    file, base = _source()
+    file, base = gguf.source("image", model_name)
     if file:
         from diffusers import GGUFQuantizationConfig, QwenImage21Transformer2DModel
 
-        path = hf_hub_download(model_name, file)
         transformer = QwenImage21Transformer2DModel.from_single_file(
-            path, config=base, subfolder="transformer",
+            file, config=base, subfolder="transformer",
             quantization_config=GGUFQuantizationConfig(compute_dtype=torch.bfloat16))
         gguf.dequantize_vectors(transformer)
         pipe = QwenImage21Pipeline.from_pretrained(base, transformer=transformer,
@@ -67,7 +57,7 @@ def _load():
     else:
         pipe = QwenImage21Pipeline.from_pretrained(model_name, torch_dtype=torch.bfloat16)
     pipe = pipe.to("mps")
-    _saved_sigmas = _read_saved_sigmas(base)
+    _saved_sigmas = _read_saved_sigmas(base or model_name)
     return pipe
 
 
@@ -77,7 +67,7 @@ def _empty_cache() -> None:
     torch.mps.empty_cache()
 
 
-model = workers.Lazy(_load, config.idle_seconds(settings), _empty_cache)
+model = workers.Lazy(_load, _empty_cache)
 executor = workers.ModelExecutor("image-model", max_pending=2)
 app = workers.app(model, model_executor=executor)
 

@@ -8,7 +8,7 @@ from omni.registry import roles
 
 class Families(unittest.TestCase):
     def test_every_hugging_face_role_states_the_marker_its_runtime_needs(self):
-        for role in roles.HF_ROLES:
+        for role in roles.PYTHON_WORKERS:
             self.assertTrue(roles.family(role), role)
 
     def test_ollama_roles_are_only_filtered_by_pipeline(self):
@@ -37,6 +37,12 @@ class Supports(unittest.TestCase):
         self.assertTrue(roles.supports("chat", "qwen2.5:3b"))
         self.assertTrue(roles.supports("embed", "embeddinggemma-2"))
 
+    def test_a_family_marker_must_start_a_word(self):
+        self.assertTrue(roles.supports("video", "QuantStack/Wan2.2-TI2V-5B-GGUF"))
+        self.assertTrue(roles.supports("video", "city96/LTX-Video-0.9.6-distilled-gguf"))
+        self.assertFalse(roles.supports("video", "someone/swan-diffusion-gguf"))
+        self.assertFalse(roles.supports("video", "jwang/model-gguf"))
+
     def test_an_unrelated_repo_is_refused(self):
         self.assertFalse(roles.supports("video", "Qwen/Qwen-Image-2.1"))
 
@@ -57,7 +63,7 @@ class Workers(unittest.TestCase):
 
     def test_every_media_role_states_the_dependencies_it_needs(self):
         for role in roles.PYTHON_WORKERS:
-            self.assertIn(role, roles.MEDIA_DEPS)
+            self.assertTrue(roles.ROLE_SPECS[role]["deps"], role)
 
     def test_a_role_with_its_dependencies_installed_is_available_on_any_platform(self):
         with unittest.mock.patch.object(roles.sys, "platform", "linux"), \
@@ -110,11 +116,22 @@ class Matches(unittest.TestCase):
 
 class SearchFilters(unittest.TestCase):
     def test_chat_is_pinned_to_text_generation_so_gguf_noise_is_filtered_out(self):
-        self.assertEqual(roles.SEARCH_FILTERS["chat"]["pipeline_tag"], "text-generation")
+        self.assertEqual(roles.ROLE_SPECS["chat"]["search"]["pipeline_tag"], "text-generation")
 
-    def test_every_role_has_a_filter(self):
+    def test_every_role_has_a_spec(self):
+        self.assertEqual(set(roles.ROLE_SPECS), set(roles.ROLES))
+
+
+class Recommended(unittest.TestCase):
+    def test_the_shipped_default_leads_each_role_list(self):
+        catalog = config._read(config.CATALOG)
         for role in roles.ROLES:
-            self.assertIn(role, roles.SEARCH_FILTERS)
+            self.assertEqual(roles.ROLE_SPECS[role]["recommended"][0][0], catalog[role]["model"], role)
+
+    def test_every_recommended_model_is_one_its_runtime_accepts(self):
+        for role in roles.ROLES:
+            for model, _, _ in roles.ROLE_SPECS[role]["recommended"]:
+                self.assertTrue(roles.supports(role, model), f"{role}: {model}")
 
 
 if __name__ == "__main__":

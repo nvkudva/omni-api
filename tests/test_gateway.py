@@ -141,6 +141,16 @@ class Gateway(unittest.TestCase):
             else:
                 self.assertTrue(entry["reason"], role)
 
+    def test_admin_status_carries_each_role_spec_and_its_recommendations(self):
+        body = self.client.get("/admin/models/status").json()
+        stt = body["roles"]["stt"]
+        self.assertEqual(stt["family"], "parakeet")
+        self.assertTrue(stt["accepts"])
+        first = stt["recommended"][0]
+        self.assertEqual(first["model"], stt["default"])
+        self.assertIsInstance(first["blockers"], list)
+        self.assertIsInstance(first["installed"], bool)
+
     def test_admin_status_flags_a_role_whose_runtime_is_missing(self):
         with patch("omni.registry.unavailable_reason", return_value="stt cannot run: this install has no mlx"):
             body = self.client.get("/admin/models/status").json()

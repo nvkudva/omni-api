@@ -4,26 +4,30 @@ import { pinRole, pullModel, stopPull } from "./endpoints.js";
 import { health, healthError } from "./health.js";
 import { gb } from "../lib/format.js";
 
-// One line per role: what it is, where its endpoint lives, which runtime serves
-// it, and the accent its icon wears. This is presentation metadata, not config.
+// One line per role: what it is, where its endpoint lives, and the accent its
+// icon wears. This is presentation metadata only; what runs a role (runner,
+// engine, accepted repos, recommendations) comes from the server in `specs`.
 // The accent is a token, so one role reads as a vivid cyan on the dark page
 // and a deep teal in daylight. The literal order IS the role order: the mini
 // cards' tabs, the Settings list and the Models page all read it back through
 // ROLE_ORDER below.
 export const ROLE_META = {
-  chat: { label: "Chat", endpoint: "/v1/chat/completions", runner: "ollama", color: "var(--role-chat)" },
-  decide: { label: "Decide", endpoint: "/v1/systemone", runner: "onnxruntime", color: "var(--role-decide)" },
-  embed: { label: "Embed", endpoint: "/v1/embeddings", runner: "ollama", color: "var(--role-embed)" },
-  image: { label: "Image", endpoint: "/v1/images/generations", runner: "diffusers", color: "var(--role-image)" },
-  video: { label: "Video", endpoint: "/v1/videos", runner: "diffusers", color: "var(--role-video)" },
-  stt: { label: "Speech to text", endpoint: "/v1/audio/transcriptions", runner: "onnx-asr", color: "var(--role-stt)" },
-  tts: { label: "Text to speech", endpoint: "/v1/audio/speech", runner: "onnxruntime", color: "var(--role-tts)" },
+  chat: { label: "Chat", endpoint: "/v1/chat/completions", color: "var(--role-chat)" },
+  decide: { label: "Decide", endpoint: "/v1/systemone", color: "var(--role-decide)" },
+  embed: { label: "Embed", endpoint: "/v1/embeddings", color: "var(--role-embed)" },
+  image: { label: "Image", endpoint: "/v1/images/generations", color: "var(--role-image)" },
+  video: { label: "Video", endpoint: "/v1/videos", color: "var(--role-video)" },
+  stt: { label: "Speech to text", endpoint: "/v1/audio/transcriptions", color: "var(--role-stt)" },
+  tts: { label: "Text to speech", endpoint: "/v1/audio/speech", color: "var(--role-tts)" },
 };
 
 export const ROLE_ORDER = Object.keys(ROLE_META);
-export const OLLAMA_ROLES = new Set(["chat", "embed"]);
+// The server's description of each role (`/admin/models/status`): runner, engine, kind, family,
+// accepts, example and the recommended models with their fit on this machine.
+export const specs = signal({});
+export const isOllama = (role) => specs.value[role]?.runner === "ollama";
 // The roles omni runs and supervises itself: only these can be started and stopped from a card.
-export const WORKER_ROLES = new Set(ROLE_ORDER.filter((role) => !OLLAMA_ROLES.has(role)));
+export const isWorker = (role) => Boolean(specs.value[role]) && !isOllama(role);
 
 export const runtime = signal({ ready: false, error: "", roles: {}, warnings: [], memory: null, pins: [] });
 
@@ -45,7 +49,7 @@ function roleState(role, defaults, health, memory, setup) {
   const setupState = setupEntry?.state ?? "unknown";
   const setupReason = setupEntry?.reason ?? "";
 
-  if (OLLAMA_ROLES.has(role)) {
+  if (setupEntry?.runner === "ollama") {
     // Ollama's models outlive the role: remember what it pulled, then match it.
     const running = memory?.loaded?.[role] ?? resident(memory?.ollama, model);
     // chat and embed share the machine's Ollama, so when it is not answering neither
@@ -55,6 +59,7 @@ function roleState(role, defaults, health, memory, setup) {
     const down = engine?.status === "unavailable";
     return {
       ...meta,
+      runner: setupEntry.engine,
       role,
       model,
       loaded: !down && Boolean(running),
@@ -76,6 +81,7 @@ function roleState(role, defaults, health, memory, setup) {
   const loaded = Boolean(worker?.loaded);
   return {
     ...meta,
+    runner: setupEntry?.engine ?? "",
     role,
     model,
     loaded,
@@ -97,7 +103,7 @@ function attributeOllama(memory, defaults) {
   const claimed = new Set();
   const loaded = {};
   for (const role of ROLE_ORDER) {
-    if (!OLLAMA_ROLES.has(role)) continue;
+    if (!isOllama(role)) continue;
     const found = resident(memory.ollama, defaults?.[role]);
     if (found && !claimed.has(found.name)) {
       loaded[role] = found;
@@ -118,6 +124,7 @@ export async function pollRuntime() {
     // One poll feeds both the sidebar cards and the gateway badge.
     health.value = healthResponse;
     healthError.value = "";
+    if (setup?.roles) specs.value = setup.roles;
     const defaults = models?.defaults ?? {};
     const attributed = memory ? attributeOllama(memory, defaults) : null;
     const roles = {};

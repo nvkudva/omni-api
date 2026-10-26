@@ -59,7 +59,7 @@ apps ──► 127.0.0.1:10000  omni gateway (FastAPI + httpx streaming proxy)
   - `pool.py` spawns each worker in its own process group and probes `/health` every 2 s.
   - Restarts failed workers with exponential backoff, one lock per worker so a restart and the watch loop never overlap.
   - `process.py` records each child's pid and command line, so on `down` only a pid that is still ours is signalled; leftover workers from an earlier run are cleaned up on start.
-- **Workers** (`src/omni/workers/`): each role runs in its own uvicorn process, so a crash or memory spike in one model never takes down the others. Each loads its model on first use behind one lock and unloads it when idle.
+- **Workers** (`src/omni/workers/`): each role runs in its own uvicorn process, so a crash or memory spike in one model never takes down the others. Each loads its model on first use behind one lock; the gateway unloads it once idle, since it sees every request and pin.
 - **Chat and embed** use the machine's own Ollama address (`OLLAMA_HOST`, else `127.0.0.1:11434`). If nothing answers there, omni spawns `ollama serve` on that same address; it never moves Ollama to another port.
 - **Decide** (`src/omni/workers/decide.py`, `src/omni/inference/vega.py`) runs [Vega](https://huggingface.co/nvkudva/vega-onnx-q8) on ONNX Runtime, in its own worker. A frozen Qwen3.5-0.8B reads the state and one typed question; a small physics engine turns the pooled hidden states into option logits; a per-type temperature and a conformal threshold turn those into calibrated probabilities, a prediction set, and `abstain` and `unbound` flags. It is not a generative model. The prompt, pooling and calibration are a port of the [browser runtime](https://github.com/nvkudva/vega-web), checked against its parity set (identical token ids and spans; every argmax kept). An image can stand in for the text state (zero-shot: the engine was trained on text features).
 - **Image** (`src/omni/workers/image.py`) runs `QwenImage21Pipeline` from diffusers on MPS in bf16. `[image] steps` sets the default step count.
@@ -117,7 +117,7 @@ A request that is still running can be stopped, and a finished one is kept by th
 ## Cool features
 
 - **Decide without generation:** `/v1/systemone` scores yes/no, choice and score questions with one forward pass — no generated text to parse, with calibrated probabilities per option, a conformal prediction set and an abstain flag.
-- **Keep-warm pins:** pin a role and its model stays loaded (Ollama `keep_alive = -1`, workers re-loaded before idle unload). Pins persist across restarts.
+- **Keep-warm pins:** pin a role and its model stays loaded (Ollama `keep_alive = -1`; the gateway never idles a pinned worker out). Pins persist across restarts.
 - **Three views, one request:** every playground page shows UI, raw JSON and a copyable cURL command for the exact body it sends.
 - **Runs survive a closed tab:** the gateway keeps the request and its result, so closing the browser does not cancel the work — reopen it and the answer is there. A running request can also be stopped.
 - **Live per-role logs:** the request log of every role, tailed in the playground and in `omni logs`.
@@ -320,9 +320,9 @@ reasons in `error.blockers`; machine-wide pressure (swap, CPU, load average) is 
 
 ### Keeping a model warm
 
-A worker drops its model after `idle_unload_minutes` with no use, so the card switch in the playground
-is a *pin*: turning it on loads the model now and holds it — a worker is re-loaded before it would
-idle out, and an Ollama model is held with `keep_alive = -1`. Pins persist in
+The gateway drops a worker's model after `idle_unload_minutes` with no request, so the card switch in
+the playground is a *pin*: turning it on loads the model now and holds it — the gateway skips a pinned
+worker when it unloads idle ones, and an Ollama model is held with `keep_alive = -1`. Pins persist in
 `~/.omni-api/pins.json` and are re-applied at startup, so a pinned role is warm again within a minute
 of `omni up` without anyone sending a request.
 

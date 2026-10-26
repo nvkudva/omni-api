@@ -1,13 +1,14 @@
-"""Keep the roles a person pinned resident, so the first request is never the one that loads.
+"""The one owner of what Python workers keep in memory.
 
-Nothing here changes what a worker does: a worker drops its model after `idle_unload_minutes` of no
-use, and a plain `/load` only resets that clock. So a pinned worker is simply re-loaded before the
-window closes. A pinned Ollama model is different — it is held with `keep_alive = -1`, so there is
-nothing to refresh and the loop only has to notice if it has gone away.
+Pinned roles are loaded and kept, so the first request is never the one that loads. Every other
+worker model is unloaded once it has had no request for `idle_unload_minutes` and is not busy;
+workers never unload on their own clock. A pinned Ollama model is held with `keep_alive = -1`, so
+the loop only has to notice if it has gone away; unpinned Ollama models age out by their keep_alive.
 """
 import asyncio
 import contextlib
 import logging
+import time
 
 from omni import config, registry
 from omni.gateway import residency
@@ -25,7 +26,7 @@ WAITING = "waiting"
 
 
 class KeepWarm:
-    """Re-loads every pinned role on a timer, for as long as the gateway runs."""
+    """Loads pinned roles and unloads idle worker models on a timer, for as long as the gateway runs."""
 
     def __init__(self, ctx):
         self.ctx = ctx
@@ -53,9 +54,10 @@ class KeepWarm:
                 log.warning("keep-warm pass failed", exc_info=True)
 
     async def refresh(self) -> list[str]:
-        """One pass over the pinned roles. Returns the ones that were (re)loaded."""
+        """One pass: unload idle workers, then load pinned roles. Returns the roles it loaded."""
         pinned = config.load_pins()
         self._pending = False
+        await self.release_idle(pinned)
         if not pinned:
             return []
         resident = await residency.ollama_resident(self.ctx)
@@ -80,9 +82,32 @@ class KeepWarm:
             # the watch loop owns starting it; this pass would only race with that
             return WAITING
         model = self.ctx.settings[role]["model"]
+        if worker is not None and worker.loaded:
+            return HELD
         if registry.runner(role) == "ollama":
             held = resident if resident is not None else await residency.ollama_resident(self.ctx)
             if any(registry.matches(name, model) for name in held):
                 return HELD  # keep_alive = -1 is already holding it
         await residency.set_residency(self.ctx, role, model, True, keep_warm=True)
         return WARMED
+
+    async def release_idle(self, pinned: list[str]) -> list[str]:
+        """Unload every unpinned worker model that has sat unused past `idle_unload_minutes`."""
+        idle_seconds = config.idle_seconds(self.ctx.settings)
+        if idle_seconds <= 0:
+            return []
+        now = time.monotonic()
+        released = []
+        for role, worker in self.ctx.workers.items():
+            if role in pinned or worker.status != "ready" or not worker.loaded or worker.busy:
+                continue
+            if now - worker.last_used < idle_seconds:
+                continue
+            try:
+                await residency.set_residency(self.ctx, role, self.ctx.settings[role]["model"], False)
+            except Exception:
+                log.warning("could not unload idle %s", role, exc_info=True)
+                continue
+            worker.loaded = False
+            released.append(role)
+        return released

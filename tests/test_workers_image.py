@@ -2,6 +2,7 @@
 import unittest
 from unittest.mock import patch
 
+from omni.registry import huggingface
 from omni.workers import gguf, image
 
 
@@ -26,57 +27,48 @@ class SavedSigmas(unittest.TestCase):
 
 
 class Source(unittest.TestCase):
-    def test_a_plain_checkpoint_loads_from_its_own_repo(self):
-        with patch.object(image, "settings", {"image": {"model": "Qwen/Qwen-Image-2.1-Turbo"}}), \
-             patch.object(image, "model_name", "Qwen/Qwen-Image-2.1-Turbo"), \
-             patch.object(gguf, "find_file", return_value=None):
-            self.assertEqual(image._source(), (None, "Qwen/Qwen-Image-2.1-Turbo"))
+    def source(self, manifest, fetch=lambda download: "local"):
+        with patch.object(huggingface, "load_manifest", return_value=manifest), \
+                patch.object(huggingface, "bundle") as bundle, \
+                patch.object(huggingface, "save_manifest") as save, \
+                patch.object(gguf, "_fetch", side_effect=fetch):
+            bundle.return_value = [huggingface.Part("u/q-gguf", ["m-Q8_0.gguf"], 7), huggingface.Part("q/base", ["vae/*"], 3)]
+            return gguf.source("image", "u/q-gguf"), bundle, save
 
-    def test_a_gguf_repo_supplies_its_file_and_the_base_behind_it(self):
-        with patch.object(image, "settings", {"image": {"model": "unsloth/Qwen-Image-2.1-Turbo-GGUF"}}), \
-             patch.object(image, "model_name", "unsloth/Qwen-Image-2.1-Turbo-GGUF"), \
-             patch.object(gguf, "find_file", return_value="qwen-image-2.1-turbo-Q8_0.gguf"), \
-             patch.object(gguf, "base_repo", return_value="Qwen/Qwen-Image-2.1-Turbo"):
-            self.assertEqual(image._source(),
-                             ("qwen-image-2.1-turbo-Q8_0.gguf", "Qwen/Qwen-Image-2.1-Turbo"))
+    def test_a_pulled_bundle_loads_from_its_manifest_without_the_hub(self):
+        manifest = [huggingface.Part("u/q-gguf", ["m-Q8_0.gguf"], 7), huggingface.Part("q/base", ["vae/*"], 3)]
+        paths, bundle, _ = self.source(manifest)
+        self.assertEqual(paths, ("local", "local"))
+        bundle.assert_not_called()
 
-    def test_the_config_wins_over_discovery(self):
-        settings = {"image": {"model": "x/y", "file": "own.gguf", "base": "a/b"}}
-        with patch.object(image, "settings", settings), patch.object(image, "model_name", "x/y"), \
-             patch.object(gguf, "find_file") as find:
-            self.assertEqual(image._source(), ("own.gguf", "a/b"))
-            find.assert_not_called()
+    def test_a_model_nobody_pulled_is_resolved_once_and_remembered(self):
+        paths, bundle, save = self.source(None)
+        self.assertEqual(paths, ("local", "local"))
+        bundle.assert_called_once()
+        save.assert_called_once()
 
-
-class FindGguf(unittest.TestCase):
-    def test_the_q8_file_is_preferred(self):
-        with patch("huggingface_hub.HfApi") as api:
-            api.return_value.list_repo_files.return_value = ["m-Q4_K_M.gguf", "m-Q8_0.gguf"]
-            self.assertEqual(gguf.find_file("some/repo"), "m-Q8_0.gguf")
-
-    def test_the_only_file_wins_when_it_is_not_q8(self):
-        with patch("huggingface_hub.HfApi") as api:
-            api.return_value.list_repo_files.return_value = ["m-Q4_K_M.gguf"]
-            self.assertEqual(gguf.find_file("some/repo"), "m-Q4_K_M.gguf")
-
-    def test_an_unreachable_hub_reads_as_no_gguf(self):
-        with patch("huggingface_hub.HfApi") as api:
-            api.return_value.list_repo_files.side_effect = OSError("offline")
-            self.assertIsNone(gguf.find_file("some/repo"))
+    def test_a_plain_checkpoint_has_no_gguf_parts(self):
+        paths, _, _ = self.source([huggingface.Part("Qwen/Qwen-Image-2.1", None, 9)])
+        self.assertEqual(paths, (None, None))
 
 
-class BaseRepo(unittest.TestCase):
-    def test_the_card_names_the_checkpoint_behind_the_quantized_repo(self):
-        with patch("huggingface_hub.HfApi") as api:
-            api.return_value.model_info.return_value.cardData = {"base_model": "Qwen/Qwen-Image-2.1-Turbo"}
-            self.assertEqual(gguf.base_repo("unsloth/Qwen-Image-2.1-Turbo-GGUF"), "Qwen/Qwen-Image-2.1-Turbo")
+class Fetch(unittest.TestCase):
+    def test_the_cached_copy_is_used_first(self):
+        calls = []
 
-    def test_a_list_valued_base_model_uses_its_first_entry(self):
-        with patch("huggingface_hub.HfApi") as api:
-            api.return_value.model_info.return_value.cardData = {"base_model": ["a/b", "c/d"]}
-            self.assertEqual(gguf.base_repo("some/repo"), "a/b")
+        def download(**kwargs):
+            calls.append(kwargs)
+            return "path"
 
-    def test_a_card_without_a_base_falls_back_to_the_repo(self):
-        with patch("huggingface_hub.HfApi") as api:
-            api.return_value.model_info.return_value.cardData = None
-            self.assertEqual(gguf.base_repo("some/repo"), "some/repo")
+        self.assertEqual(gguf._fetch(download), "path")
+        self.assertEqual(calls, [{"local_files_only": True}])
+
+    def test_a_missing_copy_is_downloaded(self):
+        def download(local_files_only=False):
+            if local_files_only:
+                raise OSError("not cached")
+            return "downloaded"
+
+        self.assertEqual(gguf._fetch(download), "downloaded")
+
+

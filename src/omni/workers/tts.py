@@ -72,10 +72,10 @@ def _load() -> Speaker:
     from huggingface_hub import snapshot_download
 
     roles.require("tts", model_name)
-    return Speaker(Path(snapshot_download(model_name, allow_patterns=schemas.TTS_FILES)))
+    return Speaker(Path(snapshot_download(model_name, allow_patterns=roles.files("tts"))))
 
 
-model = workers.Lazy(_load, config.idle_seconds(settings))
+model = workers.Lazy(_load)
 executor = workers.ModelExecutor("tts-model", max_pending=8)
 app = workers.app(model, model_executor=executor)
 

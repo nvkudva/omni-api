@@ -23,6 +23,6 @@
 - [ ] Persist video jobs: write each job's metadata as JSON next to its mp4 in `VIDEO_DIR` and reload it at worker start, so a worker restart no longer turns a finished or queued job into a 404
 - [ ] Pin Hugging Face revisions: pass a commit `revision` to `snapshot_download` and every worker load (catalog.toml holds the hash), per the PLAN constraint
 - [ ] Cancel abandoned worker requests: a request the gateway gave up on (300 s read timeout) still runs in the worker; skip queued work whose connection is gone
-- [ ] Memory gate covers Ollama too: `make_room` only unloads idle Python workers; Ollama-held chat/decide/embed models are not counted or released
+- [x] Memory gate covers Ollama too: `make_room` only unloads idle Python workers; Ollama-held chat/decide/embed models are not counted or released
 - [ ] Verify health probes survive a cold image/video load: 5 failed probes (~10–20 s) restart the worker, which would kill a load that starves its event loop
 - [ ] Admin auth: `/admin` has no token, so any local process can stop the gateway or delete models; add one before omni runs on a shared machine
