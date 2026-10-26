@@ -10,6 +10,7 @@ set -u
 
 PURGE=0
 OMNI_STATE="${OMNI_HOME:-$HOME/.omni-api}"
+BIN_DIR="${OMNI_BIN_DIR:-${UV_TOOL_BIN_DIR:-$HOME/.local/bin}}"
 
 say() { printf '%s\n' "$*"; }
 die() {
@@ -38,28 +39,42 @@ USAGE
   esac
 done
 
+omni_bin=""
 if have omni; then
+  omni_bin="$(command -v omni)"
+elif [ -x "$BIN_DIR/omni" ]; then
+  omni_bin="$BIN_DIR/omni"
+fi
+if [ -n "$omni_bin" ]; then
   say "stopping omni..."
-  omni down < /dev/null >/dev/null 2>&1 || true
+  "$omni_bin" down < /dev/null >/dev/null 2>&1 || true
 fi
 
 if have brew && brew list --formula omni >/dev/null 2>&1; then
   say "omni is installed by Homebrew; remove it with: brew uninstall omni"
 fi
 
-have uv || die "uv not found, so the uv tool cannot be removed" \
-  "install uv (https://docs.astral.sh/uv/) and rerun, or delete the omni command by hand"
-
-if uv tool list 2>/dev/null | grep -q '^omni-api '; then
-  uv tool uninstall omni-api || die "uv could not remove omni-api" "run: uv tool uninstall omni-api"
-  say "removed the omni command"
+if have uv; then
+  if uv tool list 2>/dev/null | grep -q '^omni-api '; then
+    uv tool uninstall omni-api || die "uv could not remove omni-api" "run: uv tool uninstall omni-api"
+    say "removed the omni command"
+  else
+    say "no uv-installed omni-api found; nothing to remove"
+  fi
 else
-  say "no uv-installed omni-api found; nothing to remove"
+  say "uv not found; if omni was installed as a uv tool, install uv and rerun"
+  say "  https://docs.astral.sh/uv/"
 fi
 
 if [ "$PURGE" -eq 1 ]; then
   case "$OMNI_STATE" in
-    ""|/) die "refusing to delete '$OMNI_STATE'" ;;
+    /*) ;;
+    *) die "refusing to delete '$OMNI_STATE'" "OMNI_HOME must be omni's state directory, an absolute path (default ~/.omni-api)" ;;
+  esac
+  trimmed="${OMNI_STATE%/}"
+  [ -n "$trimmed" ] || trimmed="/"
+  case "$trimmed" in
+    /|"$HOME") die "refusing to delete '$OMNI_STATE'" "point OMNI_HOME at omni's state directory, not your home" ;;
   esac
   rm -rf "$OMNI_STATE"
   say "deleted $OMNI_STATE"

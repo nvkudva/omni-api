@@ -40,20 +40,20 @@ Install the omni CLI.
 Options:
   --from SPEC      Install from a uv tool spec instead of the main branch
                    (a local path, a git URL, or a package name). A local
-                   checkout on macOS also gets the media extra.
+                   checkout on Apple Silicon also gets the media extra.
   --version TAG    Install the release tag TAG (v0.2.0 counts as 0.2.0).
   --init           Run `omni init` afterwards: install Ollama and pull the
                    chat, decide and embed models (a few GB).
-  --media          Also install the speech and video workers. Already the
-                   default on macOS; on Linux it is opt-in and needs glibc
-                   2.35 or newer (Ubuntu 22.04, Debian 12 and later).
+  --media          Also install the speech, image and video workers. Already the
+                   default on Apple Silicon; on Linux it is opt-in and needs
+                   glibc 2.28 or newer (Ubuntu 22.04, Debian 12 and later).
   --bin-dir DIR    Where the `omni` command lands (default ~/.local/bin).
   --modify-path    Append that directory to your shell's startup file when it
                    is missing from PATH.
   -h, --help       Show this text.
 
-Without --media on Linux you get chat, decide and embed through Ollama. The
-image worker renders on Metal, so it runs on macOS only.
+Without --media you get chat and embed through Ollama, and decide on ONNX
+Runtime. The image worker renders on Metal, so it runs on macOS only.
 EOF
 }
 
@@ -112,41 +112,44 @@ arch="$(uname -m)"
 EXTRAS=""
 case "$os" in
   Darwin)
-    if [ "$arch" != "arm64" ]; then
-      die "omni needs Apple Silicon: MLX has no Intel-Mac build. Nothing was changed." \
-        "run this on an M-series Mac"
+    if [ "$arch" = "arm64" ]; then
+      EXTRAS="[media]"
+      minimum_kb=2097152
+    elif [ "$MEDIA" -eq 1 ]; then
+      die "the media extra needs Apple Silicon: torch has no Intel-Mac wheel" \
+        "drop --media to install chat, decide and embed only"
+    else
+      say "Intel Mac: installing chat, decide and embed only."
+      say "            image, video and the speech workers need Apple Silicon."
+      minimum_kb=524288
     fi
-    EXTRAS="[media]"
-    minimum_kb=2097152
     ;;
   Linux)
     case "$arch" in
       x86_64|aarch64) ;;
       *)
-        [ "$MEDIA" -eq 0 ] || die "MLX has no wheel for $arch, so --media cannot install here" \
+        [ "$MEDIA" -eq 0 ] || die "torch has no Linux wheel for $arch, so --media cannot install here" \
           "drop --media to install chat, decide and embed only"
         ;;
     esac
     if [ "$MEDIA" -eq 1 ]; then
       glibc="$(getconf GNU_LIBC_VERSION 2>/dev/null | awk '{print $2}')"
       if [ -z "${glibc:-}" ]; then
-        die "this Linux has no glibc (musl, as in Alpine), and the MLX wheels need it" \
+        die "this Linux has no glibc (musl, as in Alpine), and the media wheels need it" \
           "drop --media to install chat, decide and embed only" \
           "or run a glibc distribution in a container"
       fi
-      if [ "$(printf '%s\n2.35\n' "$glibc" | sort -V | head -1)" != "2.35" ]; then
-        die "MLX needs glibc 2.35 or newer; this is $glibc" \
-          "upgrade to Ubuntu 22.04, Debian 12 or newer, then rerun" \
+      if [ "$(printf '%s\n2.28\n' "$glibc" | sort -V | head -1)" != "2.28" ]; then
+        die "the media wheels need glibc 2.28 or newer; this is $glibc" \
+          "upgrade to a distribution with glibc 2.28 or newer (Ubuntu 22.04, Debian 12), then rerun" \
           "or drop --media to install chat, decide and embed only"
       fi
       EXTRAS="[media]"
       minimum_kb=2097152
-      say "Linux + media: installing every role except image, which renders on Metal."
-      say "                MLX starts on CPU; an NVIDIA GPU needs its CUDA build"
-      say "                (the command is printed when the install finishes)."
+      say "Linux + media: installing every role except image, which needs Metal (macOS)."
     else
-      say "Linux: installing chat, decide and embed. Add --media for the speech"
-      say "       and video workers (MLX; needs glibc 2.35 or newer)."
+      say "Linux: installing chat, decide and embed. Add --media for speech, image"
+      say "       and video (torch/diffusers; needs glibc 2.28 or newer)."
       minimum_kb=524288
     fi
     ;;
@@ -179,8 +182,8 @@ fi
 # --- uv ---------------------------------------------------------------------
 install_uv_via_script() {
   have curl || die "curl is missing, so uv cannot be downloaded" \
-    "install uv with Homebrew: brew install uv" \
-    "or download it yourself: https://docs.astral.sh/uv/getting-started/installation/"
+    "install it: brew install curl (macOS) or sudo apt install curl (Debian/Ubuntu)" \
+    "or install uv by hand: https://docs.astral.sh/uv/getting-started/installation/"
   curl -LsSf https://astral.sh/uv/install.sh -o "$WORK/uv-install.sh" || die \
     "could not download the uv installer from astral.sh" \
     "check your network connection (and any proxy or VPN), then rerun" \
@@ -211,8 +214,9 @@ fi
 # --- what to install --------------------------------------------------------
 require_git() {
   have git && git --version >/dev/null 2>&1 && [ "$(git --version 2>&1 | cut -d' ' -f1)" = "git" ] && return 0
-  die "git is not usable on this Mac" \
-    "install Apple's command line tools: xcode-select --install" \
+  die "git is not usable on this machine" \
+    "macOS: xcode-select --install" \
+    "Debian/Ubuntu: sudo apt install git" \
     "then rerun this script"
 }
 
@@ -249,7 +253,7 @@ fi
 # --- install ----------------------------------------------------------------
 say "installing omni from $spec"
 if [ -n "$EXTRAS" ]; then
-  say "  a first install downloads about 1.5 GB of Python packages (MLX, torch); this takes a few minutes"
+  say "  a first install downloads several GB of Python packages (torch, diffusers, ONNX Runtime); this takes a few minutes"
   say "  a reinstall reuses uv's cache ($(uv cache dir 2>/dev/null || echo ~/.cache/uv)) and is much faster"
 fi
 export UV_TOOL_BIN_DIR="$BIN_DIR"
@@ -327,8 +331,8 @@ say "installed: $installed_version"
 
 if [ "$os" = "Linux" ] && [ "$MEDIA" -eq 1 ]; then
   say ""
-  say "NVIDIA GPU? add MLX's CUDA backend (skip on a CPU-only machine):"
-  say "  uv pip install --python \"$(uv tool dir)/omni-api/bin/python\" \"mlx[cuda12]\""
+  say "Linux + media: torch uses the CPU unless its wheel carries CUDA; the image"
+  say "worker stays off here because it renders on Metal (macOS only)."
 fi
 
 # --- PATH -------------------------------------------------------------------
@@ -340,7 +344,9 @@ if [ "$on_path" -eq 0 ]; then
   if [ "$MODIFY_PATH" -eq 1 ]; then
     case "${SHELL:-}" in
       */zsh) rc="$HOME/.zshrc" ;;
-      */bash) rc="$HOME/.bashrc" ;;
+      */bash)
+        if [ "$os" = "Darwin" ]; then rc="$HOME/.bash_profile"; else rc="$HOME/.bashrc"; fi
+        ;;
       */fish) rc="$HOME/.config/fish/config.fish" ;;
       *) rc="" ;;
     esac
@@ -352,6 +358,7 @@ if [ "$on_path" -eq 0 ]; then
         */config.fish) fish_line="fish_add_path \"$BIN_DIR\"" ;;
         *) fish_line="$line" ;;
       esac
+      mkdir -p "$(dirname "$rc")" 2>/dev/null
       if grep -F "$BIN_DIR" "$rc" > /dev/null 2>&1; then
         say "$rc already mentions $BIN_DIR"
       elif printf '\n# omni\n%s\n' "$fish_line" >> "$rc" 2>/dev/null; then

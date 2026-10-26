@@ -12,7 +12,7 @@
 - [x] Playground audio fix; chat image attach gated on Ollama vision capability
 - [x] Video role (diffusers: Wan 2.2 TI2V and LTX-Video) with job API and playground Video tab
 - [x] Models admin: list/install/delete/set default per role, memory check and warnings; playground Models tab
-- [ ] Verify Wan 2.2 text-to-video and image-to-video end to end through the gateway (load time, s/frame)
+- [x] Verify Wan 2.2 text-to-video and image-to-video end to end through the gateway (load time, s/frame)
 - [x] Playground rebuilt as Preact + CSS modules + Vite (web/ → src/omni/static/app), Apple-style light/dark design
 - [x] Model management: HF search filtered per role, load/unload, worker start/stop/restart, CPU/load overload checks with force override; Models tab UI
 - [ ] Embed tab: optional "write an answer" step (RAG): pass top chunks to the chat model for a grounded answer with citations; opt-in, disabled when no chat model is loaded

@@ -52,7 +52,7 @@ Before the first tap release the formula still carries `REPLACE_WITH_TARBALL_SHA
 
 The formula requires macOS on Apple Silicon: `torch`'s Metal (MPS) backend is arm64-only, and the image worker renders on Metal. It installs the `media` extra, since the tap is macOS-only.
 
-On Linux, `install.sh` installs the base package by default — chat, decide and embed. `--media` adds the extra: `torch` ships CUDA and CPU wheels for glibc 2.35 and newer (Ubuntu 22.04, Debian 12 and later), and `diffusers` and onnx-asr are pure Python, so stt, tts and video install there too. Only macOS gets Metal, so the image worker stays out of the supervisor on Linux, and any worker whose extra is missing is left out as well; its endpoints answer 503 with the reason.
+On Linux, `install.sh` installs the base package by default — chat, decide and embed. `--media` adds the extra: `torch` ships CUDA and CPU wheels for glibc 2.28 and newer (Ubuntu 22.04, Debian 12 and later), and `diffusers` and onnx-asr are pure Python, so stt, tts and video install there too. Only macOS gets Metal, so the image worker stays out of the supervisor on Linux, and any worker whose extra is missing is left out as well; its endpoints answer 503 with the reason.
 
 ## 3. PyPI — blocked on the source pins
 
