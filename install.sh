@@ -211,6 +211,26 @@ if ! have uv; then
     "then rerun this script"
 fi
 
+# --- ffmpeg -----------------------------------------------------------------
+# stt reads audio through ffmpeg and video writes its mp4 with it. Missing is a warning, not a stop:
+# the other roles do not need it.
+install_ffmpeg() {
+  have ffmpeg && return 0
+  say "ffmpeg is not installed; the stt and video workers need it."
+  if have brew; then
+    HOMEBREW_NO_AUTO_UPDATE=1 brew install ffmpeg < /dev/null > "$LOG" 2>&1 && return 0
+  elif have apt-get; then
+    if [ "$(id -u)" -eq 0 ]; then
+      apt-get install -y ffmpeg < /dev/null > "$LOG" 2>&1 && return 0
+    elif have sudo; then
+      sudo apt-get install -y ffmpeg < /dev/null > "$LOG" 2>&1 && return 0
+    fi
+  fi
+  warn "could not install ffmpeg; stt and video will not work until you do"
+  warn "  macOS: brew install ffmpeg    Debian/Ubuntu: sudo apt install ffmpeg"
+}
+[ -z "$EXTRAS" ] || install_ffmpeg
+
 # --- what to install --------------------------------------------------------
 require_git() {
   have git && git --version >/dev/null 2>&1 && [ "$(git --version 2>&1 | cut -d' ' -f1)" = "git" ] && return 0
