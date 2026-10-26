@@ -5,6 +5,7 @@ take exactly the same path, and a refusal is described in one place.
 """
 import asyncio
 import logging
+import time
 from typing import NamedTuple
 
 import httpx
@@ -19,7 +20,6 @@ log = logging.getLogger("omni.gateway")
 # Ollama reads a negative keep_alive as "never unload"; a pinned Ollama model uses it so it costs
 # nothing to hold, instead of being re-loaded on a timer.
 OLLAMA_KEEP_WARM = -1
-OLLAMA_KEEP_ALIVE = "10m"
 
 # how long a stopping gateway waits for Ollama to give a model back, per model
 UNLOAD_TIMEOUT_SECONDS = 5.0
@@ -100,8 +100,9 @@ async def make_room(ctx, role: str, model: str) -> Response | None:
     """Load a cold worker's model before its first request, unloading idle roles when RAM is short.
 
     Without this every worker loads on first use, unaware of the others, and two big roles swap the
-    machine to a halt or get killed by Metal. Ollama manages its own memory, and a worker that is not
-    ready is left to the proxy, which says so.
+    machine to a halt or get killed by Metal. Ollama roles are not gated here (Ollama schedules its own
+    memory), but their resident models are released when a worker needs the room. A worker that is
+    not ready is left to the proxy, which says so.
     """
     worker = ctx.workers.get(role)
     if registry.runner(role) == "ollama" or worker is None or worker.status != "ready" or worker.loaded:
@@ -130,7 +131,8 @@ async def _installed_size(ctx, role: str, model: str) -> int | None:
 
 
 async def _free_memory(ctx, role: str, size_bytes: int) -> str | None:
-    """Unload idle, unpinned Python workers until `size_bytes` fits; why it still does not, or None."""
+    """Unload idle, unpinned Python workers, then unpinned Ollama models, until `size_bytes` fits;
+    why it still does not, or None."""
     shortfall = registry.ram_shortfall(size_bytes)
     pinned = set(config.load_pins())
     for other, worker in ctx.workers.items():
@@ -148,6 +150,34 @@ async def _free_memory(ctx, role: str, size_bytes: int) -> str | None:
         worker.loaded = False
         log.info("unloaded %s to make room for %s", other, role)
         shortfall = registry.ram_shortfall(size_bytes)
+    if shortfall is None:
+        return None
+    return await _free_ollama(ctx, role, size_bytes, pinned) or shortfall
+
+
+async def _free_ollama(ctx, role: str, size_bytes: int, pinned: set[str]) -> str | None:
+    """Ask Ollama to drop unpinned models until `size_bytes` fits; why it still does not, or None.
+
+    Ollama schedules its own memory, but only against its own models: a chat model it keeps warm is
+    RAM a cold image load cannot have.
+    """
+    kept = [ctx.settings[name]["model"] for name in pinned if registry.runner(name) == "ollama"]
+    shortfall = registry.ram_shortfall(size_bytes)
+    for name in await ollama_resident(ctx):
+        if shortfall is None:
+            return None
+        if any(registry.matches(name, model) for model in kept):
+            continue
+        owner = next((other for other in registry.OLLAMA_ROLES
+                      if registry.matches(ctx.settings[other]["model"], name)), "chat")
+        try:
+            await registry.ollama_unload(ctx.clients["chat"], owner, name)
+        except httpx.HTTPError:
+            log.warning("could not unload %s from Ollama to make room for %s", name, role, exc_info=True)
+            continue
+        _loaded_ollama.pop(owner, None)
+        log.info("unloaded %s from Ollama to make room for %s", name, role)
+        shortfall = registry.ram_shortfall(size_bytes)
     return shortfall
 
 
@@ -155,7 +185,8 @@ async def set_residency(ctx, role: str, model: str, load: bool, *, keep_warm: bo
     """Load or unload the role's model. Returns whether it now sits in memory, when the runtime says."""
     if registry.runner(role) == "ollama":
         if load:
-            keep_alive = OLLAMA_KEEP_WARM if keep_warm else OLLAMA_KEEP_ALIVE
+            minutes = int(ctx.settings["gateway"]["idle_unload_minutes"])
+            keep_alive = OLLAMA_KEEP_WARM if keep_warm or minutes == 0 else f"{minutes}m"
             await registry.ollama_load(ctx.clients["chat"], role, model, keep_alive=keep_alive)
             _loaded_ollama[role] = model
         else:
@@ -165,6 +196,9 @@ async def set_residency(ctx, role: str, model: str, load: bool, *, keep_warm: bo
         return None
     if load:
         await ensure_downloaded(ctx, role, model)
+        if role in ctx.workers:
+            # a hand load counts as use, or the idle pass would drop it on its next tick
+            ctx.workers[role].last_used = time.monotonic()
     client = ctx.clients.get(role)
     if client is None:
         raise httpx.ConnectError(registry.unavailable_reason(role) or f"{role} is not available")

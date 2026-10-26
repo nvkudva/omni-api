@@ -1,39 +1,17 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
-import { OLLAMA_ROLES, ROLE_META, downloadFor, install, installs, matchesModel, stopDownload } from "../api/roles.js";
+import { ROLE_META, downloadFor, install, installs, matchesModel, specs, stopDownload } from "../api/roles.js";
 import { checkModel, modelStatus, searchModels } from "../api/endpoints.js";
-import { models } from "../api/models.js";
-import { recommendedFor } from "../lib/recommended.js";
 import { gb, size } from "../lib/format.js";
 import * as ui from "./ui.jsx";
 import styles from "./FindAndInstall.module.css";
 
-/**
- * What each role's runtime can take, as UI guidance. The gateway enforces the
- * real rule (`SEARCH_FILTERS` in `registry/roles.py`) on search and check;
- * this table only drives wording — placeholder, hint, example, family chip —
- * so a new role adds one entry here and no new JSX branch.
- */
-export const MODEL_CRITERIA = {
-  chat: { kind: "GGUF · text generation", family: null, accepts: "Ollama: a library name (qwen2.5vl:7b) or any GGUF repo on Hugging Face as hf.co/user/repo-GGUF:Q4_K_M.", example: "hf.co/user/repo-GGUF:Q4_K_M" },
-  decide: { kind: "ONNX · Vega typed decisions", family: "vega", accepts: "A Vega ONNX repo id with the v2 layout or Hugging Face page URL, e.g. nvkudva/vega-onnx-q8. Downloads to the HF cache.", example: "nvkudva/vega-onnx-q8" },
-  embed: { kind: "GGUF · feature extraction", family: null, accepts: "Ollama: a library name (qwen2.5vl:7b) or any GGUF repo on Hugging Face as hf.co/user/repo-GGUF:Q4_K_M.", example: "hf.co/user/repo-GGUF:Q4_K_M" },
-  stt: { kind: "ONNX · Parakeet speech-to-text", family: "parakeet", accepts: "ONNX Parakeet repo id (with int8 files) or Hugging Face page URL, e.g. istupakov/parakeet-tdt-0.6b-v2-onnx. Downloads to the HF cache.", example: "istupakov/parakeet-tdt-0.6b-v2-onnx" },
-  tts: { kind: "ONNX · Kokoro text-to-speech", family: "kokoro", accepts: "Kokoro ONNX repo id or Hugging Face page URL, e.g. onnx-community/Kokoro-82M-v1.0-ONNX. Downloads to the HF cache.", example: "onnx-community/Kokoro-82M-v1.0-ONNX" },
-  image: { kind: "Diffusers · Qwen-Image-2", family: "qwen-image-2", accepts: "Qwen-Image-2 repo id or Hugging Face page URL, e.g. Qwen/Qwen-Image-2.1. Downloads to the HF cache.", example: "Qwen/Qwen-Image-2.1" },
-  video: { kind: "GGUF · Wan / LTX-Video", family: "wan or ltx", accepts: "A Wan 2.2 or LTX-Video GGUF repo id or Hugging Face page URL, e.g. QuantStack/Wan2.2-TI2V-5B-GGUF. Downloads to the HF cache.", example: "QuantStack/Wan2.2-TI2V-5B-GGUF" },
-};
+// Wording for a role the server has not described yet (its first poll is still out).
+const FALLBACK_CRITERIA = { kind: "Hugging Face repo", family: null, accepts: "Hugging Face repo id or page URL. Downloads to the HF cache.", example: "" };
 
-const FALLBACK_CRITERIA = {
-  ollama: MODEL_CRITERIA.chat,
-  other: { kind: "Hugging Face repo", family: null, accepts: "Hugging Face repo id or page URL, e.g. istupakov/parakeet-tdt-0.6b-v2-onnx. Downloads to the HF cache.", example: "istupakov/parakeet-tdt-0.6b-v2-onnx" },
-};
-
-/** Criteria for a role; unknown roles fall back by runner, never by copying a sibling role. */
-export function criteriaFor(role, runner) {
-  if (MODEL_CRITERIA[role]) return MODEL_CRITERIA[role];
-  if (OLLAMA_ROLES.has(role) || runner === "ollama") return FALLBACK_CRITERIA.ollama;
-  return FALLBACK_CRITERIA.other;
+/** What a role's runtime accepts, as the gateway describes it (`ROLE_SPECS` in `registry/roles.py`). */
+export function criteriaFor(role) {
+  return specs.value[role] ?? FALLBACK_CRITERIA;
 }
 
 export function GatedNotice({ model, acceptUrl, busy, onRetry, actionLabel = "Retry install", busyLabel = "Installing…" }) {
@@ -77,40 +55,37 @@ export function InstallProgress({ role }) {
 }
 
 /**
- * The curated candidates for this role, with the configured default marked and
- * every row saying whether it is already on disk. Reads `/admin/models/status`
- * once per open and again after an install lands, so the column cannot go stale
- * while the popup is up.
+ * The curated candidates for this role, as the gateway ranks them: the
+ * configured default first, each row saying whether it is on disk and what
+ * would stand in its way on this machine. Reads `/admin/models/status` once per
+ * open and again after an install lands, so the table cannot go stale.
  */
 export function Recommended({ role, onPick }) {
-  const [known, setKnown] = useState({ installed: [], defaultModel: null });
+  const [entry, setEntry] = useState(specs.value[role] ?? null);
   const finished = installs.value[role]?.fraction;
 
   useEffect(() => {
     let live = true;
     modelStatus()
       .then((body) => {
-        if (!live) return;
-        const entry = body.roles?.[role];
-        setKnown({ installed: entry?.installed ?? [], defaultModel: entry?.default ?? null });
+        if (live && body.roles?.[role]) setEntry(body.roles[role]);
       })
       .catch(() => {
-        // the table still lists the candidates, just without download marks
+        // keep the last description: the table still lists the candidates
       });
     return () => { live = false; };
   }, [role, finished]);
 
-  const defaultModel = known.defaultModel ?? models.value.defaults?.[role] ?? null;
-  const rows = recommendedFor(role, defaultModel);
-  const onDisk = (model) => known.installed.find((entry) => matchesModel(entry.name, model));
-  const sizeLabel = (row) => (row.gb ? `${row.gb} GB` : onDisk(row.model)?.size_bytes ? size(onDisk(row.model).size_bytes) : "—");
+  const rows = entry?.recommended ?? [];
+  const defaultModel = entry?.default ?? null;
+  const sizeLabel = (row) => (row.gb ? `${row.gb} GB` : "—");
 
   return (
     <table>
-      <thead><tr><th>Model</th><th>Size</th><th>Downloaded</th><th /></tr></thead>
+      <thead><tr><th>Model</th><th>Size</th><th>Downloaded</th><th>Fits here</th><th /></tr></thead>
       <tbody>
         {rows.map((row) => {
-          const downloaded = Boolean(onDisk(row.model));
+          const fits = !row.blockers?.length;
           return (
             <tr key={row.model}>
               <td>
@@ -119,12 +94,19 @@ export function Recommended({ role, onPick }) {
                   {matchesModel(row.model, defaultModel) && <span class={styles.chip}>default</span>}
                 </div>
                 {row.note && <span class={styles.note}>{row.note}</span>}
+                {!fits && <span class={styles.note}>{row.blockers.join(" ")}</span>}
               </td>
               <td class={ui.css.numeric}>{sizeLabel(row)}</td>
               <td>
                 <span class={styles.statusCell}>
-                  <ui.Dot tone={downloaded ? "ok" : "idle"} />
-                  {downloaded ? "yes" : "no"}
+                  <ui.Dot tone={row.installed ? "ok" : "idle"} />
+                  {row.installed ? "yes" : "no"}
+                </span>
+              </td>
+              <td>
+                <span class={styles.statusCell}>
+                  <ui.Dot tone={fits ? "ok" : "busy"} />
+                  {fits ? "yes" : "tight"}
                 </span>
               </td>
               <td class={ui.css.actionCell}>
@@ -196,12 +178,12 @@ export function Search({ role, onPick, inputRef }) {
 }
 
 /** Download a model by id or page URL, after checking the role's runtime can run it. */
-export function Install({ role, runner, initial, onInstalled }) {
+export function Install({ role, initial, onInstalled }) {
   const [model, setModel] = useState(initial ?? "");
   const [check, setCheck] = useState(null);
   const [checking, setChecking] = useState(false);
   const busy = Boolean(installs.value[role]?.busy);
-  const criteria = criteriaFor(role, runner);
+  const criteria = criteriaFor(role);
 
   useEffect(() => {
     if (initial) {
@@ -316,7 +298,7 @@ export function FindAndInstall({ role, onClose, onInstalled }) {
         <h3 class={styles.subhead}>Search Hugging Face</h3>
         <Search role={role} onPick={setPick} inputRef={searchRef} />
         <h3 class={styles.subhead}>Or install by id</h3>
-        <Install role={role} runner={meta.runner} initial={pick} onInstalled={() => onInstalled?.()} />
+        <Install role={role} initial={pick} onInstalled={() => onInstalled?.()} />
         <InstallProgress role={role} />
       </div>
       <footer class={ui.css.modalFoot}>

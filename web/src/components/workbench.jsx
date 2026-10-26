@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import { cx } from "../lib/cx.js";
-import { ROLE_META, WORKER_ROLES, pollRuntime, runtime } from "../api/roles.js";
+import { ROLE_META, isWorker, pollRuntime, runtime } from "../api/roles.js";
 import { loadRole, workerAction } from "../api/endpoints.js";
 import * as ui from "./ui.jsx";
 import { ModelSettingsPopup } from "./ModelSettings.jsx";
@@ -44,7 +44,7 @@ function NotReady({ role, state }) {
   const status = state?.status ?? "checking";
   const stopped = status === "stopped" || status === "failed";
   const starting = status === "starting" || status === "loading" || status === "checking";
-  const start = stopped && WORKER_ROLES.has(role);
+  const start = stopped && isWorker(role);
 
   const run = async () => {
     setBusy(true);
@@ -62,7 +62,7 @@ function NotReady({ role, state }) {
 
   const message = starting
     ? `${label} is getting ready…`
-    : stopped && WORKER_ROLES.has(role)
+    : stopped && isWorker(role)
       ? `The ${label.toLowerCase()} worker is not running.`
       : stopped
         ? `${label} is not running.`

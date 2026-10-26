@@ -40,6 +40,8 @@ class Worker:
     loaded: bool = False
     # requests the worker is running or holding in its queue, so an idle model can be unloaded safely
     busy: int = 0
+    # monotonic time of the last request the gateway sent it; the gateway unloads after idle_unload_minutes
+    last_used: float = 0.0
     # serialises spawn/terminate against the watch loop and against admin actions
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
 

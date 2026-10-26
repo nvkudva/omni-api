@@ -46,28 +46,93 @@ class FakeSizeApi:
         return FakeInfo(self.siblings)
 
 
-class DownloadPlan(unittest.TestCase):
-    def plan(self, role, siblings):
-        with patch.object(huggingface, "HfApi", return_value=FakeSizeApi(siblings)):
-            return huggingface.download_plan(role, "unsloth/Qwen-Image-2.1-Turbo-GGUF")
+class Bundle(unittest.TestCase):
+    def bundle(self, role, siblings, pinned=None):
+        with patch.object(huggingface, "HfApi", return_value=FakeSizeApi(siblings)), \
+                patch.object(huggingface, "_pinned", return_value=pinned or {}), \
+                patch.object(huggingface, "base_repo", return_value="Qwen/Qwen-Image-2.1-Turbo"), \
+                patch.object(huggingface, "diffusers_files", side_effect=lambda repo: (repo, ["vae/*"])):
+            return huggingface.bundle(role, "unsloth/Qwen-Image-2.1-Turbo-GGUF")
 
-    def test_a_quant_repo_downloads_only_the_eight_bit_file(self):
-        plan = self.plan("image", [FakeSibling("turbo-F16.gguf", 14_230_000_000),
-                                   FakeSibling("turbo-Q4_K_M.gguf", 4_200_000_000),
-                                   FakeSibling("turbo-Q8_0.gguf", 7_640_000_000)])
-        self.assertEqual(plan.files, ["turbo-Q8_0.gguf"])
-        self.assertEqual(plan.size, 7_640_000_000)
+    def test_a_quant_repo_takes_the_eight_bit_file_and_the_base_behind_it(self):
+        parts = self.bundle("image", [FakeSibling("turbo-F16.gguf", 14_230_000_000),
+                                      FakeSibling("turbo-Q8_0.gguf", 7_640_000_000),
+                                      FakeSibling("vae/model.safetensors", 300)])
+        self.assertEqual(parts[0], huggingface.Part("unsloth/Qwen-Image-2.1-Turbo-GGUF", ["turbo-Q8_0.gguf"], 7_640_000_000))
+        self.assertEqual(parts[1].repo, "Qwen/Qwen-Image-2.1-Turbo")
+        self.assertEqual(parts[1].size, 300)
 
-    def test_other_roles_still_take_the_whole_repo(self):
-        plan = self.plan("video", [FakeSibling("transformer.safetensors", 9_970_000_000),
-                                   FakeSibling("vae.safetensors", 810_000_000)])
-        self.assertIsNone(plan.files)
-        self.assertEqual(plan.size, 10_780_000_000)
+    def test_the_config_pins_win_over_discovery(self):
+        parts = self.bundle("video", [FakeSibling("a-Q8_0.gguf", 1), FakeSibling("own.gguf", 2)],
+                            pinned={"file": "own.gguf", "base": "a/b"})
+        self.assertEqual(parts[0].files, ["own.gguf"])
+        self.assertEqual(parts[1].repo, "a/b")
 
-    def test_an_image_repo_without_a_gguf_downloads_everything(self):
-        plan = self.plan("image", [FakeSibling("transformer/a.safetensors", 9_970_000_000)])
-        self.assertIsNone(plan.files)
-        self.assertEqual(plan.size, 9_970_000_000)
+    def test_a_plain_checkpoint_is_the_whole_repo(self):
+        parts = self.bundle("video", [FakeSibling("transformer.safetensors", 9_970_000_000),
+                                      FakeSibling("vae.safetensors", 810_000_000)])
+        self.assertEqual(parts, [huggingface.Part("unsloth/Qwen-Image-2.1-Turbo-GGUF", None, 10_780_000_000)])
+
+    def test_a_speech_repo_takes_only_the_files_its_runtime_reads(self):
+        parts = self.bundle("tts", [FakeSibling("config.json", 1), FakeSibling("tokenizer.json", 1),
+                                    FakeSibling("onnx/model_quantized.onnx", 90), FakeSibling("onnx/model.onnx", 300),
+                                    FakeSibling("voices/af.bin", 5)])
+        self.assertEqual(parts[0].size, 97)
+
+
+class HeldSize(unittest.TestCase):
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        patcher = patch.object(huggingface.config, "BUNDLE_DIR", Path(folder.name))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.addCleanup(huggingface._cached_files.clear)
+
+    def test_a_bundle_counts_only_once_every_part_is_cached(self):
+        huggingface.save_manifest("image", "u/q-gguf", [huggingface.Part("u/q-gguf", ["m-Q8_0.gguf"], 7),
+                                                        huggingface.Part("q/base", ["vae/*"], 3)])
+        huggingface._cached_files["u/q-gguf"] = [("m-Q8_0.gguf", 7), ("m-F16.gguf", 14)]
+        self.assertIsNone(huggingface.held_size("image", "u/q-gguf"))
+        huggingface._cached_files["q/base"] = [("vae/a.safetensors", 3), ("transformer/x.safetensors", 40)]
+        self.assertEqual(huggingface.held_size("image", "u/q-gguf"), 10)
+
+    def test_a_diffusers_repo_without_a_manifest_is_not_runnable_yet(self):
+        huggingface._cached_files["q/base"] = [("vae/a.safetensors", 3)]
+        self.assertIsNone(huggingface.held_size("image", "q/base"))
+
+    def test_a_speech_repo_needs_every_file_its_runtime_reads(self):
+        huggingface._cached_files["k/kokoro"] = [("config.json", 1), ("tokenizer.json", 1)]
+        self.assertIsNone(huggingface.held_size("tts", "k/kokoro"))
+        huggingface._cached_files["k/kokoro"] += [("onnx/model_quantized.onnx", 90), ("voices/af.bin", 5)]
+        self.assertEqual(huggingface.held_size("tts", "k/kokoro"), 97)
+
+
+class BaseRepo(unittest.TestCase):
+    def base(self, card):
+        with patch.object(huggingface, "HfApi") as api:
+            api.return_value.model_info.return_value.cardData = card
+            return huggingface.base_repo("some/repo")
+
+    def test_the_card_names_the_checkpoint_behind_the_quantized_repo(self):
+        self.assertEqual(self.base({"base_model": "Qwen/Qwen-Image-2.1-Turbo"}), "Qwen/Qwen-Image-2.1-Turbo")
+
+    def test_a_list_valued_base_model_uses_its_first_entry(self):
+        self.assertEqual(self.base({"base_model": ["a/b", "c/d"]}), "a/b")
+
+    def test_a_card_without_a_base_falls_back_to_the_repo(self):
+        self.assertEqual(self.base(None), "some/repo")
+
+
+class PreferredGguf(unittest.TestCase):
+    def test_the_q8_file_is_preferred(self):
+        self.assertEqual(huggingface.preferred_gguf(["m-Q4_K_M.gguf", "m-Q8_0.gguf"]), "m-Q8_0.gguf")
+
+    def test_the_only_file_wins_when_it_is_not_q8(self):
+        self.assertEqual(huggingface.preferred_gguf(["m-Q4_K_M.gguf", "README.md"]), "m-Q4_K_M.gguf")
+
+    def test_no_gguf_is_none(self):
+        self.assertIsNone(huggingface.preferred_gguf(["model.safetensors"]))
 
 
 class Search(unittest.TestCase):

@@ -13,17 +13,17 @@ from typing import NamedTuple
 from huggingface_hub import HfApi, constants, scan_cache_dir
 from huggingface_hub.errors import CacheNotFound, HfHubHTTPError
 
-from omni import schemas
-from omni.registry.roles import SEARCH_FILTERS, family, runner
+from omni import config
+from omni.registry.roles import ROLE_SPECS, family, files, has_family, runner
 from omni.supervisor import guard
 
 # what a Hub call can raise that a route should report as a bad gateway, not a crash
 ERRORS = (HfHubHTTPError, OSError)
 
-SPEECH_FILES = {"decide": schemas.DECIDE_FILES, "stt": schemas.STT_FILES, "tts": schemas.TTS_FILES}
 CACHE_TTL_SECONDS = 30.0
 _installed_cache: tuple[float, list[dict]] | None = None
-_cached_files: dict[str, list[str]] = {}
+# repo id -> (file path in its snapshot, bytes on disk)
+_cached_files: dict[str, list[tuple[str, int]]] = {}
 
 
 def installed(force: bool = False) -> list[dict]:
@@ -40,19 +40,42 @@ def installed(force: bool = False) -> list[dict]:
               for repo in cache.repos if repo.repo_type == "model"]
     _cached_files.clear()
     for repo in cache.repos:
-        _cached_files[repo.repo_id] = [str(file.file_path.relative_to(revision.snapshot_path))
+        _cached_files[repo.repo_id] = [(str(file.file_path.relative_to(revision.snapshot_path)), file.size_on_disk)
                                        for revision in repo.revisions for file in revision.files]
     _installed_cache = (now, models)
     return models
 
 
-def holds(role: str, repo_id: str) -> bool:
-    """Whether the cached repo carries every file this role's runtime reads (roles that load a fixed layout)."""
-    patterns = SPEECH_FILES.get(role)
-    if patterns is None:
-        return True
-    files = _cached_files.get(repo_id, [])
-    return all(any(fnmatch.fnmatch(name, pattern) for name in files) for pattern in patterns)
+def _matching(name: str, patterns: list[str] | None) -> bool:
+    return patterns is None or any(fnmatch.fnmatch(name, pattern) for pattern in patterns)
+
+
+def _cached_size(part: "Part") -> int | None:
+    """Bytes of `part` on disk when every pattern it names is there, else None."""
+    cached = _cached_files.get(part.repo)
+    if not cached:
+        return None
+    if part.files is not None:
+        for pattern in part.files:
+            if not any(fnmatch.fnmatch(name, pattern) for name, _ in cached):
+                return None
+    return sum(size for name, size in cached if _matching(name, part.files))
+
+
+def held_size(role: str, repo_id: str) -> int | None:
+    """Bytes a load of `repo_id` reads when everything it needs is cached, else None.
+
+    A diffusers model is a bundle (a GGUF transformer plus the base checkpoint's text encoder and
+    VAE), so it counts only once its manifest says what the bundle is and every part is on disk.
+    """
+    if ROLE_SPECS[role]["engine"] == "diffusers":
+        parts = load_manifest(role, repo_id)
+    else:
+        parts = [Part(repo_id, files(role), 0)]
+    if not parts:
+        return None
+    sizes = [_cached_size(part) for part in parts]
+    return None if None in sizes else sum(sizes)
 
 
 def invalidate() -> None:
@@ -61,36 +84,99 @@ def invalidate() -> None:
     _installed_cache = None
 
 
-class Plan(NamedTuple):
-    """What a role's download covers: the files to fetch, or None for the whole repo."""
+class Part(NamedTuple):
+    """One repo a load reads: the files it takes from it (None for the whole repo) and their size."""
+    repo: str
     files: list[str] | None
     size: int
 
 
 def preferred_gguf(names: list[str]) -> str | None:
     """The GGUF an 8-bit load takes: Q8_0 when the repo ships one, else the first file."""
-    files = [name for name in names if name.endswith(".gguf")]
-    eight_bit = [name for name in files if "Q8_0" in name]
-    return (eight_bit or files or [None])[0]
+    gguf_files = [name for name in names if name.endswith(".gguf")]
+    eight_bit = [name for name in gguf_files if "Q8_0" in name]
+    return (eight_bit or gguf_files or [None])[0]
 
 
-def download_plan(role: str, repo_id: str) -> Plan:
-    """The files this role loads, so a quant repo does not download every quant.
+def base_repo(repo: str) -> str:
+    """The checkpoint a GGUF quantizes: the card's `base_model`, else the repo itself."""
+    try:
+        base = (HfApi().model_info(repo).cardData or {}).get("base_model")
+    except Exception:  # noqa: BLE001 - no card or no network: the repo itself is the best guess
+        return repo
+    if isinstance(base, list):
+        base = base[0] if base else None
+    return base if isinstance(base, str) and base else repo
 
-    `unsloth/Qwen-Image-2.1-Turbo-GGUF` holds twelve GGUFs (65 GB); the image worker loads one,
-    and pulling the rest costs 57 GB nothing reads. The speech repos ship fp32, fp16 and int8
-    ONNX side by side; the workers read the int8 ones.
+
+def diffusers_files(repo: str) -> tuple[str, list[str]]:
+    """The diffusers repo to use and the files of it a GGUF load reads: everything but the transformer weights.
+
+    The GGUF replaces the transformer, so its bf16 shards are never read; the repo's own
+    single-file checkpoints (LTX-Video ships several) are skipped the same way.
+    """
+    from huggingface_hub import hf_hub_download
+
+    try:
+        index = json.loads(Path(hf_hub_download(repo, "model_index.json")).read_text())
+    except Exception:  # noqa: BLE001 - a card's base_model may name the original, not the diffusers conversion
+        repo = f"{repo}-Diffusers"
+        index = json.loads(Path(hf_hub_download(repo, "model_index.json")).read_text())
+    others = [name for name, value in index.items() if isinstance(value, list) and value[0] and name != "transformer"]
+    return repo, ["model_index.json", "transformer/config.json", *(f"{name}/*" for name in others)]
+
+
+def _pinned(role: str, repo_id: str) -> dict:
+    """The config's hand pins (`file`, `base`) when `repo_id` is the role's configured model."""
+    section = config.load()[role]
+    return section if section["model"] == repo_id else {}
+
+
+def _size(siblings, patterns: list[str] | None) -> int:
+    return sum(sibling.size or 0 for sibling in siblings if _matching(sibling.rfilename, patterns))
+
+
+def bundle(role: str, repo_id: str) -> list[Part]:
+    """Every repo a first load of `repo_id` reads, and which files of each.
+
+    `unsloth/Qwen-Image-2.1-Turbo-GGUF` holds twelve GGUFs (65 GB); the image worker loads one, plus
+    the base checkpoint's text encoder and VAE. The speech repos ship fp32, fp16 and int8 ONNX side
+    by side; the workers read the int8 ones. Asks the Hub, so call it before downloading, not to load.
     """
     siblings = HfApi().model_info(repo_id, files_metadata=True).siblings or []
-    if role in SPEECH_FILES:
-        wanted = [sibling for sibling in siblings if any(fnmatch.fnmatch(sibling.rfilename, pattern) for pattern in SPEECH_FILES[role])]
-        if wanted:
-            return Plan(SPEECH_FILES[role], sum(sibling.size or 0 for sibling in wanted))
-    if role in ("image", "video"):
-        file = preferred_gguf([sibling.rfilename for sibling in siblings])
+    patterns = files(role)
+    if patterns and any(_matching(sibling.rfilename, patterns) for sibling in siblings):
+        return [Part(repo_id, patterns, _size(siblings, patterns))]
+    if ROLE_SPECS[role]["engine"] == "diffusers":
+        pinned = _pinned(role, repo_id)
+        file = pinned.get("file") or preferred_gguf([sibling.rfilename for sibling in siblings])
         if file is not None:
-            return Plan([file], next((sibling.size or 0) for sibling in siblings if sibling.rfilename == file))
-    return Plan(None, sum(sibling.size or 0 for sibling in siblings))
+            base, base_patterns = diffusers_files(pinned.get("base") or base_repo(repo_id))
+            base_siblings = HfApi().model_info(base, files_metadata=True).siblings or []
+            return [Part(repo_id, [file], _size(siblings, [file])),
+                    Part(base, base_patterns, _size(base_siblings, base_patterns))]
+    return [Part(repo_id, None, _size(siblings, None))]
+
+
+def _manifest_path(role: str, repo_id: str) -> Path:
+    return config.BUNDLE_DIR / f"{role}--{repo_id.replace('/', '--')}.json"
+
+
+def save_manifest(role: str, repo_id: str, parts: list[Part]) -> None:
+    """Remember what a bundle is, so a later load and the installed check need no network."""
+    path = _manifest_path(role, repo_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_text(json.dumps([part._asdict() for part in parts], indent=2))
+    os.replace(temporary, path)
+
+
+def load_manifest(role: str, repo_id: str) -> list[Part] | None:
+    try:
+        raw = json.loads(_manifest_path(role, repo_id).read_text())
+        return [Part(entry["repo"], entry["files"], entry["size"]) for entry in raw]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
 
 
 def cache_dir(repo_id: str) -> Path:
@@ -155,8 +241,7 @@ def approx_size_bytes(repo) -> int | None:
 
 def search(role: str, query: str, limit: int = 20) -> list[dict]:
     """Hugging Face repos this role's runtime can load, most downloaded first."""
-    filters = dict(SEARCH_FILTERS[role])
-    filters.pop("family", None)
+    filters = dict(ROLE_SPECS[role]["search"])
     markers = family(role)
     terms = query.strip() or (markers[0] if markers else None)
     expand = ["downloads", "likes", "pipeline_tag", "safetensors"]
@@ -166,7 +251,7 @@ def search(role: str, query: str, limit: int = 20) -> list[dict]:
                                 expand=expand, **filters)
     results = []
     for repo in found:
-        if markers and not any(marker in repo.id.lower() for marker in markers):
+        if not has_family(role, repo.id):
             continue
         name = f"hf.co/{repo.id}" if runner(role) == "ollama" else repo.id
         results.append({"name": name, "id": repo.id, "downloads": repo.downloads or 0, "likes": repo.likes or 0,
@@ -185,6 +270,8 @@ def delete(repo_id: str) -> None:
     if not revisions:
         raise FileNotFoundError(f"{repo_id} is not in the Hugging Face cache")
     cache.delete_revisions(*revisions).execute()
+    for path in config.BUNDLE_DIR.glob(f"*--{repo_id.replace('/', '--')}.json"):
+        path.unlink(missing_ok=True)
     invalidate()
 
 

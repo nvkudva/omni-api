@@ -29,7 +29,7 @@ def _load():
     return onnx_asr.load_model(model_name, quantization="int8").with_timestamps()
 
 
-model = workers.Lazy(_load, config.idle_seconds(settings))
+model = workers.Lazy(_load)
 executor = workers.ModelExecutor("stt-model", max_pending=4)
 app = workers.app(model, model_executor=executor)
 

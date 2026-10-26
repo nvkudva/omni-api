@@ -5,6 +5,7 @@ client goes away, and the full response stays retrievable under /admin/requests.
 import asyncio
 import json
 import logging
+import time
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
@@ -97,6 +98,8 @@ class Proxy:
         refused = await self._prepare(exec_id, role, path, ready)
         if refused is not None:
             return refused
+        if role in self.workers:
+            self.workers[role].last_used = time.monotonic()
         headers = {name: value for name, value in request.headers.items() if name in FORWARDED_REQUEST_HEADERS}
         upstream_request = self.clients[role].build_request(request.method, path, content=content, headers=headers)
         # a non-streaming upstream does all its work before the headers, so Stop cancels this task

@@ -13,6 +13,7 @@ HOME = Path(os.environ.get("OMNI_HOME", Path.home() / ".omni-api"))
 RUN_DIR = HOME / "run"
 LOG_DIR = HOME / "logs"
 VIDEO_DIR = HOME / "videos"
+BUNDLE_DIR = HOME / "bundles"
 PIDFILE = RUN_DIR / "omni.pid"
 PINS = HOME / "pins.json"
 USER_CONFIG = HOME / "config.toml"
@@ -92,7 +93,7 @@ def validate(settings: dict) -> None:
         raise ConfigError("gateway.idle_unload_minutes must be between 0 (never unload) and 1440")
     if not gateway["host"].strip():
         raise ConfigError("gateway.host must not be empty")
-    for section in ("chat", "decide", "embed", "stt", "tts", "image", "video"):
+    for section in ROLES:
         if not settings[section]["model"].strip():
             raise ConfigError(f"{section}.model must not be empty")
     if not 1 <= settings["image"]["steps"] <= 100:

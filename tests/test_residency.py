@@ -42,10 +42,11 @@ class FakeContext:
         self.clients = {role: FakeClient() for role in config.ROLES}
         self.workers = workers or {}
         self.settings = settings or {role: {"model": f"{role}-model"} for role in config.ROLES}
+        self.settings.setdefault("gateway", {"idle_unload_minutes": 10})
 
 
-def ready_worker(name, loaded=False, busy=0):
-    return SimpleNamespace(name=name, status="ready", loaded=loaded, busy=busy)
+def ready_worker(name, loaded=False, busy=0, last_used=0.0):
+    return SimpleNamespace(name=name, status="ready", loaded=loaded, busy=busy, last_used=last_used)
 
 
 class MakeRoom(unittest.TestCase):
@@ -56,6 +57,7 @@ class MakeRoom(unittest.TestCase):
         with patch.object(residency, "installed", AsyncMock(return_value=installed)), \
                 patch.object(residency.registry, "ram_shortfall", side_effect=shortfalls), \
                 patch.object(residency.config, "load_pins", return_value=list(pins)), \
+                patch.object(residency, "_free_ollama", AsyncMock(return_value=None)), \
                 patch.object(residency, "set_residency", AsyncMock()) as set_residency:
             refused = asyncio.run(residency.make_room(ctx, "image", "image-model"))
         return refused, set_residency
@@ -87,6 +89,27 @@ class MakeRoom(unittest.TestCase):
         refused, set_residency = self.make_room(ctx, [])
         self.assertIsNone(refused)
         set_residency.assert_not_awaited()
+
+
+class FreeOllama(unittest.TestCase):
+    def free(self, resident, shortfalls, pinned=()):
+        ctx = FakeContext()
+        with patch.object(residency, "ollama_resident", AsyncMock(return_value=resident)), \
+                patch.object(residency.registry, "ram_shortfall", side_effect=shortfalls), \
+                patch.object(residency.registry, "ollama_unload", AsyncMock()) as unload:
+            left = asyncio.run(residency._free_ollama(ctx, "image", 10, set(pinned)))
+        return left, unload
+
+    def test_an_unpinned_ollama_model_is_released_for_a_cold_worker(self):
+        left, unload = self.free({"chat-model"}, ["short", None])
+        self.assertIsNone(left)
+        unload.assert_awaited_once()
+        self.assertEqual(unload.call_args.args[1:], ("chat", "chat-model"))
+
+    def test_a_pinned_ollama_model_is_kept(self):
+        left, unload = self.free({"chat-model"}, ["short"], pinned=["chat"])
+        self.assertEqual(left, "short")
+        unload.assert_not_awaited()
 
 
 class Plan(unittest.TestCase):
@@ -131,7 +154,7 @@ class SetResidency(unittest.TestCase):
         ctx = FakeContext()
         with patch.object(residency.registry, "ollama_load", AsyncMock()) as load:
             asyncio.run(residency.set_residency(ctx, "chat", "qwen2.5:3b", True))
-        self.assertEqual(load.call_args.kwargs["keep_alive"], residency.OLLAMA_KEEP_ALIVE)
+        self.assertEqual(load.call_args.kwargs["keep_alive"], "10m")
 
     def test_a_worker_load_downloads_first_when_nothing_is_on_disk(self):
         ctx = FakeContext()
@@ -288,6 +311,36 @@ class KeepWarmLoop(unittest.TestCase):
         with patch.object(residency, "set_residency", AsyncMock(return_value=True)) as load:
             self.assertEqual(asyncio.run(self.loop().refresh()), ["stt"])
         self.assertEqual(load.call_args.args[1], "stt")
+
+    def test_a_pinned_worker_already_holding_its_model_is_left_alone(self):
+        config.save_pins(["stt"])
+        with patch.object(residency, "set_residency", AsyncMock()) as load:
+            self.assertEqual(asyncio.run(self.loop({"stt": ready_worker("stt", loaded=True)}).refresh()), [])
+        load.assert_not_called()
+
+    def test_an_idle_unpinned_worker_is_unloaded(self):
+        worker = ready_worker("tts", loaded=True, last_used=0.0)
+        with patch.object(residency, "set_residency", AsyncMock()) as unload:
+            asyncio.run(self.loop({"tts": worker}).refresh())
+        unload.assert_awaited_once()
+        self.assertFalse(unload.call_args.args[3])
+        self.assertFalse(worker.loaded)
+
+    def test_a_recent_busy_or_pinned_worker_keeps_its_model(self):
+        config.save_pins(["stt"])
+        workers = {"tts": ready_worker("tts", loaded=True, last_used=keepwarm.time.monotonic()),
+                   "image": ready_worker("image", loaded=True, busy=1),
+                   "stt": ready_worker("stt", loaded=True)}
+        with patch.object(residency, "set_residency", AsyncMock()) as unload:
+            asyncio.run(self.loop(workers).refresh())
+        unload.assert_not_called()
+
+    def test_zero_idle_minutes_never_unloads(self):
+        loop = self.loop({"tts": ready_worker("tts", loaded=True)})
+        loop.ctx.settings["gateway"]["idle_unload_minutes"] = 0
+        with patch.object(residency, "set_residency", AsyncMock()) as unload:
+            asyncio.run(loop.refresh())
+        unload.assert_not_called()
 
     def test_a_pinned_worker_that_is_not_up_yet_is_left_to_the_watch_loop(self):
         config.save_pins(["stt"])

@@ -17,15 +17,16 @@ def _gb(size: int) -> str:
     return f"{size / GB:.1f} GB"
 
 
-def fit_blockers(size_bytes: int) -> list[str]:
+def fit_blockers(size_bytes: int, on_disk: bool = False) -> list[str]:
     """Reasons a model of this many bytes may not fit on this machine right now.
 
     These are about *this* model, so they are worth a confirmation; a person may still force it.
+    A model already `on_disk` needs no disk space, only memory.
     """
     warnings = []
     ram = psutil.virtual_memory()
     disk_free = shutil.disk_usage(disk_usage_root()).free
-    if size_bytes > disk_free:
+    if not on_disk and size_bytes > disk_free:
         warnings.append(f"needs {_gb(size_bytes)} of disk; only {_gb(disk_free)} free")
     if size_bytes > ram.total * WEIGHTS_SHARE_OF_RAM:
         warnings.append(f"{_gb(size_bytes)} of weights on a {_gb(ram.total)} machine: expect heavy swapping, "

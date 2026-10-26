@@ -49,22 +49,6 @@ def _family() -> dict:
     raise config.ConfigError(f"video.model {model_name!r} is neither a Wan nor an LTX-Video repo")
 
 
-def _source() -> tuple[str | None, str]:
-    """(the GGUF file in `model`, or None; the diffusers repo that supplies the text encoder and VAE)."""
-    file = settings["video"].get("file") or gguf.find_file(model_name)
-    if not file:
-        return None, model_name
-    return file, settings["video"].get("base") or gguf.base_repo(model_name)
-
-
-def _components(repo: str) -> str:
-    """Download the diffusers repo's text encoder, VAE and configs, and return the folder."""
-    from huggingface_hub import snapshot_download
-
-    repo, allowed = gguf.diffusers_files(repo)
-    return snapshot_download(repo, allow_patterns=allowed)
-
-
 def _device() -> str:
     import torch
 
@@ -76,15 +60,13 @@ def _device() -> str:
 def _load():
     import diffusers
     import torch
-    from huggingface_hub import hf_hub_download
 
     family = _family()
     pipeline_class = getattr(diffusers, family["text"])
-    file, base = _source()
+    file, folder = gguf.source("video", model_name)
     if file:
-        folder = _components(base)
         transformer = getattr(diffusers, family["transformer"]).from_single_file(
-            hf_hub_download(model_name, file), config=folder, subfolder="transformer",
+            file, config=folder, subfolder="transformer",
             quantization_config=diffusers.GGUFQuantizationConfig(compute_dtype=torch.bfloat16))
         gguf.dequantize_vectors(transformer)
         extra = {"vae": diffusers.AutoencoderKLWan.from_pretrained(folder, subfolder="vae", torch_dtype=torch.float32)} \
@@ -103,7 +85,7 @@ def _clear_cache() -> None:
         torch.mps.empty_cache()
 
 
-model = workers.Lazy(_load, config.idle_seconds(settings), _clear_cache)
+model = workers.Lazy(_load, _clear_cache)
 executor = workers.ModelExecutor("video-model")
 jobs: dict[str, dict] = {}
 queue: asyncio.Queue[tuple[str, schemas.VideoRequest, int, int]] = asyncio.Queue(maxsize=MAX_QUEUE)

@@ -128,10 +128,10 @@ def _load() -> Decider:
     from huggingface_hub import snapshot_download
 
     roles.require("decide", model_name)
-    return Decider(_real_files(Path(snapshot_download(model_name, allow_patterns=schemas.DECIDE_FILES)) / RELEASE))
+    return Decider(_real_files(Path(snapshot_download(model_name, allow_patterns=roles.files("decide"))) / RELEASE))
 
 
-model = workers.Lazy(_load, config.idle_seconds(settings))
+model = workers.Lazy(_load)
 executor = workers.ModelExecutor("decide-model", max_pending=8)
 app = workers.app(model, model_executor=executor)
 

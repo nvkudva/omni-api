@@ -3,7 +3,7 @@ import { cx } from "../lib/cx.js";
 import { Icon } from "./Icon.jsx";
 import * as ui from "./ui.jsx";
 import { getText } from "../api/client.js";
-import { OLLAMA_ROLES } from "../api/roles.js";
+import { isOllama } from "../api/roles.js";
 import { usePageActive } from "../hooks/usePageActive.js";
 import { usePolling } from "../hooks/usePolling.js";
 import styles from "./LogsCard.module.css";
@@ -23,7 +23,7 @@ export function LogsCard({ role, initialOpen = false }) {
   const pageActive = usePageActive();
   // Ollama serves chat and embed from one engine with one log, so those roles
   // show what omni did for them: their requests and their model's residency.
-  const fileName = OLLAMA_ROLES.has(role) ? `${role} requests` : `${role}.log`;
+  const fileName = isOllama(role) ? `${role} requests` : `${role}.log`;
 
   usePolling(async () => {
     try {
