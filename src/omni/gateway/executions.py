@@ -239,7 +239,7 @@ class Sink:
                  "content_type": self.content_type, "headers": self.headers,
                  "fingerprint": self.fingerprint, "size": len(self.stream),
                  "truncated": truncated, "body": body, "error": error}
-        del self.stream
+        # kept: a fast upstream finishes before the live client's first read, which still needs the bytes
         TASKS.pop(self.exec_id, None)
         _remember(entry)
         return entry

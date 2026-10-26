@@ -67,6 +67,15 @@ class Retention(unittest.TestCase):
         self.assertIsNone(entry["error"])
         self.assertFalse(entry["truncated"])
 
+    def test_a_response_finished_before_the_client_reads_still_reaches_it(self):
+        async def run():
+            sink = executions.begin("e1b", "decide", "/v1/systemone", 200, "application/json",
+                                    FakeUpstream([b'{"ok": true}']))
+            await executions.TASKS["e1b"]
+            return [chunk async for chunk in sink.live_chunks()]
+
+        self.assertEqual(b"".join(asyncio.run(run())), b'{"ok": true}')
+
     async def settled(self, exec_id):
         entry = executions.get(exec_id)
         while entry is not None and entry["status"] == "running":
