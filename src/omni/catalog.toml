@@ -7,20 +7,19 @@ idle_unload_minutes = 10
 model = "qwen2.5:0.5b"
 
 [decide]
-model = "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0"
+# Vega 0.8B (a frozen Qwen3.5 plus a physics engine), 8-bit ONNX: about 970 MB.
+model = "nvkudva/vega-onnx-q8"
 
 [embed]
 model = "embeddinggemma-2:270m"
 
 [stt]
-# parakeet-mlx builds a dense model from the repo's NeMo config.json and loads it
-# strictly, so packed weights cannot work: a 4-bit pack fails with "442 parameters
-# not in model", and moondream/parakeet-redux has no NeMo `target` at all
-# ("Model is not supported yet!").
-model = "mlx-community/parakeet-tdt-0.6b-v3"
+# Parakeet TDT 0.6B v2 (English) as int8 ONNX, run by onnx-asr: about 660 MB, no MLX or torch.
+model = "istupakov/parakeet-tdt-0.6b-v2-onnx"
 
 [tts]
-model = "mlx-community/Kokoro-82M-8bit"
+# Kokoro-82M, int8 ONNX: 92 MB plus about 30 MB of voices.
+model = "onnx-community/Kokoro-82M-v1.0-ONNX"
 voice = "af_heart"
 
 [image]
@@ -33,8 +32,10 @@ model = "unsloth/Qwen-Image-2.1-Turbo-GGUF"
 steps = 8
 
 [video]
-# RAM-quantized MLX, 22B: fits the 34 GB cap. Layers carry 2-8 bits each, so the worker
-# quantizes per layer (see workers/video.py). Public repo, no terms to accept.
-model = "baa-ai/LTX-2.3-22B-RAM-12GB-MLX"
+# Wan 2.2 TI2V-5B (text and image to video) as a Q8_0 GGUF transformer: 5.4 GB. The text encoder
+# and VAE come from `base`, the diffusers conversion of the original, so a first generation
+# downloads about 20 GB. `file` pins a GGUF by hand; `steps` overrides the family default.
+model = "QuantStack/Wan2.2-TI2V-5B-GGUF"
+base = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
 frames = 97
 fps = 24

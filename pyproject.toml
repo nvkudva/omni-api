@@ -12,27 +12,27 @@ dependencies = [
   "httpx>=0.27",
   "psutil>=7.2.2",
   "huggingface_hub>=0.30",
+  "numpy>=1.26",
+  "onnxruntime>=1.20",
+  "pillow>=10",
+  "tokenizers>=0.20",
 ]
 
 [project.optional-dependencies]
-# The speech, image and video workers. MLX and Metal are macOS on Apple Silicon only, so this
-# extra cannot install anywhere else: omni without it serves chat, decide and embed through Ollama.
+# The speech, image and video workers. omni without it serves chat and embed through Ollama, and decide on ONNX Runtime.
 media = [
   "python-multipart>=0.0.9",
-  "numpy>=1.26",
-  "pillow>=10",
   "torch==2.14.1",
   "transformers==5.19.0",
-  "parakeet-mlx>=0.2",
-  "mlx-audio>=0.2",
+  "onnx-asr>=0.11",
   "misaki[en]>=0.7",
   "torchvision>=0.29.1",
   "diffusers",
   "accelerate>=0.26",
   "en-core-web-sm",
   "gguf>=0.10",
-  "ltx-core-mlx",
-  "ltx-pipelines-mlx",
+  "ftfy",
+  "sentencepiece",
 ]
 # Tab completion for `omni <TAB>`; needs `activate-global-python-argcomplete` in the shell once.
 completion = ["argcomplete>=3"]
@@ -55,5 +55,3 @@ packages = ["src/omni"]
 [tool.uv.sources]
 diffusers = { git = "https://github.com/huggingface/diffusers", rev = "4295ee3ec58efa6577bc459e9b84ca3f63aa9a96" }
 en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" }
-ltx-core-mlx = { git = "https://github.com/dgrauet/ltx-2-mlx", rev = "9e4a1a54194460547a103334b5e06382724fbba6", subdirectory = "packages/ltx-core-mlx" }
-ltx-pipelines-mlx = { git = "https://github.com/dgrauet/ltx-2-mlx", rev = "9e4a1a54194460547a103334b5e06382724fbba6", subdirectory = "packages/ltx-pipelines-mlx" }

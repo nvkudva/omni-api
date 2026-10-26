@@ -198,7 +198,7 @@ export default function Video() {
               : "First frame (optional): drop an image or click to choose"}
           </ui.DropZone>
           <ui.Notice tone="warn">
-            LTX-2.3 distilled, RAM-quantized MLX. The first request downloads the model pack (~19 GB) plus its Gemma text encoder, then loads for minutes. Change or pre-install it on the Models page.
+            Wan 2.2 TI2V-5B at Q8 through diffusers. The first request downloads the model (5.4 GB) plus its text encoder and VAE (~14 GB), then loads for a minute or more; generation is slow. Change or pre-install it on the Models page.
           </ui.Notice>
         </RequestBody>
       </Panel>

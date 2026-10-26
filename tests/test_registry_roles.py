@@ -12,16 +12,17 @@ class Families(unittest.TestCase):
 
     def test_ollama_roles_are_only_filtered_by_pipeline(self):
         for role in roles.OLLAMA_ROLES:
-            self.assertIsNone(roles.family(role), role)
+            self.assertFalse(roles.family(role), role)
 
 
 class Supports(unittest.TestCase):
     def test_the_shipped_defaults_are_loadable_by_their_role(self):
         defaults = {
-            "stt": "mlx-community/parakeet-tdt-0.6b-v3",
-            "tts": "prince-canuma/Kokoro-82M-4bit",
+            "decide": "nvkudva/vega-onnx-q8",
+            "stt": "istupakov/parakeet-tdt-0.6b-v2-onnx",
+            "tts": "onnx-community/Kokoro-82M-v1.0-ONNX",
             "image": "Qwen/Qwen-Image-2.1-Turbo",
-            "video": "baa-ai/LTX-2.3-22B-RAM-12GB-MLX",
+            "video": "QuantStack/Wan2.2-TI2V-5B-GGUF",
         }
         for role, repo in defaults.items():
             self.assertTrue(roles.supports(role, repo), role)

@@ -113,7 +113,7 @@ export default function Tts({ active = true }) {
   const canSpeak = !(view === "json" && json.error) && !(view === "ui" && !body.input.trim()) && !busy;
 
   return (
-    <Workbench class={styles.tts} title="Text to speech" subtitle="Kokoro voices on MLX, returned as WAV. The first request loads the voice model." modelRole="tts">
+    <Workbench class={styles.tts} title="Text to speech" subtitle="Kokoro voices on ONNX Runtime, returned as WAV. The first request loads the voice model." modelRole="tts">
       <Panel
         title="Request"
         endpoint="/v1/audio/speech"

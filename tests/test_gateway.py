@@ -29,10 +29,6 @@ def _error(response):
 
 
 class ModelRoles(unittest.TestCase):
-    def test_a_decision_model_is_labelled_decide(self):
-        settings = config.load()
-        self.assertEqual(system._role_for("d1-omni", ["decision", "vision"], settings), "decide")
-
     def test_an_embedding_model_is_labelled_embed(self):
         settings = config.load()
         self.assertEqual(system._role_for("some-embed", ["embedding"], settings), "embed")
@@ -100,7 +96,7 @@ class Gateway(unittest.TestCase):
         for entry in body["data"]:
             if entry["id"].startswith("embeddinggemma"):
                 self.assertEqual(entry["role"], "embed", entry)
-            if entry["capabilities"] and "completion" not in entry["capabilities"]:
+            if "embedding" in entry["capabilities"]:
                 self.assertNotEqual(entry["role"], "chat", entry)
 
     def test_chat_rejects_the_embed_model(self):
@@ -109,15 +105,6 @@ class Gateway(unittest.TestCase):
                                     json={"model": embed, "messages": [{"role": "user", "content": "hi"}]})
         self.assertEqual(response.status_code, 400)
         self.assertIn("does not support chat", _error(response)["message"])
-
-    def test_decide_rejects_the_embed_model(self):
-        embed = self.client.get("/v1/models").json()["defaults"]["embed"]
-        response = self.client.post("/v1/systemone", json={
-            "model": embed, "state": "hi",
-            "questions": {"q": {"type": "noul", "instructions": "is it true?", "criteria": {"true": "yes", "false": "no"}}},
-        })
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("embed model", _error(response)["message"])
 
     def test_embeddings_rejects_the_chat_model(self):
         defaults = self.client.get("/v1/models").json()["defaults"]
@@ -226,11 +213,6 @@ class Gateway(unittest.TestCase):
                                     headers={"content-type": "application/json"})
         self.assertEqual(response.status_code, 400)
         self.assertEqual(_error(response)["type"], "invalid_request_error")
-
-    def test_decide_rejects_a_missing_question_map(self):
-        response = self.client.post("/v1/systemone", json={})
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("questions", _error(response)["message"])
 
     def test_embeddings_rejects_a_bad_input_type(self):
         response = self.client.post("/v1/embeddings", json={"input": "hi", "input_type": "nope"})
@@ -433,32 +415,28 @@ class Gateway(unittest.TestCase):
         self.assertEqual(response.status_code, 502)
         self.assertEqual(_error(response)["type"], "upstream_error")
 
-    def test_a_retained_decide_call_replays_without_rerunning(self):
-        payload = {"state": "the sky is blue",
-                   "questions": {"q1": {"instructions": "is the sky blue?",
-                                         "criteria": ["yes", "no"]}}}
-        headers = {"x-omni-exec": "decide-1"}
-        with patch("omni.inference.decide.run", new=AsyncMock(return_value={"answers": {}})) as run:
-            first = self.client.post("/v1/systemone", json=payload, headers=headers)
-            second = self.client.post("/v1/systemone", json=payload, headers=headers)
+    def test_a_retained_embed_call_replays_without_rerunning(self):
+        payload = {"input": "the sky is blue"}
+        headers = {"x-omni-exec": "embed-1"}
+        with patch("omni.inference.embed.run", new=AsyncMock(return_value={"answers": {}})) as run:
+            first = self.client.post("/v1/embeddings", json=payload, headers=headers)
+            second = self.client.post("/v1/embeddings", json=payload, headers=headers)
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 200)
         self.assertEqual(first.json(), second.json())
         run.assert_called_once()
 
     def test_requests_lists_and_serves_a_retained_result(self):
-        payload = {"state": "the sky is blue",
-                   "questions": {"q1": {"instructions": "is the sky blue?",
-                                         "criteria": ["yes", "no"]}}}
-        with patch("omni.inference.decide.run", new=AsyncMock(return_value={"answers": {}})):
-            self.client.post("/v1/systemone", json=payload, headers={"x-omni-exec": "decide-2"})
+        payload = {"input": "the sky is blue"}
+        with patch("omni.inference.embed.run", new=AsyncMock(return_value={"answers": {}})):
+            self.client.post("/v1/embeddings", json=payload, headers={"x-omni-exec": "embed-2"})
         listing = self.client.get("/admin/requests").json()
-        self.assertEqual([entry["id"] for entry in listing["recent"] if entry["id"] == "decide-2"],
-                         ["decide-2"])
-        single = self.client.get("/admin/requests/decide-2").json()
+        self.assertEqual([entry["id"] for entry in listing["recent"] if entry["id"] == "embed-2"],
+                         ["embed-2"])
+        single = self.client.get("/admin/requests/embed-2").json()
         self.assertEqual(single["status"], "done")
         self.assertNotIn("body", single)
-        result = self.client.get("/admin/requests/decide-2/result")
+        result = self.client.get("/admin/requests/embed-2/result")
         self.assertEqual(result.status_code, 200)
         self.assertEqual(result.json(), {"answers": {}})
 

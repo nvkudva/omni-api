@@ -33,7 +33,7 @@ def build(settings: dict) -> Context:
     clients: dict[str, httpx.AsyncClient] = {}
     workers: list[supervisor.Worker] = []
 
-    # chat, decide and embed share one Ollama, on whatever address this machine configures (OLLAMA_HOST).
+    # chat and embed share one Ollama, on whatever address this machine configures (OLLAMA_HOST).
     chat_url = config.ollama_url()
     clients["chat"] = httpx.AsyncClient(base_url=chat_url, timeout=timeout())
     if not _ollama_running(chat_url):

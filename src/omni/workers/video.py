@@ -1,24 +1,26 @@
-"""LTX-2.3 distilled text/image-to-video on MLX, as OpenAI-style jobs: create, poll, fetch the mp4.
+"""Text/image-to-video through diffusers (Wan 2.2 TI2V, or LTX-Video), as OpenAI-style jobs: create, poll, fetch the mp4.
 
 Jobs are capped, expire on a TTL and their mp4s are deleted, so a long session cannot grow without bound.
 """
 import asyncio
-import base64
-import binascii
-import io
+import inspect
+import json
 import logging
 import re
+import subprocess
 import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+import numpy as np
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 
 from omni import config, schemas, workers
 from omni.registry import pulling
+from omni.workers import gguf, pictures
 
 log = logging.getLogger("omni.worker.video")
 
@@ -26,9 +28,14 @@ MAX_QUEUE = 8
 JOB_TTL_SECONDS = 3600
 SWEEP_SECONDS = 60
 JOB_ID_PATTERN = re.compile(r"^video_[0-9a-f]{16}$")
-QUANT_GROUP_SIZE = 64
-QUANT_BIT_WIDTHS = (2, 3, 4, 5, 6, 8)
-_QUANTIZATION_PATCHED = False
+# Per model family: the diffusers classes, and the sampler defaults its authors recommend
+# (LTX-Video's distilled checkpoints run few steps with guidance off).
+FAMILIES = {
+    "wan": {"text": "WanPipeline", "image": "WanImageToVideoPipeline", "transformer": "WanTransformer3DModel",
+            "steps": 30, "guidance": 5.0},
+    "ltx": {"text": "LTXPipeline", "image": "LTXImageToVideoPipeline", "transformer": "LTXVideoTransformer3DModel",
+            "steps": 8, "guidance": 1.0},
+}
 
 settings = config.load()
 model_name = settings["video"]["model"]
@@ -36,72 +43,75 @@ fps = settings["video"]["fps"]
 config.ensure_dirs()
 
 
-def _layer_bit_widths(weights: dict, group_size: int) -> dict[int, set[str]]:
-    """The bit width each quantized layer was packed at, read from its weight and scales shapes."""
-    widths: dict[int, set[str]] = {}
-    for key in weights:
-        if not key.endswith(".scales"):
-            continue
-        layer = key[: -len(".scales")]
-        weight = weights.get(f"{layer}.weight")
-        if weight is None:
-            continue
-        bits = round(weight.shape[-1] * 32 / (weights[key].shape[-1] * group_size))
-        if bits in QUANT_BIT_WIDTHS:
-            widths.setdefault(bits, set()).add(layer)
-    return widths
+def _family() -> dict:
+    for name, family in FAMILIES.items():
+        if name in model_name.lower():
+            return family
+    raise config.ConfigError(f"video.model {model_name!r} is neither a Wan nor an LTX-Video repo")
 
 
-def _install_per_layer_quantization() -> None:
-    """Let the transformer load a checkpoint whose layers each carry a different bit width.
+def _source() -> tuple[str | None, str]:
+    """(the GGUF file in `model`, or None; the diffusers repo that supplies the text encoder and VAE)."""
+    file = settings["video"].get("file") or gguf.find_file(model_name)
+    if not file:
+        return None, model_name
+    return file, settings["video"].get("base") or gguf.base_repo(model_name)
 
-    ltx-core-mlx derives one width for the whole model, so a RAM pack — 2, 3, 4, 5, 6 and 8 bit
-    layers in one checkpoint — does not load. The pack ships its own demo with the same
-    workaround, so the worker installs it too, and hands a pack it cannot read back to the
-    stock quantizer.
+
+def _components(repo: str) -> str:
+    """Download everything of a diffusers repo except the transformer weights, and return the folder.
+
+    The GGUF replaces the transformer, so its 20 GB of bf16 shards are never read; the repo's
+    own single-file checkpoints (LTX-Video ships several) are skipped the same way.
     """
-    import ltx_core_mlx.utils.weights as weights_module
-    import ltx_pipelines_mlx._base as base_module
-    import ltx_pipelines_mlx.utils._orchestration as orchestration
-    from mlx import nn
+    from huggingface_hub import hf_hub_download, snapshot_download
 
-    global _QUANTIZATION_PATCHED
-    if _QUANTIZATION_PATCHED:
-        return
-    stock = weights_module.apply_quantization
+    try:
+        index = json.loads(Path(hf_hub_download(repo, "model_index.json")).read_text())
+    except Exception:  # noqa: BLE001 - a card's base_model may name the original, not the diffusers conversion
+        repo = f"{repo}-Diffusers"
+        index = json.loads(Path(hf_hub_download(repo, "model_index.json")).read_text())
+    others = [name for name, value in index.items() if isinstance(value, list) and value[0] and name != "transformer"]
+    allowed = ["model_index.json", "transformer/config.json", *(f"{name}/*" for name in others)]
+    return snapshot_download(repo, allow_patterns=allowed)
 
-    def apply_per_layer(model, weights, group_size: int = QUANT_GROUP_SIZE, bits=None):
-        widths = _layer_bit_widths(weights, group_size)
-        packed = {layer for layers in widths.values() for layer in layers}
-        quantized = sum(1 for key in weights if key.endswith(".scales"))
-        if not packed or len(packed) != quantized:
-            return stock(model, weights, group_size, bits)
-        for width, layers in widths.items():
-            nn.quantize(model, group_size=group_size, bits=width,
-                        class_predicate=lambda path, module, _layers=layers:
-                            path in _layers and isinstance(module, nn.Linear))
 
-    weights_module.apply_quantization = apply_per_layer
-    orchestration.apply_quantization = apply_per_layer
-    base_module.apply_quantization = apply_per_layer
-    _QUANTIZATION_PATCHED = True
+def _device() -> str:
+    import torch
+
+    if torch.backends.mps.is_available():
+        return "mps"
+    return "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def _load():
-    from ltx_pipelines_mlx import DistilledPipeline
+    import diffusers
+    import torch
+    from huggingface_hub import hf_hub_download
 
-    _install_per_layer_quantization()
-    pipeline = DistilledPipeline(model_dir=model_name, low_memory=True)
-    # the pipeline only reads its weights when it generates, so without this the role would
-    # report itself loaded while nothing is in memory
-    pipeline.load()
-    return pipeline
+    family = _family()
+    pipeline_class = getattr(diffusers, family["text"])
+    file, base = _source()
+    if file:
+        folder = _components(base)
+        transformer = getattr(diffusers, family["transformer"]).from_single_file(
+            hf_hub_download(model_name, file), config=folder, subfolder="transformer",
+            quantization_config=diffusers.GGUFQuantizationConfig(compute_dtype=torch.bfloat16))
+        gguf.dequantize_vectors(transformer)
+        extra = {"vae": diffusers.AutoencoderKLWan.from_pretrained(folder, subfolder="vae", torch_dtype=torch.float32)} \
+            if family is FAMILIES["wan"] else {}
+        pipe = pipeline_class.from_pretrained(folder, transformer=transformer, torch_dtype=torch.bfloat16, **extra)
+    else:
+        pipe = pipeline_class.from_pretrained(model_name, torch_dtype=torch.bfloat16)
+    pipe.vae.enable_tiling()
+    return pipe.to(_device())
 
 
 def _clear_cache() -> None:
-    import mlx.core
+    import torch
 
-    mlx.core.clear_cache()
+    if torch.backends.mps.is_available():
+        torch.mps.empty_cache()
 
 
 model = workers.Lazy(_load, config.idle_seconds(settings), _clear_cache)
@@ -111,25 +121,8 @@ queue: asyncio.Queue[tuple[str, schemas.VideoRequest, int, int]] = asyncio.Queue
 
 
 def _frames(seconds: float) -> int:
-    # the VAE packs 8 frames per latent step after the first
+    # both VAEs pack frames in fours (Wan) or eights (LTX) after the first; 8n + 1 suits both
     return max(1, round(seconds * fps / 8)) * 8 + 1
-
-
-def _decode_frame(data: str) -> bytes:
-    """Validate a base64 first frame up front, so a bad one is a 400 and not a failed job."""
-    raw = data.split(",", 1)[-1] if data.startswith("data:") else data
-    try:
-        blob = base64.b64decode(raw, validate=True)
-    except (binascii.Error, ValueError) as error:
-        raise HTTPException(400, "image: not valid base64") from error
-    if len(blob) > schemas.IMAGE_MAX_FRAME_BYTES:
-        raise HTTPException(413, "image: first frame is too large")
-    try:
-        with Image.open(io.BytesIO(blob)) as picture:
-            picture.verify()
-    except (UnidentifiedImageError, OSError) as error:
-        raise HTTPException(400, "image: first frame is not a decodable image") from error
-    return blob
 
 
 def _public(job_id: str) -> dict:
@@ -141,6 +134,39 @@ def _live(job_id: str, job: dict) -> bool:
     return jobs.get(job_id) is job and job["status"] != "failed"
 
 
+def _render(pipe, req: schemas.VideoRequest, width: int, height: int, image_path: Path | None) -> np.ndarray:
+    """The frames as floats in [0, 1], shaped (frames, height, width, 3)."""
+    import diffusers
+    import torch
+
+    family = _family()
+    steps = settings["video"].get("steps", family["steps"])
+    options = {"prompt": req.prompt, "negative_prompt": req.negative_prompt, "height": height, "width": width,
+               "num_frames": _frames(req.seconds), "num_inference_steps": steps,
+               "guidance_scale": family["guidance"], "generator": torch.Generator("cpu").manual_seed(req.seed),
+               "output_type": "np"}
+    if image_path is not None:
+        # not from_pipe: it casts the pipeline to float32, which a quantized transformer refuses
+        image_class = getattr(diffusers, family["image"])
+        accepted = inspect.signature(image_class.__init__).parameters
+        settings_kept = {key: value for key, value in pipe.config.items() if key in accepted and key not in pipe.components}
+        pipe = image_class(**pipe.components, **settings_kept)
+        with Image.open(image_path) as picture:
+            options["image"] = picture.convert("RGB")
+    return pipe(**options).frames[0]
+
+
+def _write_mp4(frames: np.ndarray, path: Path) -> None:
+    height, width = frames.shape[1:3]
+    pixels = (np.clip(frames, 0.0, 1.0) * 255).round().astype(np.uint8)
+    command = ["ffmpeg", "-nostdin", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
+               "-s", f"{width}x{height}", "-r", str(fps), "-i", "-", "-c:v", "libx264",
+               "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(path)]
+    done = subprocess.run(command, input=pixels.tobytes(), capture_output=True, check=False)
+    if done.returncode != 0:
+        raise RuntimeError(f"ffmpeg could not encode the video: {done.stderr.decode(errors='replace').strip()[-300:]}")
+
+
 def _generate(job_id: str, req: schemas.VideoRequest, width: int, height: int) -> None:
     job = jobs.get(job_id)
     if job is None or not _live(job_id, job):
@@ -149,15 +175,13 @@ def _generate(job_id: str, req: schemas.VideoRequest, width: int, height: int) -
     image_path = config.VIDEO_DIR / f"{job_id}.png" if req.image else None
     try:
         if image_path is not None:
-            image_path.write_bytes(_decode_frame(req.image))
+            image_path.write_bytes(pictures.decode(req.image))
         with model.use() as pipe:
             if not _live(job_id, job):
                 return
             job["status"] = "in_progress"
-            pipe.generate_and_save(req.prompt, str(path), height=height, width=width,
-                                   num_frames=_frames(req.seconds), frame_rate=fps, seed=req.seed,
-                                   image=str(image_path) if image_path else None,
-                                   negative_prompt=req.negative_prompt)
+            frames = _render(pipe, req, width, height, image_path)
+        _write_mp4(frames, path)
         if _live(job_id, job):
             job.update(status="completed", completed_at=int(time.time()), path=str(path))
         else:
@@ -254,7 +278,7 @@ async def create(req: schemas.VideoRequest) -> dict:
     except ValueError as error:
         raise HTTPException(400, str(error)) from error
     if req.image:
-        await asyncio.to_thread(_decode_frame, req.image)
+        await asyncio.to_thread(pictures.decode, req.image)
     job_id = f"video_{uuid.uuid4().hex[:16]}"
     frames = _frames(req.seconds)
     jobs[job_id] = {"id": job_id, "object": "video", "model": model_name, "status": "queued",

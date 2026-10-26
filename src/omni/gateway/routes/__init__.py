@@ -4,12 +4,13 @@ from omni.gateway.routes import (
     admin_runtime,
     chat,
     control,
+    decisions,
     media,
     model_calls,
     speech,
     system,
 )
 
-MODULES = (system, chat, model_calls, media, speech, admin_models, admin_runtime, control)
+MODULES = (system, chat, model_calls, decisions, media, speech, admin_models, admin_runtime, control)
 
 __all__ = ["MODULES"]

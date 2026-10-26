@@ -19,14 +19,10 @@ async def _chat_models(client: httpx.AsyncClient) -> list[str]:
 
 
 def _role_for(name: str, capabilities: list[str], settings: dict) -> str:
-    for role in ("embed", "decide"):
-        if registry.matches(name, settings[role]["model"]):
-            return role
-    if capabilities and "completion" not in capabilities:
-        if "embedding" in capabilities:
-            return "embed"
-        if "decision" in capabilities:
-            return "decide"
+    if registry.matches(name, settings["embed"]["model"]):
+        return "embed"
+    if capabilities and "completion" not in capabilities and "embedding" in capabilities:
+        return "embed"
     return "chat"
 
 
@@ -39,7 +35,7 @@ def register(app: FastAPI, ctx: Context) -> None:
                  "role": _role_for(name, capabilities, ctx.settings), "capabilities": capabilities}
                 for name, capabilities in zip(names, found)]
         seen = {registry.canonical(entry["id"]) for entry in data}
-        for role in ("decide", "embed") + registry.PYTHON_WORKERS:
+        for role in ("embed", *registry.PYTHON_WORKERS):
             model = ctx.settings[role]["model"]
             if registry.canonical(model) in seen:
                 continue

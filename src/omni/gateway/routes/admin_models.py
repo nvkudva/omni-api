@@ -18,8 +18,8 @@ def _unsupported(role: str, name: str) -> str | None:
     """Why this role's runtime cannot run `name`, or None when it can."""
     if registry.supports(role, name):
         return None
-    marker = registry.family(role)
-    hint = f" (it loads only repos with '{marker}' in the name)" if marker else ""
+    markers = registry.family(role)
+    hint = f" (it loads only repos with '{' or '.join(markers)}' in the name)" if markers else ""
     return f"the {role} runtime cannot run {name}{hint}"
 
 

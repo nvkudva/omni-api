@@ -209,12 +209,12 @@
         <p class="flow-label">roles · engines</p>
         <div class="chip-grid">
           <span class="chip" style="--c:var(--cyan)">chat <small>Ollama</small></span>
-          <span class="chip" style="--c:var(--indigo)">decide <small>Ollama</small></span>
+          <span class="chip" style="--c:var(--indigo)">decide <small>onnxruntime</small></span>
           <span class="chip" style="--c:var(--lime)">embed <small>Ollama</small></span>
           <span class="chip" style="--c:var(--pink)">image <small>diffusers</small></span>
-          <span class="chip" style="--c:var(--amber)">video <small>ltx-2-mlx</small></span>
-          <span class="chip" style="--c:var(--sky)">stt <small>parakeet-mlx</small></span>
-          <span class="chip" style="--c:var(--rose)">tts <small>mlx-audio</small></span>
+          <span class="chip" style="--c:var(--amber)">video <small>diffusers</small></span>
+          <span class="chip" style="--c:var(--sky)">stt <small>onnx-asr</small></span>
+          <span class="chip" style="--c:var(--rose)">tts <small>onnxruntime</small></span>
         </div>
       </div>
     </div>
@@ -253,7 +253,7 @@ brew install omni</code></pre>
         <span class="step-num">2</span>
         <div class="step-body">
           <h3>Pull the models</h3>
-          <p>Installs Ollama if needed, fetches chat, decide and embed, and sets up speech. Add <code>--media</code> for image and video.</p>
+          <p>Installs Ollama if needed, fetches chat and embed, and sets up decide and speech. Add <code>--media</code> for image and video.</p>
           <div class="code-block">
             <div class="code-head"><span class="code-lang">shell</span><button class="copy-btn" data-copy="#codeInit" aria-label="Copy"><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M5.5 2h6A1.5 1.5 0 0 1 13 3.5v6h-1.5v-6h-6V2Z"/><path fill="currentColor" d="M3 4h6.5A1.5 1.5 0 0 1 11 5.5v7A1.5 1.5 0 0 1 9.5 14H3a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 3 4Zm0 1.5v7h6.5v-7H3Z"/></svg></button></div>
             <pre id="codeInit"><code>omni init            # core models + speech
@@ -408,7 +408,7 @@ print(reply.choices[0].message.content)</code></pre>
       </details>
       <details class="reveal">
         <summary>Which platforms are supported?</summary>
-        <p>macOS on Apple Silicon runs every role. Linux serves chat, decide and embed through Ollama, and adds speech and video with the media extra. Image generation is macOS-only.</p>
+        <p>macOS on Apple Silicon runs every role. Linux serves chat and embed through Ollama, decide on ONNX Runtime, and adds speech and video with the media extra. Image generation is macOS-only.</p>
       </details>
     </div>
   </div>

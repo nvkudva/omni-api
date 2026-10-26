@@ -17,12 +17,7 @@ export const RECOMMENDED = {
     { model: "gemma4:12b", gb: 8.0, note: "smallest of the fast ones" },
   ],
   decide: [
-    { model: "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0", gb: 1.2, note: "shipped default" },
-    { model: "d1-omni", gb: 0.85, note: "native System One — fast and calibrated; strongest on short classification, weaker on long state" },
-    { model: "nimble", gb: 9.5, note: "best answer accuracy" },
-    { model: "clef-flash", gb: 10.6, note: "lowest latency" },
-    { model: "tev1:4b", gb: 4.6, note: "accuracy step-up" },
-    { model: "laya", gb: 0.8, note: "tiny and quickest to answer" },
+    { model: "nvkudva/vega-onnx-q8", gb: 0.97, note: "shipped default — Vega 0.8B, 8-bit ONNX; calibrated, with prediction sets and abstain" },
   ],
   embed: [
     { model: "embeddinggemma-2:270m", gb: 0.3, note: "shipped default — smallest" },
@@ -32,16 +27,11 @@ export const RECOMMENDED = {
     { model: "qwen3-embedding:8b", gb: 4.7, note: "best quality; 4096-dim vectors" },
   ],
   stt: [
-    { model: "mlx-community/parakeet-tdt-0.6b-v3", gb: 2.5, note: "shipped default — best accuracy" },
-    { model: "mlx-community/parakeet-tdt_ctc-110m", gb: 0.5, note: "small" },
-    { model: "mlx-community/parakeet-tdt-0.6b-v2", gb: 2.5, note: "previous version" },
+    { model: "istupakov/parakeet-tdt-0.6b-v2-onnx", gb: 0.7, note: "shipped default — English, int8" },
+    { model: "istupakov/parakeet-tdt-0.6b-v3-onnx", gb: 0.7, note: "25 European languages, int8" },
   ],
   tts: [
-    { model: "mlx-community/Kokoro-82M-8bit", gb: 0.4, note: "shipped default — near-identical to reference" },
-    { model: "mlx-community/Kokoro-82M-6bit", gb: 0.4, note: "smaller still" },
-    { model: "mlx-community/Kokoro-82M-4bit", gb: 0.7, note: "most compressed" },
-    { model: "prince-canuma/Kokoro-82M-4bit", gb: 0.6, note: "previous default" },
-    { model: "mlx-community/Kokoro-82M-bf16", gb: 0.4, note: "reference quality" },
+    { model: "onnx-community/Kokoro-82M-v1.0-ONNX", gb: 0.12, note: "shipped default — int8, 27 voices" },
   ],
   image: [
     { model: "unsloth/Qwen-Image-2.1-Turbo-GGUF", gb: 25.9, note: "shipped default — Q8_0 transformer (7.6 GB) plus the base text encoder and VAE" },
@@ -49,8 +39,9 @@ export const RECOMMENDED = {
     { model: "Qwen/Qwen-Image-2.1", gb: 33.1, note: "full quality, more steps" },
   ],
   video: [
-    { model: "baa-ai/LTX-2.3-22B-RAM-12GB-MLX", gb: 19.1, note: "shipped default — fits the 34 GB cap, low RAM" },
-    { model: "notapalindrome/ltx23-mlx-av-q4", gb: 22.8, note: "fits the cap, with audio" },
+    { model: "QuantStack/Wan2.2-TI2V-5B-GGUF", gb: 5.4, note: "shipped default — Wan 2.2 5B, Q8_0; text and image to video (+14 GB text encoder and VAE)" },
+    { model: "city96/LTX-Video-0.9.6-distilled-gguf", gb: 2.1, note: "LTX-Video 2B distilled, Q8_0; fast, 8 steps (+21 GB text encoder and VAE)" },
+    { model: "QuantStack/LTXV-13B-0.9.8-distilled-GGUF", gb: 14, note: "LTX-Video 13B distilled, Q8_0; set base = \"Lightricks/LTX-Video-0.9.8-13B-distilled\" in config.toml" },
   ],
 };
 

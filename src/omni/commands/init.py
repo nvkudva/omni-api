@@ -1,4 +1,4 @@
-"""``omni init``: check the setup, install Ollama if it is missing, pull the models it serves, then load stt and tts.
+"""``omni init``: check the setup, install Ollama if it is missing, pull the models it serves, then load decide, stt and tts.
 
 Every step states its own precondition and, when it fails, the one thing to fix — the command to run
 and a link — so a fresh machine can go from clone to ``omni up`` without reading the source.
@@ -17,9 +17,9 @@ from omni import config, registry
 from omni.registry.memory import GB
 from omni.supervisor import guard
 
-# speech models are small and every install wants them; image and video weigh tens of GB, so `--media` opts in
-SPEECH_ROLES = ("stt", "tts")
-MEDIA_ROLES = (*SPEECH_ROLES, "image", "video")
+# decide and the speech models are small and every install wants them; image and video weigh tens of GB, so `--media` opts in
+SMALL_ROLES = ("decide", "stt", "tts")
+MEDIA_ROLES = (*SMALL_ROLES, "image", "video")
 # a first load reads or downloads weights from Hugging Face, which is slow but not endless
 MEDIA_LOAD_TIMEOUT = httpx.Timeout(10.0, read=1800.0)
 DOWNLOAD_PROGRESS_SECONDS = 10.0
@@ -76,7 +76,7 @@ def wants_install() -> bool:
     if not sys.stdin.isatty():
         print(f"ollama not found; installing it with `{command}`", flush=True)
         return True
-    print("ollama is not installed; omni needs it for chat, decide and embed.", file=sys.stderr)
+    print("ollama is not installed; omni needs it for chat and embed.", file=sys.stderr)
     print(f"  it will run: {command}", file=sys.stderr)
     try:
         answer = input("install ollama now? [y/N] ")
@@ -92,7 +92,7 @@ def require_ollama() -> tuple[bool, bool]:
         print(f"ollama installed: {shutil.which('ollama')}")
         return True, False
     if not wants_install():
-        error("ollama was not installed, so omni stops here: it serves chat, decide and embed.",
+        error("ollama was not installed, so omni stops here: it serves chat and embed.",
               f"  install it when you are ready, then run `omni init` again: {OLLAMA_DOWNLOAD_URL}")
         return False, False
     if install_ollama() and shutil.which("ollama"):
@@ -304,9 +304,9 @@ def warm_media(host: str, port: int, wanted_roles: tuple[str, ...]) -> int:
 
 def plan_lines(settings: dict, all_media: bool) -> list[str]:
     """What this run downloads and what it leaves for later, so a multi-GB wait is never a surprise."""
-    wanted = MEDIA_ROLES if all_media else SPEECH_ROLES
+    wanted = MEDIA_ROLES if all_media else SMALL_ROLES
     lines = ["omni init will download:",
-             f"  chat, decide, embed (Ollama): {', '.join(sorted({settings[role]['model'] for role in registry.OLLAMA_ROLES}))}"]
+             f"  chat, embed (Ollama): {', '.join(sorted({settings[role]['model'] for role in registry.OLLAMA_ROLES}))}"]
     for role in wanted:
         reason = registry.unavailable_reason(role)
         lines.append(f"  {role}: {settings[role]['model']}" + (f"  (skipped: {reason})" if reason else ""))
@@ -316,7 +316,7 @@ def plan_lines(settings: dict, all_media: bool) -> list[str]:
 
 
 def run(all_media: bool = False) -> int:
-    """Check the config, install Ollama if missing, pull chat, decide and embed, then load stt and tts.
+    """Check the config, install Ollama if missing, pull chat and embed, then load decide, stt and tts.
 
     `all_media` loads image and video as well. Non-zero on failure. An Ollama this run started is
     stopped before it returns: the gateway starts and supervises its own.
@@ -379,7 +379,7 @@ def _run(all_media: bool, started: list[subprocess.Popen]) -> int:
     # before the gateway starts: it supervises ollama itself when none answers
     for server in started:
         stop_started_ollama(server)
-    code = warm_media(host, port, MEDIA_ROLES if all_media else SPEECH_ROLES)
+    code = warm_media(host, port, MEDIA_ROLES if all_media else SMALL_ROLES)
     if code:
         return code
     print(f"ready: {', '.join(models)}")

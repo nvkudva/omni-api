@@ -1,6 +1,6 @@
 """Worker apps answer health and reject bad requests without ever loading a model.
 
-The heavy runtimes (torch, mlx, parakeet) are imported lazily inside each worker, so importing the
+The heavy runtimes (torch, onnxruntime, onnx-asr) are imported lazily inside each worker, so importing the
 apps and calling their validation paths here does not load a model.
 """
 import asyncio
@@ -15,7 +15,7 @@ from unittest.mock import patch
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
-from omni.workers import image, runtime, stt, tts, video
+from omni.workers import decide, image, runtime, stt, tts, video
 from omni.workers.runtime import Lazy
 
 
@@ -94,15 +94,18 @@ class VideoExpiry(unittest.TestCase):
         self.addCleanup(video.jobs.clear)
 
     def run_generate(self, expire):
-        class Pipe:
-            def generate_and_save(self, prompt, path, **kwargs):
-                Path(path).write_bytes(b"mp4")
-                expire()
+        def render(pipe, req, width, height, image_path):
+            expire()
+            return "frames"
+
+        def write_mp4(frames, path):
+            Path(path).write_bytes(b"mp4")
 
         job = {"id": "video_0", "status": "queued", "created_at": 0}
         video.jobs["video_0"] = job
         req = video.schemas.VideoRequest(prompt="x")
-        with patch.object(video, "model", Lazy(Pipe, idle_seconds=0)):
+        with patch.object(video, "model", Lazy(object, idle_seconds=0)), \
+                patch.object(video, "_render", render), patch.object(video, "_write_mp4", write_mp4):
             video._generate("video_0", req, 64, 64)
         return job
 
@@ -149,41 +152,46 @@ class WorkerApps(unittest.TestCase):
                 self.assertFalse(module.model.loaded, module.__name__)
 
 
-class SttModelThread(unittest.TestCase):
-    def test_load_and_transcribe_stay_on_one_thread(self):
-        # MLX streams are thread-local: if load and transcribe land on
-        # different threads, parakeet raises "no Stream in current thread".
-        import threading
+class SttTranscription(unittest.TestCase):
+    def transcribe(self, response_format):
         from types import SimpleNamespace
+        from unittest.mock import patch
 
-        seen = []
+        import numpy as np
 
         class FakeTranscriber:
-            def transcribe(self, path):
-                seen.append(threading.get_ident())
-                sentence = SimpleNamespace(start=0.0, end=1.0, text="hello")
-                return SimpleNamespace(text="hello", sentences=[sentence])
-
-        def fake_load():
-            seen.append(threading.get_ident())
-            return FakeTranscriber()
+            def recognize(self, samples, sample_rate):
+                return SimpleNamespace(text="Hello there. Bye", tokens=["\u2581Hello", "\u2581there", ".", "\u2581Bye"],
+                                       timestamps=[0.1, 0.5, 0.6, 1.2])
 
         original = stt.model
-        stt.model = Lazy(fake_load, idle_seconds=10_000)
+        stt.model = Lazy(FakeTranscriber, idle_seconds=10_000)
         try:
-            with TestClient(stt.app) as client:
-                for _ in range(2):
-                    response = client.post(
-                        "/v1/audio/transcriptions",
-                        files={"file": ("a.wav", b"data", "audio/wav")},
-                        data={"response_format": "verbose_json"},
-                    )
-                    self.assertEqual(response.status_code, 200)
-                    self.assertEqual(response.json()["text"], "hello")
+            silence = np.zeros(stt.SAMPLE_RATE * 2, dtype=np.float32)
+            with patch.object(stt, "_decode", return_value=silence), TestClient(stt.app) as client:
+                return client.post("/v1/audio/transcriptions", files={"file": ("a.wav", b"data", "audio/wav")},
+                                   data={"response_format": response_format})
         finally:
             stt.model = original
-        self.assertEqual(len(seen), 3)
-        self.assertEqual(len(set(seen)), 1, seen)
+
+    def test_json_returns_the_text(self):
+        response = self.transcribe("json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"text": "Hello there. Bye"})
+
+    def test_verbose_json_splits_sentences_with_times(self):
+        body = self.transcribe("verbose_json").json()
+        self.assertEqual([(s["start"], s["end"], s["text"]) for s in body["segments"]],
+                         [(0.1, 0.6, "Hello there."), (1.2, 1.2, "Bye")])
+        self.assertEqual(body["duration"], 1.2)
+
+
+class TtsChunking(unittest.TestCase):
+    def test_sentences_pack_up_to_the_phoneme_limit_and_long_ones_are_cut(self):
+        limit = tts.MAX_PHONEMES
+        chunks = tts._phoneme_chunks(["a" * 300, "b" * 300, "c" * (limit + 10)])
+        self.assertTrue(all(len(chunk) <= limit for chunk in chunks))
+        self.assertEqual("".join(chunks).replace(" ", ""), "a" * 300 + "b" * 300 + "c" * (limit + 10))
 
 
 class WorkerValidation(unittest.TestCase):
@@ -242,7 +250,7 @@ class WorkerValidation(unittest.TestCase):
             "https://huggingface.co/baa-ai/LTX-2.3-22B-RAM-12GB-MLX/resolve/main/.gitattributes. "
             "Access to model baa-ai/LTX-2.3-22B-RAM-12GB-MLX is restricted and you are not in the authorized list."))
         self.assertEqual(error["code"], "gated")
-        self.assertEqual(error["accept_url"], "https://huggingface.co/baa-ai/LTX-2.3-22B-RAM-12GB-MLX")
+        self.assertEqual(error["accept_url"], f"https://huggingface.co/{video.model_name}")
         self.assertIn("terms accepted", error["message"])
         self.assertNotIn("403 Client Error", error["message"])
 
@@ -253,3 +261,54 @@ class WorkerValidation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DecideValidation(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(decide.app)
+        self.addCleanup(self.client.close)
+
+    def post(self, payload):
+        return self.client.post("/v1/systemone", json=payload)
+
+    def test_a_missing_question_map_is_a_400(self):
+        response = self.post({"state": "x"})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("questions", response.json()["error"]["message"])
+
+    def test_a_missing_state_is_a_400(self):
+        response = self.post({"questions": {"q": {"instructions": "?", "criteria": ["A", "B"]}}})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("state", response.json()["error"]["message"])
+
+    def test_an_image_that_is_not_one_is_a_400(self):
+        response = self.post({"image": "not base64", "questions": {"q": {"instructions": "?", "criteria": ["A", "B"]}}})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("base64", response.json()["error"]["message"])
+
+    def test_a_malformed_question_is_a_400(self):
+        response = self.post({"state": "x", "questions": {"q": {"type": "mystery", "instructions": "?"}}})
+        self.assertEqual(response.status_code, 400)
+
+    def test_another_model_is_refused(self):
+        response = self.post({"model": "llama3.2", "state": "x",
+                              "questions": {"q": {"instructions": "?", "criteria": ["A", "B"]}}})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("this worker serves only", response.json()["error"]["message"])
+
+    def test_the_answer_carries_the_calibrated_fields(self):
+        from unittest.mock import patch
+
+        class FakeDecider:
+            def decide(self, state_text, rendered, image=None):
+                return {"type": "noul", "noul": 0.9, "abstain": False}, 12
+
+        original = decide.model
+        decide.model = Lazy(FakeDecider, idle_seconds=10_000)
+        try:
+            with patch.object(decide, "executor", decide.executor):
+                body = self.post({"state": {"a": 1}, "questions": {"q": {"type": "noul", "instructions": "Is it?"}}}).json()
+        finally:
+            decide.model = original
+        self.assertEqual(body["answers"]["q"]["noul"], 0.9)
+        self.assertEqual(body["usage"]["prompt_tokens"], 12)
