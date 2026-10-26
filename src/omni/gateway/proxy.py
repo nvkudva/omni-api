@@ -115,6 +115,10 @@ class Proxy:
             if asyncio.current_task().cancelling():
                 raise
             return executions.http_response(entry)
+        except httpx.TimeoutException:
+            # slow, not dead: restarting would kill the very work that is running long
+            return self._settle(exec_id, role, path,
+                                error_response(504, f"{role} did not answer in time", "timeout"))
         except httpx.TransportError:
             if self.pool is not None:
                 self.pool.note_unreachable(role)
@@ -140,11 +144,24 @@ class Proxy:
 
     async def _prepare(self, exec_id: str | None, role: str, path: str,
                        ready: Callable[[], Awaitable[Response | None]] | None) -> Response | None:
-        """Run `ready` for a request about to run; its refusal, recorded under the id, or None."""
+        """Run `ready` for a request about to run; its refusal, recorded under the id, or None.
+
+        `ready` runs as the id's task, so Stop works during a download or a cold load as well.
+        """
         if ready is None:
             return None
+        waiting = asyncio.create_task(ready())
+        if exec_id is not None:
+            executions.TASKS[exec_id] = waiting
         try:
-            refused = await ready()
+            refused = await waiting
+        except asyncio.CancelledError:
+            if exec_id is None:
+                raise
+            entry = executions.cancelled(exec_id, role, path)
+            if asyncio.current_task().cancelling():
+                raise
+            return executions.http_response(entry)
         except BaseException:
             if exec_id is not None:
                 executions.cancelled(exec_id, role, path)
@@ -213,8 +230,8 @@ class Proxy:
             background=BackgroundTask(finish_upstream),
         )
 
-    def _upstream_error(self, role: str, upstream: httpx.Response, raw: bytes | None = None) -> JSONResponse:
-        text = raw.decode(errors="replace") if raw is not None else upstream.text
+    def _upstream_error(self, role: str, upstream: httpx.Response, raw: bytes) -> JSONResponse:
+        text = raw.decode(errors="replace")
         try:
             parsed = json.loads(text)
         except ValueError:

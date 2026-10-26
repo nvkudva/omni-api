@@ -42,7 +42,10 @@ def _real_files(folder: Path) -> Path:
         try:
             os.link(source.resolve(), destination)
         except OSError:
-            shutil.copy2(source.resolve(), destination)
+            # via a temp name, so an interrupted copy is never mistaken for a finished one
+            partial = destination.with_name(f".{destination.name}.partial")
+            shutil.copy2(source.resolve(), partial)
+            os.replace(partial, destination)
     return target
 
 

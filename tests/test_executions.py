@@ -480,3 +480,46 @@ class ForwardEdges(unittest.TestCase):
             return response
 
         self.assertNotIn("content-length", asyncio.run(run()).headers)
+
+    def test_a_slow_worker_is_a_504_and_is_not_restarted(self):
+        class Slow(FakeClient):
+            async def send(self, _request, stream=True):
+                raise httpx.ReadTimeout("slow")
+
+        class Pool:
+            def __init__(self):
+                self.noted = []
+
+            def note_unreachable(self, role):
+                self.noted.append(role)
+
+        async def run():
+            pool = Pool()
+            proxy = Proxy({"image": Slow([])}, {}, pool)
+            response = await proxy.forward(post_request("f4"), "image", "/v1/images/generations",
+                                           body=b"{}")
+            return response, pool.noted
+
+        response, noted = asyncio.run(run())
+        self.assertEqual(response.status_code, 504)
+        self.assertEqual(noted, [])
+        self.assertEqual(executions.get("f4")["status_code"], 504)
+
+    def test_stop_while_getting_ready_answers_cancelled(self):
+        async def ready():
+            await asyncio.sleep(60)  # a download or a cold load
+
+        async def run():
+            client = FakeClient([b"img"])
+            proxy = Proxy({"image": client}, {})
+            pending = asyncio.create_task(proxy.forward(post_request("f5"), "image",
+                                                        "/v1/images/generations", body=b"{}",
+                                                        ready=ready))
+            await asyncio.sleep(0.01)
+            self.assertTrue(executions.cancel("f5"))
+            return await pending, client.sends
+
+        response, sends = asyncio.run(run())
+        self.assertEqual(response.status_code, 499)
+        self.assertEqual(sends, 0)
+        self.assertEqual(executions.get("f5")["error"], executions.CANCELLED)

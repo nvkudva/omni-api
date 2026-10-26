@@ -4,6 +4,7 @@ import contextlib
 import fnmatch
 import json
 import os
+import shutil
 import signal
 import sys
 import time
@@ -28,7 +29,7 @@ _cached_files: dict[str, list[tuple[str, int]]] = {}
 
 def installed(force: bool = False) -> list[dict]:
     """Model repos in the HF cache. Re-walking the whole cache is expensive, so the result is cached briefly."""
-    global _installed_cache
+    global _installed_cache, _cached_files
     now = time.monotonic()
     if not force and _installed_cache is not None and now - _installed_cache[0] < CACHE_TTL_SECONDS:
         return _installed_cache[1]
@@ -38,10 +39,10 @@ def installed(force: bool = False) -> list[dict]:
         return []
     models = [{"name": repo.repo_id, "size_bytes": repo.size_on_disk}
               for repo in cache.repos if repo.repo_type == "model"]
-    _cached_files.clear()
-    for repo in cache.repos:
-        _cached_files[repo.repo_id] = [(str(file.file_path.relative_to(revision.snapshot_path)), file.size_on_disk)
-                                       for revision in repo.revisions for file in revision.files]
+    # built aside and swapped in whole: the event loop reads it while this runs in a thread
+    _cached_files = {repo.repo_id: [(str(file.file_path.relative_to(revision.snapshot_path)), file.size_on_disk)
+                                    for revision in repo.revisions for file in revision.files]
+                     for repo in cache.repos}
     _installed_cache = (now, models)
     return models
 
@@ -270,6 +271,9 @@ def delete(repo_id: str) -> None:
     if not revisions:
         raise FileNotFoundError(f"{repo_id} is not in the Hugging Face cache")
     cache.delete_revisions(*revisions).execute()
+    for revision in revisions:
+        # the decide worker's hard links to these files would otherwise keep the disk in use
+        shutil.rmtree(config.HOME / "decide" / revision, ignore_errors=True)
     for path in config.BUNDLE_DIR.glob(f"*--{repo_id.replace('/', '--')}.json"):
         path.unlink(missing_ok=True)
     invalidate()
