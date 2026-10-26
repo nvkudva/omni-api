@@ -464,6 +464,10 @@ class Gateway(unittest.TestCase):
                                     headers={"origin": "tauri://localhost"})
         self.assertEqual(response.status_code, 400)
 
+    def test_a_sandboxed_frame_cannot_start_inference(self):
+        response = self.client.post("/v1/embeddings", content=b"[", headers={"origin": "null"})
+        self.assertEqual(response.status_code, 403)
+
     def test_a_web_page_cannot_start_inference(self):
         response = self.client.post("/v1/images/generations", content=b"{}",
                                     headers={"origin": "https://evil.example", "content-type": "text/plain"})

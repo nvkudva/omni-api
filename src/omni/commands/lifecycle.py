@@ -149,7 +149,8 @@ def _serve_locked(host: str, port: int) -> int:
         return 1
     config.PIDFILE.write_text(json.dumps({"pid": os.getpid(), "host": host, "port": port}))
     try:
-        server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="info"))
+        server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="info",
+                                           timeout_graceful_shutdown=5, access_log=False))
         # a closed terminal sends SIGHUP; uvicorn ignores it, which would skip the shutdown that stops the workers
         signal.signal(signal.SIGHUP, lambda signum, frame: setattr(server, "should_exit", True))
         server.run()

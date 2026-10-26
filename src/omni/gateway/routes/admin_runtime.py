@@ -84,6 +84,8 @@ def register(app: FastAPI, ctx: Context) -> None:
             await wake(role)
         try:
             loaded = await residency.set_residency(ctx, role, model, load)
+        except httpx.TimeoutException:
+            return error_response(504, f"{role} did not finish loading in time; it may still be loading", "timeout")
         except httpx.TransportError:
             pool.note_unreachable(role)
             return error_response(503, ctx.proxy.unavailable(role), "unavailable")
@@ -134,6 +136,9 @@ def register(app: FastAPI, ctx: Context) -> None:
             await wake(role)
         try:
             loaded = await residency.set_residency(ctx, role, model, pinned, keep_warm=pinned)
+        except httpx.TimeoutException:
+            # still loading: the pin stands, and the keep-warm loop picks it up
+            loaded = False
         except httpx.TransportError:
             # the worker is not up yet: the pin stands, and the keep-warm loop loads it once it is
             pool.note_unreachable(role)

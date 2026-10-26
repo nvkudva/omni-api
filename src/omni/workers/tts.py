@@ -141,7 +141,7 @@ async def speech(req: schemas.SpeechRequest) -> Response:
         raise HTTPException(422, f"unknown voice {voice!r}; GET /v1/audio/voices lists them")
     samples = await executor.run_request(_synthesize, req.input, voice, req.speed)
     if samples.size == 0:
-        raise HTTPException(500, "synthesis produced no audio for this input")
+        raise HTTPException(400, "input: nothing speakable in this text")
     pcm = _pcm16(samples)
     if req.response_format == "pcm":
         return Response(pcm, media_type="audio/pcm", headers={"x-sample-rate": str(SAMPLE_RATE)})

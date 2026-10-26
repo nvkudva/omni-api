@@ -69,7 +69,7 @@ def refusal(request: Request, allowed_hosts: set[str]) -> str | None:
     if request.method in SAFE_METHODS or origin is None:
         return None
     is_admin = request.url.path.startswith("/admin")
-    if not is_admin and urlsplit(origin).scheme not in ("http", "https"):
+    if not is_admin and origin != "null" and urlsplit(origin).scheme not in ("http", "https"):
         return None
     if urlsplit(origin).netloc.lower() != host.lower():
         return f"origin {origin!r} may not change gateway state"

@@ -7,8 +7,18 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from omni import config
+from omni import config, logs
 from omni.commands import lifecycle
+
+
+class NoteTrimming(unittest.TestCase):
+    def test_only_ollama_roles_are_trimmed(self):
+        with tempfile.TemporaryDirectory() as tmp, patch.object(config, "LOG_DIR", Path(tmp)), \
+                patch.object(config, "trim_log") as trim:
+            logs.note("stt", "x")
+            trim.assert_not_called()
+            logs.note("chat", "x")
+            trim.assert_called_once()
 
 
 class ReadRecord(unittest.TestCase):

@@ -2,7 +2,8 @@
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 from huggingface_hub.errors import CacheNotFound
 
@@ -172,6 +173,21 @@ class MissingCache(unittest.TestCase):
         with patch.object(huggingface, "scan_cache_dir", side_effect=CacheNotFound("missing", cache_dir="x")), \
                 self.assertRaises(FileNotFoundError):
             huggingface.delete("a/b")
+
+    def test_deleting_a_repo_drops_the_decide_workers_links_to_it(self):
+        revision = SimpleNamespace(commit_hash="abc123")
+        repo = SimpleNamespace(repo_id="a/vega", revisions=[revision])
+        cache = MagicMock(repos=[repo])
+        with tempfile.TemporaryDirectory() as home, \
+                patch.object(huggingface, "scan_cache_dir", return_value=cache), \
+                patch.object(huggingface.config, "HOME", Path(home)), \
+                patch.object(huggingface.config, "BUNDLE_DIR", Path(home) / "bundles"):
+            links = Path(home) / "decide" / "abc123"
+            links.mkdir(parents=True)
+            (links / "embed_q8.onnx").write_bytes(b"x")
+            huggingface.delete("a/vega")
+            self.assertFalse(links.exists())
+        cache.delete_revisions.assert_called_once_with("abc123")
 
 
 class FolderSize(unittest.TestCase):
