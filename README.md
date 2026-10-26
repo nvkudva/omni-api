@@ -380,7 +380,7 @@ Ports:
   Pin the ones you use often (the card switch in the playground, or `POST /admin/pins`) and they stay
   loaded instead:
   - **image:** loading Qwen-Image-2.1-Turbo takes about a minute; each 1024² image takes under a minute at 8 steps.
-  - **video:** Wan 2.2 TI2V-5B at Q8_0 is 5.4 GB, plus about 14 GB for its text encoder and VAE, fetched on the first load from the diffusers repo named by `video.base`. Ollama can't run video models, so this runs diffusers (Metal, CUDA or CPU) and needs `ffmpeg` to write the mp4. LTX-Video GGUFs also load; a 13B one needs `video.base` set to its own diffusers repo.
+  - **video:** Wan 2.2 TI2V-5B at Q8_0 is 5.4 GB, plus about 14 GB for its text encoder and VAE, fetched on the first load from the diffusers repo named by `video.base`. Ollama can't run video models, so this runs diffusers (Metal, CUDA or CPU) and needs `ffmpeg` to write the mp4. LTX-Video GGUFs also load.
   - **stt:** runs the int8 ONNX files of a Parakeet repo on the CPU (`istupakov/parakeet-tdt-0.6b-v3-onnx` adds 25 European languages). It needs `ffmpeg` to read audio, and transcribes long files in 3-minute windows.
   - **tts:** the first call also downloads a spaCy model.
 - **Ollama roles are never downloaded by a load.** `POST /admin/models/load` (and a pin) answers `409`
