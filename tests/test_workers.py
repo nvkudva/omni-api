@@ -94,15 +94,18 @@ class VideoExpiry(unittest.TestCase):
         self.addCleanup(video.jobs.clear)
 
     def run_generate(self, expire):
-        class Pipe:
-            def generate_and_save(self, prompt, path, **kwargs):
-                Path(path).write_bytes(b"mp4")
-                expire()
+        def render(pipe, req, width, height, image_path):
+            expire()
+            return "frames"
+
+        def write_mp4(frames, path):
+            Path(path).write_bytes(b"mp4")
 
         job = {"id": "video_0", "status": "queued", "created_at": 0}
         video.jobs["video_0"] = job
         req = video.schemas.VideoRequest(prompt="x")
-        with patch.object(video, "model", Lazy(Pipe, idle_seconds=0)):
+        with patch.object(video, "model", Lazy(object, idle_seconds=0)), \
+                patch.object(video, "_render", render), patch.object(video, "_write_mp4", write_mp4):
             video._generate("video_0", req, 64, 64)
         return job
 
@@ -247,7 +250,7 @@ class WorkerValidation(unittest.TestCase):
             "https://huggingface.co/baa-ai/LTX-2.3-22B-RAM-12GB-MLX/resolve/main/.gitattributes. "
             "Access to model baa-ai/LTX-2.3-22B-RAM-12GB-MLX is restricted and you are not in the authorized list."))
         self.assertEqual(error["code"], "gated")
-        self.assertEqual(error["accept_url"], "https://huggingface.co/baa-ai/LTX-2.3-22B-RAM-12GB-MLX")
+        self.assertEqual(error["accept_url"], f"https://huggingface.co/{video.model_name}")
         self.assertIn("terms accepted", error["message"])
         self.assertNotIn("403 Client Error", error["message"])
 

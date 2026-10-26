@@ -31,8 +31,10 @@ model = "unsloth/Qwen-Image-2.1-Turbo-GGUF"
 steps = 8
 
 [video]
-# RAM-quantized MLX, 22B: fits the 34 GB cap. Layers carry 2-8 bits each, so the worker
-# quantizes per layer (see workers/video.py). Public repo, no terms to accept.
-model = "baa-ai/LTX-2.3-22B-RAM-12GB-MLX"
+# Wan 2.2 TI2V-5B (text and image to video) as a Q8_0 GGUF transformer: 5.4 GB. The text encoder
+# and VAE come from `base`, the diffusers conversion of the original, so a first generation
+# downloads about 20 GB. `file` pins a GGUF by hand; `steps` overrides the family default.
+model = "QuantStack/Wan2.2-TI2V-5B-GGUF"
+base = "Wan-AI/Wan2.2-TI2V-5B-Diffusers"
 frames = 97
 fps = 24

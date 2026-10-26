@@ -44,8 +44,9 @@ export const RECOMMENDED = {
     { model: "Qwen/Qwen-Image-2.1", gb: 33.1, note: "full quality, more steps" },
   ],
   video: [
-    { model: "baa-ai/LTX-2.3-22B-RAM-12GB-MLX", gb: 19.1, note: "shipped default — fits the 34 GB cap, low RAM" },
-    { model: "notapalindrome/ltx23-mlx-av-q4", gb: 22.8, note: "fits the cap, with audio" },
+    { model: "QuantStack/Wan2.2-TI2V-5B-GGUF", gb: 5.4, note: "shipped default — Wan 2.2 5B, Q8_0; text and image to video (+14 GB text encoder and VAE)" },
+    { model: "city96/LTX-Video-0.9.6-distilled-gguf", gb: 2.1, note: "LTX-Video 2B distilled, Q8_0; fast, 8 steps (+21 GB text encoder and VAE)" },
+    { model: "QuantStack/LTXV-13B-0.9.8-distilled-GGUF", gb: 14, note: "LTX-Video 13B distilled, Q8_0; set base = \"Lightricks/LTX-Video-0.9.8-13B-distilled\" in config.toml" },
   ],
 };
 

@@ -34,11 +34,12 @@ _SCHEMA: dict[str, dict[str, type]] = {
     "video": {"model": str, "frames": int, "fps": int},
 }
 
-# Keys a section may carry without needing them. `image.file` names a GGUF transformer
-# inside `image.model`, and `image.base` is the checkpoint that supplies the text encoder
-# and VAE for it.
+# Keys a section may carry without needing them. `image.file` (and `video.file`) names a GGUF
+# transformer inside the role's model, and `base` is the checkpoint that supplies the text
+# encoder and VAE for it.
 _OPTIONAL: dict[str, dict[str, type]] = {
     "image": {"base": str, "file": str},
+    "video": {"base": str, "file": str, "steps": int},
 }
 
 

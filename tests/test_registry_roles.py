@@ -12,7 +12,7 @@ class Families(unittest.TestCase):
 
     def test_ollama_roles_are_only_filtered_by_pipeline(self):
         for role in roles.OLLAMA_ROLES:
-            self.assertIsNone(roles.family(role), role)
+            self.assertFalse(roles.family(role), role)
 
 
 class Supports(unittest.TestCase):

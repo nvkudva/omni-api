@@ -12,12 +12,12 @@ HF_ROLES = ("stt", "tts", "image", "video")
 PYTHON_WORKERS = HF_ROLES
 
 # What each Python worker must be able to import to run at all. The speech workers run on ONNX
-# Runtime (CPU) anywhere; video needs MLX, whose wheels cover macOS, Linux and Windows; image
+# Runtime (CPU) anywhere; video runs diffusers on whatever torch finds (Metal, CUDA or CPU); image
 # renders on Metal through torch's MPS backend, so it is the one platform-bound worker.
 MEDIA_DEPS = {
     "stt": ("onnxruntime", "onnx_asr"),
     "tts": ("onnxruntime", "misaki"),
-    "video": ("mlx", "ltx_pipelines_mlx"),
+    "video": ("torch", "diffusers", "ftfy"),
     "image": ("torch", "diffusers"),
 }
 MPS_ROLES = ("image",)
@@ -40,7 +40,7 @@ def unavailable_reason(role: str) -> str | None:
 # lives in SEARCH_FILTERS below, so search and the cached-repo filter agree by construction.
 
 # What a role's runtime can load, for the Hugging Face search endpoint.
-# Ollama takes GGUF; the workers use onnx-asr, ONNX Runtime (Kokoro), diffusers' QwenImage21Pipeline and ltx-pipelines-mlx.
+# Ollama takes GGUF; the workers use onnx-asr, ONNX Runtime (Kokoro), diffusers' QwenImage21Pipeline, and diffusers' Wan and LTX-Video pipelines.
 SEARCH_FILTERS = {
     "chat": {"filter": ["gguf"], "pipeline_tag": "text-generation"},
     "decide": {"filter": ["gguf"], "pipeline_tag": "text-generation"},
@@ -48,7 +48,7 @@ SEARCH_FILTERS = {
     "stt": {"filter": ["onnx"], "pipeline_tag": "automatic-speech-recognition", "family": "parakeet"},
     "tts": {"filter": ["onnx"], "pipeline_tag": "text-to-speech", "family": "kokoro"},
     "image": {"filter": ["diffusers"], "pipeline_tag": "text-to-image", "family": "qwen-image-2"},
-    "video": {"filter": ["mlx"], "family": "ltx"},
+    "video": {"filter": ["gguf"], "pipeline_tag": "text-to-video", "family": ("wan", "ltx")},
 }
 
 
@@ -64,9 +64,10 @@ def runner(role: str) -> str:
     return "ollama" if role in OLLAMA_ROLES else "huggingface"
 
 
-def family(role: str) -> str | None:
-    """The repo-name marker a role's runtime needs, e.g. `qwen-image-2` for image."""
-    return SEARCH_FILTERS.get(role, {}).get("family")
+def family(role: str) -> tuple[str, ...]:
+    """The repo-name markers a role's runtime accepts, e.g. `qwen-image-2` for image; empty when any repo will do."""
+    markers = SEARCH_FILTERS.get(role, {}).get("family") or ()
+    return (markers,) if isinstance(markers, str) else markers
 
 
 def normalize_repo_id(name: str) -> str:
@@ -109,5 +110,5 @@ def supports(role: str, name: str) -> bool:
     The marker is the role's own search family, so cached repos are held to the same standard the
     search endpoint applies: `Qwen/Qwen-Image-2.1` is offered to image, `someone/Qwen-Image-XL` is not.
     """
-    marker = family(role)
-    return marker is None or marker in name.lower()
+    markers = family(role)
+    return not markers or any(marker in name.lower() for marker in markers)

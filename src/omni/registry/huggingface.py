@@ -14,7 +14,7 @@ from huggingface_hub import HfApi, constants, scan_cache_dir
 from huggingface_hub.errors import CacheNotFound, HfHubHTTPError
 
 from omni import schemas
-from omni.registry.roles import SEARCH_FILTERS, runner
+from omni.registry.roles import SEARCH_FILTERS, family, runner
 from omni.supervisor import guard
 
 # what a Hub call can raise that a route should report as a bad gateway, not a crash
@@ -72,7 +72,7 @@ def download_plan(role: str, repo_id: str) -> Plan:
         wanted = [sibling for sibling in siblings if any(fnmatch.fnmatch(sibling.rfilename, pattern) for pattern in SPEECH_FILES[role])]
         if wanted:
             return Plan(SPEECH_FILES[role], sum(sibling.size or 0 for sibling in wanted))
-    if role == "image":
+    if role in ("image", "video"):
         file = preferred_gguf([sibling.rfilename for sibling in siblings])
         if file is not None:
             return Plan([file], next((sibling.size or 0) for sibling in siblings if sibling.rfilename == file))
@@ -134,16 +134,17 @@ def approx_size_bytes(repo) -> int | None:
 def search(role: str, query: str, limit: int = 20) -> list[dict]:
     """Hugging Face repos this role's runtime can load, most downloaded first."""
     filters = dict(SEARCH_FILTERS[role])
-    family = filters.pop("family", None)
-    terms = query.strip() or family
+    filters.pop("family", None)
+    markers = family(role)
+    terms = query.strip() or (markers[0] if markers else None)
     expand = ["downloads", "likes", "pipeline_tag", "safetensors"]
     if runner(role) == "ollama":
         expand.append("gguf")
-    found = HfApi().list_models(search=terms, sort="downloads", limit=limit * 3 if family else limit,
+    found = HfApi().list_models(search=terms, sort="downloads", limit=limit * 3 if markers else limit,
                                 expand=expand, **filters)
     results = []
     for repo in found:
-        if family and family not in repo.id.lower():
+        if markers and not any(marker in repo.id.lower() for marker in markers):
             continue
         name = f"hf.co/{repo.id}" if runner(role) == "ollama" else repo.id
         results.append({"name": name, "id": repo.id, "downloads": repo.downloads or 0, "likes": repo.likes or 0,

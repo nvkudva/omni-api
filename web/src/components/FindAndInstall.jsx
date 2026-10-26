@@ -21,7 +21,7 @@ export const MODEL_CRITERIA = {
   stt: { kind: "ONNX · Parakeet speech-to-text", family: "parakeet", accepts: "ONNX Parakeet repo id (with int8 files) or Hugging Face page URL, e.g. istupakov/parakeet-tdt-0.6b-v2-onnx. Downloads to the HF cache.", example: "istupakov/parakeet-tdt-0.6b-v2-onnx" },
   tts: { kind: "ONNX · Kokoro text-to-speech", family: "kokoro", accepts: "Kokoro ONNX repo id or Hugging Face page URL, e.g. onnx-community/Kokoro-82M-v1.0-ONNX. Downloads to the HF cache.", example: "onnx-community/Kokoro-82M-v1.0-ONNX" },
   image: { kind: "Diffusers · Qwen-Image-2", family: "qwen-image-2", accepts: "Qwen-Image-2 repo id or Hugging Face page URL, e.g. Qwen/Qwen-Image-2.1. Downloads to the HF cache.", example: "Qwen/Qwen-Image-2.1" },
-  video: { kind: "MLX · LTX video", family: "ltx", accepts: "MLX LTX repo id or Hugging Face page URL, e.g. baa-ai/LTX-2.3-22B-RAM-12GB-MLX. Downloads to the HF cache.", example: "baa-ai/LTX-2.3-22B-RAM-12GB-MLX" },
+  video: { kind: "GGUF · Wan / LTX-Video", family: "wan or ltx", accepts: "A Wan 2.2 or LTX-Video GGUF repo id or Hugging Face page URL, e.g. QuantStack/Wan2.2-TI2V-5B-GGUF. Downloads to the HF cache.", example: "QuantStack/Wan2.2-TI2V-5B-GGUF" },
 };
 
 const FALLBACK_CRITERIA = {
