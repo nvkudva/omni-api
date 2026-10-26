@@ -20,7 +20,7 @@ from omni.supervisor import guard
 # what a Hub call can raise that a route should report as a bad gateway, not a crash
 ERRORS = (HfHubHTTPError, OSError)
 
-SPEECH_FILES = {"stt": schemas.STT_FILES, "tts": schemas.TTS_FILES}
+SPEECH_FILES = {"decide": schemas.DECIDE_FILES, "stt": schemas.STT_FILES, "tts": schemas.TTS_FILES}
 CACHE_TTL_SECONDS = 30.0
 _installed_cache: tuple[float, list[dict]] | None = None
 

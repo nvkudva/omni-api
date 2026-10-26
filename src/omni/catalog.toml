@@ -7,7 +7,8 @@ idle_unload_minutes = 10
 model = "qwen2.5:0.5b"
 
 [decide]
-model = "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0"
+# Vega 0.8B (a frozen Qwen3.5 plus a physics engine), 8-bit ONNX: about 850 MB.
+model = "nvkudva/vega-onnx-q8"
 
 [embed]
 model = "embeddinggemma-2:270m"

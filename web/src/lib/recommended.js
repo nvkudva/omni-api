@@ -17,12 +17,7 @@ export const RECOMMENDED = {
     { model: "gemma4:12b", gb: 8.0, note: "smallest of the fast ones" },
   ],
   decide: [
-    { model: "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0", gb: 1.2, note: "shipped default" },
-    { model: "d1-omni", gb: 0.85, note: "native System One — fast and calibrated; strongest on short classification, weaker on long state" },
-    { model: "nimble", gb: 9.5, note: "best answer accuracy" },
-    { model: "clef-flash", gb: 10.6, note: "lowest latency" },
-    { model: "tev1:4b", gb: 4.6, note: "accuracy step-up" },
-    { model: "laya", gb: 0.8, note: "tiny and quickest to answer" },
+    { model: "nvkudva/vega-onnx-q8", gb: 0.85, note: "shipped default — Vega 0.8B, 8-bit ONNX; calibrated, with prediction sets and abstain" },
   ],
   embed: [
     { model: "embeddinggemma-2:270m", gb: 0.3, note: "shipped default — smallest" },

@@ -191,6 +191,7 @@ class Pulling(unittest.TestCase):
         code, out, _ = run_init(which=which_from("ollama"), get=serve_api(["llama3.2", "embeddinggemma-2"]))
         self.assertEqual(code, 0)
         self.assertIn("omni init will download:", out)
+        self.assertIn("decide: llama3.2", out)
         self.assertIn("stt: parakeet", out)
         self.assertIn("tts: kokoro", out)
         self.assertIn("image, video: not now", out)
@@ -206,14 +207,14 @@ class Pulling(unittest.TestCase):
         code, _, err = run_init(which=which_from("ollama"), warm_calls=warm_calls,
                                 get=serve_api(["llama3.2", "embeddinggemma-2"]))
         self.assertEqual(code, 0, err)
-        self.assertEqual(warm_calls, [("127.0.0.1", 10000, ("stt", "tts"))])
+        self.assertEqual(warm_calls, [("127.0.0.1", 10000, ("decide", "stt", "tts"))])
 
     def test_media_flag_also_loads_image_and_video(self):
         warm_calls = []
         code, _, err = run_init(which=which_from("ollama"), warm_calls=warm_calls, all_media=True,
                                 get=serve_api(["llama3.2", "embeddinggemma-2"]))
         self.assertEqual(code, 0, err)
-        self.assertEqual(warm_calls, [("127.0.0.1", 10000, ("stt", "tts", "image", "video"))])
+        self.assertEqual(warm_calls, [("127.0.0.1", 10000, ("decide", "stt", "tts", "image", "video"))])
 
     def test_a_speech_model_that_fails_to_load_fails_init(self):
         code, out, _ = run_init(which=which_from("ollama"), warm_code=1,

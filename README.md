@@ -60,8 +60,8 @@ apps ──► 127.0.0.1:10000  omni gateway (FastAPI + httpx streaming proxy)
   - Restarts failed workers with exponential backoff, one lock per worker so a restart and the watch loop never overlap.
   - `process.py` records each child's pid and command line, so on `down` only a pid that is still ours is signalled; leftover workers from an earlier run are cleaned up on start.
 - **Workers** (`src/omni/workers/`): each role runs in its own uvicorn process, so a crash or memory spike in one model never takes down the others. Each loads its model on first use behind one lock and unloads it when idle.
-- **Chat, decide and embed** use the machine's own Ollama address (`OLLAMA_HOST`, else `127.0.0.1:11434`). If nothing answers there, omni spawns `ollama serve` on that same address; it never moves Ollama to another port.
-- **Decide** (`src/omni/inference/decide.py`) turns each question into a lettered multiple-choice prompt, asks Ollama for one token with `top_logprobs`, and turns the option-letter probabilities into noul / choice / score answers. The prompt is OneJev's `qev-labels-v2` format, rendered as raw Qwen ChatML with thinking off. Models with Ollama's `decision` capability (for example `d1-omni`) cannot generate text, so they answer through Ollama's native `/v1/systemone`, which scores the options directly; the gateway keeps the same response shape for both.
+- **Chat and embed** use the machine's own Ollama address (`OLLAMA_HOST`, else `127.0.0.1:11434`). If nothing answers there, omni spawns `ollama serve` on that same address; it never moves Ollama to another port.
+- **Decide** (`src/omni/workers/decide.py`, `src/omni/inference/vega.py`) runs [Vega](https://huggingface.co/nvkudva/vega-onnx-q8) on ONNX Runtime, in its own worker. A frozen Qwen3.5-0.8B reads the state and one typed question; a small physics engine turns the pooled hidden states into option logits; a per-type temperature and a conformal threshold turn those into calibrated probabilities, a prediction set, and `abstain` and `unbound` flags. It is not a generative model. The prompt, pooling and calibration are a port of the [browser runtime](https://github.com/nvkudva/vega-web), checked against its parity set (identical token ids and spans; every argmax kept). Text states only; the image-as-state path is not ported.
 - **Image** (`src/omni/workers/image.py`) runs `QwenImage21Pipeline` from diffusers on MPS in bf16. `[image] steps` sets the default step count.
 
 ---
@@ -70,7 +70,7 @@ apps ──► 127.0.0.1:10000  omni gateway (FastAPI + httpx streaming proxy)
 
 ```sh
 omni             # print this guide, grouped by what you are doing
-omni init        # ask before installing Ollama, pull chat/decide/embed, download and start stt/tts
+omni init        # ask before installing Ollama, pull chat/embed, download and start decide/stt/tts
 omni init --media  # also load the image/video models now, not on first request
 omni doctor      # report what works and what to fix, without changing anything
 omni serve       # foreground: gateway + all workers
@@ -116,7 +116,7 @@ A request that is still running can be stopped, and a finished one is kept by th
 
 ## Cool features
 
-- **Decide without generation:** `/v1/systemone` scores yes/no, choice and score questions from one token's logprobs — no generated text to parse, with calibrated probabilities per option.
+- **Decide without generation:** `/v1/systemone` scores yes/no, choice and score questions with one forward pass — no generated text to parse, with calibrated probabilities per option, a conformal prediction set and an abstain flag.
 - **Keep-warm pins:** pin a role and its model stays loaded (Ollama `keep_alive = -1`, workers re-loaded before idle unload). Pins persist across restarts.
 - **Three views, one request:** every playground page shows UI, raw JSON and a copyable cURL command for the exact body it sends.
 - **Runs survive a closed tab:** the gateway keeps the request and its result, so closing the browser does not cancel the work — reopen it and the answer is there. A running request can also be stopped.
@@ -155,7 +155,7 @@ omni brings all of that together:
 | Role | Endpoint | Default model | Engine |
 |---|---|---|---|
 | **chat** | `POST /v1/chat/completions` (streaming) | `qwen2.5:0.5b` | Ollama |
-| **decide** | `POST /v1/systemone` | `hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0` | Ollama (option-letter logprobs) |
+| **decide** | `POST /v1/systemone` | `nvkudva/vega-onnx-q8` (8-bit ONNX, ~0.85 GB) | ONNX Runtime (Vega) |
 | **embed** | `POST /v1/embeddings` | `embeddinggemma-2:270m` (text) | Ollama |
 | **image** | `POST /v1/images/generations` | `unsloth/Qwen-Image-2.1-Turbo-GGUF` | diffusers (MPS, Q8_0) |
 | **video** | `POST /v1/videos`, `GET /v1/videos/{id}`, `GET /v1/videos/{id}/content` | `QuantStack/Wan2.2-TI2V-5B-GGUF` (Wan 2.2 TI2V-5B, Q8_0) | diffusers (also runs LTX-Video GGUFs) |
@@ -179,13 +179,13 @@ Measured on Apple Silicon:
 
 ## Install
 
-On macOS (Apple Silicon) this installs every role. On Linux the default install serves chat, decide and embed through Ollama; add `--media` for the stt, tts and video workers (MLX runs on CUDA or CPU there and needs glibc 2.35+, so Ubuntu 22.04, Debian 12 or later). The image worker renders on Metal, so it stays macOS-only. [Ollama](https://ollama.com) comes with `omni init` if missing, and Python plus [uv](https://docs.astral.sh/uv/) come with the script:
+On macOS (Apple Silicon) this installs every role. On Linux the default install serves chat and embed through Ollama and decide on ONNX Runtime; add `--media` for the stt, tts and video workers (video runs diffusers on CUDA or CPU there). The image worker renders on Metal, so it stays macOS-only. [Ollama](https://ollama.com) comes with `omni init` if missing, and Python plus [uv](https://docs.astral.sh/uv/) come with the script:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/nvkudva/omni-api/main/install.sh | sh
 ```
 
-That installs the global `omni` command and every runtime the playground can start, but no models. Run `omni init` once afterwards: it installs Ollama if missing and downloads the chat, decide, embed, speech-to-text and text-to-speech models (several GB). Image and video are tens of GB, so they wait until first use or `omni init --media`. Homebrew users on macOS can tap this repo instead:
+That installs the global `omni` command and every runtime the playground can start, but no models. Run `omni init` once afterwards: it installs Ollama if missing and downloads the chat, embed, decide, speech-to-text and text-to-speech models (several GB). Image and video are tens of GB, so they wait until first use or `omni init --media`. Homebrew users on macOS can tap this repo instead:
 
 ```sh
 brew tap nvkudva/omni
@@ -219,7 +219,7 @@ From a clone, for development (`-e` makes edits take effect immediately):
 
 ```sh
 uv tool install -e ".[media]"    # every role this machine supports
-uv tool install -e .             # chat, decide and embed only
+uv tool install -e .             # chat, decide and embed only (no stt, tts, image or video)
 # or run it without installing
 uv run omni serve
 ```
@@ -227,13 +227,13 @@ uv run omni serve
 Then:
 
 ```sh
-omni init     # validate config, install Ollama if missing, pull chat/decide/embed
+omni init     # validate config, install Ollama if missing, pull chat/embed, load decide/stt/tts
 omni up       # gateway and workers in the background
 ```
 
-`omni init` validates `~/.omni-api/config.toml`, asks whether to install Ollama when the binary is missing (it stops if you say no), starts the server it just installed, pulls the chat/decide/embed models and confirms they landed, then starts the gateway and loads the stt and tts models (downloading them first); every failure prints the command to fix it and a link. The image and video models download on first use, or now with `omni init --media`. When something is wrong and you would rather not install anything, `omni doctor` runs the same checks read-only and prints one line per check. Release and packaging notes live in [`docs/publishing.md`](docs/publishing.md).
+`omni init` validates `~/.omni-api/config.toml`, asks whether to install Ollama when the binary is missing (it stops if you say no), starts the server it just installed, pulls the chat and embed models and confirms they landed, then starts the gateway and loads the decide, stt and tts models (downloading them first); every failure prints the command to fix it and a link. The image and video models download on first use, or now with `omni init --media`. When something is wrong and you would rather not install anything, `omni doctor` runs the same checks read-only and prints one line per check. Release and packaging notes live in [`docs/publishing.md`](docs/publishing.md).
 
-The shipped defaults are the small profile: `qwen2.5:0.5b` (chat), `OneJev1.5-0.8B` (decide), `embeddinggemma-2:270m` (embed), `parakeet-tdt-0.6b-v2-onnx` (stt, 0.7 GB), `Kokoro-82M-v1.0-ONNX` (tts, 0.12 GB), `Qwen-Image-2.1-Turbo` at Q8_0 (image, 7.6 GB transformer, about 26 GB once the shared text encoder and VAE land) and `Wan2.2-TI2V-5B` at Q8_0 (video, 5.4 GB transformer, about 20 GB with its text encoder and VAE). Any role can be changed in the playground (add a model, set it as default) or in `~/.omni-api/config.toml`; each role's list keeps the bigger models one click away.
+The shipped defaults are the small profile: `qwen2.5:0.5b` (chat), `vega-onnx-q8` (decide, 0.85 GB), `embeddinggemma-2:270m` (embed), `parakeet-tdt-0.6b-v2-onnx` (stt, 0.7 GB), `Kokoro-82M-v1.0-ONNX` (tts, 0.12 GB), `Qwen-Image-2.1-Turbo` at Q8_0 (image, 7.6 GB transformer, about 26 GB once the shared text encoder and VAE land) and `Wan2.2-TI2V-5B` at Q8_0 (video, 5.4 GB transformer, about 20 GB with its text encoder and VAE). Any role can be changed in the playground (add a model, set it as default) or in `~/.omni-api/config.toml`; each role's list keeps the bigger models one click away.
 
 ---
 
@@ -336,7 +336,7 @@ the card, so it can never disagree with the switch beside it:
 | `loading…` | held, and on its way into memory | switch on — turn it off to stop holding it |
 | `not running` | not in memory; the next request loads it | switch off |
 | `starting…` | the worker is coming up | — |
-| `stopped` | the worker is down; for chat, decide and embed, Ollama itself is not answering | Start, or Server for the Ollama cases |
+| `stopped` | the worker is down; for chat and embed, Ollama itself is not answering | Start, or Server for the Ollama cases |
 | `failed` | the worker keeps failing | Start — its log in Settings has the reason |
 | `needs setup` | this role's default model cannot run here | Setup |
 

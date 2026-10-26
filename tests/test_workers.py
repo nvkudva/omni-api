@@ -15,7 +15,7 @@ from unittest.mock import patch
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
-from omni.workers import image, runtime, stt, tts, video
+from omni.workers import decide, image, runtime, stt, tts, video
 from omni.workers.runtime import Lazy
 
 
@@ -261,3 +261,49 @@ class WorkerValidation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DecideValidation(unittest.TestCase):
+    def setUp(self):
+        self.client = TestClient(decide.app)
+        self.addCleanup(self.client.close)
+
+    def post(self, payload):
+        return self.client.post("/v1/systemone", json=payload)
+
+    def test_a_missing_question_map_is_a_400(self):
+        response = self.post({"state": "x"})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("questions", response.json()["error"]["message"])
+
+    def test_a_missing_state_is_a_400(self):
+        response = self.post({"questions": {"q": {"instructions": "?", "criteria": ["A", "B"]}}})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("state", response.json()["error"]["message"])
+
+    def test_a_malformed_question_is_a_400(self):
+        response = self.post({"state": "x", "questions": {"q": {"type": "mystery", "instructions": "?"}}})
+        self.assertEqual(response.status_code, 400)
+
+    def test_another_model_is_refused(self):
+        response = self.post({"model": "llama3.2", "state": "x",
+                              "questions": {"q": {"instructions": "?", "criteria": ["A", "B"]}}})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("this worker serves only", response.json()["error"]["message"])
+
+    def test_the_answer_carries_the_calibrated_fields(self):
+        from unittest.mock import patch
+
+        class FakeDecider:
+            def decide(self, state_text, rendered):
+                return {"type": "noul", "noul": 0.9, "abstain": False}, 12
+
+        original = decide.model
+        decide.model = Lazy(FakeDecider, idle_seconds=10_000)
+        try:
+            with patch.object(decide, "executor", decide.executor):
+                body = self.post({"state": {"a": 1}, "questions": {"q": {"type": "noul", "instructions": "Is it?"}}}).json()
+        finally:
+            decide.model = original
+        self.assertEqual(body["answers"]["q"]["noul"], 0.9)
+        self.assertEqual(body["usage"]["prompt_tokens"], 12)

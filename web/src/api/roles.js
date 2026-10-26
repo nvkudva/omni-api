@@ -12,7 +12,7 @@ import { gb } from "../lib/format.js";
 // ROLE_ORDER below.
 export const ROLE_META = {
   chat: { label: "Chat", endpoint: "/v1/chat/completions", runner: "ollama", color: "var(--role-chat)" },
-  decide: { label: "Decide", endpoint: "/v1/systemone", runner: "ollama", color: "var(--role-decide)" },
+  decide: { label: "Decide", endpoint: "/v1/systemone", runner: "onnxruntime", color: "var(--role-decide)" },
   embed: { label: "Embed", endpoint: "/v1/embeddings", runner: "ollama", color: "var(--role-embed)" },
   image: { label: "Image", endpoint: "/v1/images/generations", runner: "diffusers", color: "var(--role-image)" },
   video: { label: "Video", endpoint: "/v1/videos", runner: "diffusers", color: "var(--role-video)" },
@@ -21,7 +21,7 @@ export const ROLE_META = {
 };
 
 export const ROLE_ORDER = Object.keys(ROLE_META);
-export const OLLAMA_ROLES = new Set(["chat", "decide", "embed"]);
+export const OLLAMA_ROLES = new Set(["chat", "embed"]);
 // The roles omni runs and supervises itself: only these can be started and stopped from a card.
 export const WORKER_ROLES = new Set(ROLE_ORDER.filter((role) => !OLLAMA_ROLES.has(role)));
 
@@ -48,7 +48,7 @@ function roleState(role, defaults, health, memory, setup) {
   if (OLLAMA_ROLES.has(role)) {
     // Ollama's models outlive the role: remember what it pulled, then match it.
     const running = memory?.loaded?.[role] ?? resident(memory?.ollama, model);
-    // chat, decide and embed share the machine's Ollama, so when it is not answering none of them
+    // chat and embed share the machine's Ollama, so when it is not answering neither
     // can run: say that rather than leaving a card on a stale "not running" the person can only
     // fix from the server controls.
     const engine = health?.workers?.chat;

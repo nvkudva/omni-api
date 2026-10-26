@@ -13,7 +13,7 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 10000
 
 COMMANDS = (
-    ("init", "ask before installing ollama, then pull the chat, decide and embed models and load stt and tts"),
+    ("init", "ask before installing ollama, then pull the chat and embed models and load decide, stt and tts"),
     ("doctor", "report what works and what to fix, without changing anything"),
     ("serve", "run the gateway and its workers in the foreground"),
     ("up", "start omni in the background"),
@@ -29,7 +29,7 @@ GUIDE = """\
 omni - local models behind one gateway port
 
 getting started
-  omni init                  ask before installing ollama, pull chat/decide/embed, download and start stt/tts
+  omni init                  ask before installing ollama, pull chat/embed, download and start decide/stt/tts
   omni init --media          also load the image and video models now
   omni doctor                check the install read-only and say what to fix
   omni config                show the effective settings

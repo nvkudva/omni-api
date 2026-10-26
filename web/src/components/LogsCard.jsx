@@ -21,7 +21,7 @@ export function LogsCard({ role, initialOpen = false }) {
   const [error, setError] = useState("");
   const viewRef = useRef(null);
   const pageActive = usePageActive();
-  // Ollama serves chat, decide and embed from one engine with one log, so those roles
+  // Ollama serves chat and embed from one engine with one log, so those roles
   // show what omni did for them: their requests and their model's residency.
   const fileName = OLLAMA_ROLES.has(role) ? `${role} requests` : `${role}.log`;
 

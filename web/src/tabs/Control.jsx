@@ -130,7 +130,7 @@ function Gateway({ info, onReconnected }) {
   );
 }
 
-/** The engine log: one Ollama serves chat, decide and embed, so its log belongs to no one role. */
+/** The engine log: one Ollama serves chat and embed, so its log belongs to no one role. */
 function OllamaLogs() {
   const [text, setText] = useState("");
   const [error, setError] = useState("");
@@ -157,7 +157,7 @@ function OllamaLogs() {
     >
       <summary>
         Ollama engine log
-        <span class={styles.logsPath}>one server for chat, decide and embed</span>
+        <span class={styles.logsPath}>one server for chat and embed</span>
         <span class={styles.logsTools}>
           <ui.IconButton
             icon="refresh"
@@ -240,7 +240,7 @@ function Ollama({ info, onChanged }) {
     if (action !== "start") {
       const confirmed = await ask({
         title: `${action === "stop" ? "Stop" : "Restart"} Ollama?`,
-        message: "Chat, decide and embed requests, and any model loading or generating right now, will be interrupted.",
+        message: "Chat and embed requests, and any model loading or generating right now, will be interrupted.",
         confirmLabel: action === "stop" ? "Stop Ollama" : "Restart Ollama",
         tone: "danger",
       });

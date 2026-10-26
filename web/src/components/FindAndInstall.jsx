@@ -16,7 +16,7 @@ import styles from "./FindAndInstall.module.css";
  */
 export const MODEL_CRITERIA = {
   chat: { kind: "GGUF · text generation", family: null, accepts: "Ollama: a library name (qwen2.5vl:7b) or any GGUF repo on Hugging Face as hf.co/user/repo-GGUF:Q4_K_M.", example: "hf.co/user/repo-GGUF:Q4_K_M" },
-  decide: { kind: "GGUF · text generation", family: null, accepts: "Ollama: a library name (qwen2.5vl:7b) or any GGUF repo on Hugging Face as hf.co/user/repo-GGUF:Q4_K_M.", example: "hf.co/user/repo-GGUF:Q4_K_M" },
+  decide: { kind: "ONNX · Vega typed decisions", family: "vega", accepts: "A Vega ONNX repo id with the v2 layout or Hugging Face page URL, e.g. nvkudva/vega-onnx-q8. Downloads to the HF cache.", example: "nvkudva/vega-onnx-q8" },
   embed: { kind: "GGUF · feature extraction", family: null, accepts: "Ollama: a library name (qwen2.5vl:7b) or any GGUF repo on Hugging Face as hf.co/user/repo-GGUF:Q4_K_M.", example: "hf.co/user/repo-GGUF:Q4_K_M" },
   stt: { kind: "ONNX · Parakeet speech-to-text", family: "parakeet", accepts: "ONNX Parakeet repo id (with int8 files) or Hugging Face page URL, e.g. istupakov/parakeet-tdt-0.6b-v2-onnx. Downloads to the HF cache.", example: "istupakov/parakeet-tdt-0.6b-v2-onnx" },
   tts: { kind: "ONNX · Kokoro text-to-speech", family: "kokoro", accepts: "Kokoro ONNX repo id or Hugging Face page URL, e.g. onnx-community/Kokoro-82M-v1.0-ONNX. Downloads to the HF cache.", example: "onnx-community/Kokoro-82M-v1.0-ONNX" },

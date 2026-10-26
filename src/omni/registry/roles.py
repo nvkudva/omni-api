@@ -5,16 +5,17 @@ import sys
 
 from omni import config
 
-# chat, decide and embed share the machine's Ollama; the rest run in their own uvicorn worker.
+# chat and embed share the machine's Ollama; the rest run in their own uvicorn worker.
 ROLES = config.ROLES
-OLLAMA_ROLES = ("chat", "decide", "embed")
-HF_ROLES = ("stt", "tts", "image", "video")
+OLLAMA_ROLES = ("chat", "embed")
+HF_ROLES = ("decide", "stt", "tts", "image", "video")
 PYTHON_WORKERS = HF_ROLES
 
 # What each Python worker must be able to import to run at all. The speech workers run on ONNX
 # Runtime (CPU) anywhere; video runs diffusers on whatever torch finds (Metal, CUDA or CPU); image
 # renders on Metal through torch's MPS backend, so it is the one platform-bound worker.
 MEDIA_DEPS = {
+    "decide": ("onnxruntime", "tokenizers"),
     "stt": ("onnxruntime", "onnx_asr"),
     "tts": ("onnxruntime", "misaki"),
     "video": ("torch", "diffusers", "ftfy"),
@@ -40,10 +41,10 @@ def unavailable_reason(role: str) -> str | None:
 # lives in SEARCH_FILTERS below, so search and the cached-repo filter agree by construction.
 
 # What a role's runtime can load, for the Hugging Face search endpoint.
-# Ollama takes GGUF; the workers use onnx-asr, ONNX Runtime (Kokoro), diffusers' QwenImage21Pipeline, and diffusers' Wan and LTX-Video pipelines.
+# Ollama takes GGUF; the workers use Vega's ONNX graphs, onnx-asr, ONNX Runtime (Kokoro), diffusers' QwenImage21Pipeline, and diffusers' Wan and LTX-Video pipelines.
 SEARCH_FILTERS = {
     "chat": {"filter": ["gguf"], "pipeline_tag": "text-generation"},
-    "decide": {"filter": ["gguf"], "pipeline_tag": "text-generation"},
+    "decide": {"filter": ["onnx"], "pipeline_tag": "text-classification", "family": "vega"},
     "embed": {"filter": ["gguf"], "pipeline_tag": "feature-extraction"},
     "stt": {"filter": ["onnx"], "pipeline_tag": "automatic-speech-recognition", "family": "parakeet"},
     "tts": {"filter": ["onnx"], "pipeline_tag": "text-to-speech", "family": "kokoro"},
