@@ -32,16 +32,11 @@ export const RECOMMENDED = {
     { model: "qwen3-embedding:8b", gb: 4.7, note: "best quality; 4096-dim vectors" },
   ],
   stt: [
-    { model: "mlx-community/parakeet-tdt-0.6b-v3", gb: 2.5, note: "shipped default — best accuracy" },
-    { model: "mlx-community/parakeet-tdt_ctc-110m", gb: 0.5, note: "small" },
-    { model: "mlx-community/parakeet-tdt-0.6b-v2", gb: 2.5, note: "previous version" },
+    { model: "istupakov/parakeet-tdt-0.6b-v2-onnx", gb: 0.7, note: "shipped default — English, int8" },
+    { model: "istupakov/parakeet-tdt-0.6b-v3-onnx", gb: 0.7, note: "25 European languages, int8" },
   ],
   tts: [
-    { model: "mlx-community/Kokoro-82M-8bit", gb: 0.4, note: "shipped default — near-identical to reference" },
-    { model: "mlx-community/Kokoro-82M-6bit", gb: 0.4, note: "smaller still" },
-    { model: "mlx-community/Kokoro-82M-4bit", gb: 0.7, note: "most compressed" },
-    { model: "prince-canuma/Kokoro-82M-4bit", gb: 0.6, note: "previous default" },
-    { model: "mlx-community/Kokoro-82M-bf16", gb: 0.4, note: "reference quality" },
+    { model: "onnx-community/Kokoro-82M-v1.0-ONNX", gb: 0.12, note: "shipped default — int8, 27 voices" },
   ],
   image: [
     { model: "unsloth/Qwen-Image-2.1-Turbo-GGUF", gb: 25.9, note: "shipped default — Q8_0 transformer (7.6 GB) plus the base text encoder and VAE" },

@@ -1,6 +1,9 @@
-"""Text to speech: POST /v1/audio/speech and GET /v1/audio/voices on Kokoro through mlx-audio."""
+"""Text to speech: POST /v1/audio/speech and GET /v1/audio/voices on Kokoro through ONNX Runtime."""
 import io
+import json
+import re
 import wave
+from pathlib import Path
 
 import numpy as np
 from fastapi import HTTPException
@@ -9,6 +12,10 @@ from fastapi.responses import Response
 from omni import config, schemas, workers
 
 VOICES = schemas.TTS_VOICES
+SAMPLE_RATE = 24000
+# The model reads at most 510 phoneme tokens at once; the two pad tokens make 512.
+MAX_PHONEMES = 500
+STYLE_SIZE = 256
 
 settings = config.load()
 model_name = settings["tts"]["model"]
@@ -18,31 +25,85 @@ if default_voice not in VOICES:
     raise config.ConfigError(f"tts.voice {default_voice!r} is not a known Kokoro voice")
 
 
-def _load():
-    from mlx_audio.tts.utils import load_model
+class Speaker:
+    """The ONNX session, the phoneme vocabulary and per-accent text-to-phoneme converters."""
 
-    return load_model(model_name)
+    def __init__(self, folder: Path):
+        import onnxruntime
+
+        self.folder = folder
+        vocab = json.loads((folder / "tokenizer.json").read_text())["model"]["vocab"]
+        self.token_ids = vocab
+        self.session = onnxruntime.InferenceSession(
+            str(folder / "onnx" / "model_quantized.onnx"), providers=["CPUExecutionProvider"])
+        self.converters: dict[str, object] = {}
+        self.styles: dict[str, np.ndarray] = {}
+
+    def phonemes(self, text: str, accent: str) -> str:
+        if accent not in self.converters:
+            from misaki import en, espeak
+
+            is_british = accent == "b"
+            self.converters[accent] = en.G2P(trf=False, british=is_british,
+                                             fallback=espeak.EspeakFallback(british=is_british))
+        return self.converters[accent](text)[0]
+
+    def style(self, voice: str) -> np.ndarray:
+        if voice not in self.styles:
+            path = self.folder / "voices" / f"{voice}.bin"
+            self.styles[voice] = np.fromfile(path, dtype=np.float32).reshape(-1, STYLE_SIZE)
+        return self.styles[voice]
+
+    def speak(self, phonemes: str, voice: str, speed: float) -> np.ndarray:
+        ids = [self.token_ids[char] for char in phonemes if char in self.token_ids]
+        if not ids:
+            return np.zeros(0, dtype=np.float32)
+        style = self.style(voice)[len(ids)][None]
+        outputs = self.session.run(None, {
+            "input_ids": np.array([[0, *ids, 0]], dtype=np.int64),
+            "style": style,
+            "speed": np.array([speed], dtype=np.float32),
+        })
+        return np.asarray(outputs[0], dtype=np.float32).reshape(-1)
 
 
-def _clear_cache() -> None:
-    import mlx.core
+def _load() -> Speaker:
+    from huggingface_hub import snapshot_download
 
-    mlx.core.clear_cache()
+    return Speaker(Path(snapshot_download(model_name, allow_patterns=schemas.TTS_FILES)))
 
 
-model = workers.Lazy(_load, config.idle_seconds(settings), _clear_cache)
+model = workers.Lazy(_load, config.idle_seconds(settings))
 executor = workers.ModelExecutor("tts-model", max_pending=8)
 app = workers.app(model, model_executor=executor)
 
 
-def _synthesize(text: str, voice: str, speed: float) -> tuple[np.ndarray, int]:
-    chunks = []
-    sample_rate = 24000
+def _sentences(text: str) -> list[str]:
+    return [piece for piece in re.split(r"(?<=[.!?])\s+|\n+", text) if piece.strip()]
+
+
+def _phoneme_chunks(phoneme_pieces: list[str]) -> list[str]:
+    """Pack sentence phonemes into runs the model accepts; one longer than the limit is cut hard."""
+    chunks: list[str] = []
+    current = ""
+    for piece in phoneme_pieces:
+        if current and len(current) + 1 + len(piece) > MAX_PHONEMES:
+            chunks.append(current)
+            current = ""
+        while len(piece) > MAX_PHONEMES:
+            chunks.append(piece[:MAX_PHONEMES])
+            piece = piece[MAX_PHONEMES:]
+        current = f"{current} {piece}".strip()
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _synthesize(text: str, voice: str, speed: float) -> np.ndarray:
     with model.use() as speaker:
-        for segment in speaker.generate(text=text, voice=voice, speed=speed, lang_code=voice[0]):
-            chunks.append(np.asarray(segment.audio, dtype=np.float32).reshape(-1))
-            sample_rate = getattr(segment, "sample_rate", sample_rate)
-    return (np.concatenate(chunks) if chunks else np.zeros(0, dtype=np.float32)), sample_rate
+        pieces = [speaker.phonemes(sentence, voice[0]) for sentence in _sentences(text)]
+        audio = [speaker.speak(chunk, voice, speed) for chunk in _phoneme_chunks(pieces)]
+    return np.concatenate(audio) if audio else np.zeros(0, dtype=np.float32)
 
 
 def _pcm16(samples: np.ndarray) -> bytes:
@@ -76,10 +137,10 @@ async def speech(req: schemas.SpeechRequest) -> Response:
     voice = req.voice or default_voice
     if voice not in VOICES:
         raise HTTPException(422, f"unknown voice {voice!r}; GET /v1/audio/voices lists them")
-    samples, sample_rate = await executor.run_request(_synthesize, req.input, voice, req.speed)
+    samples = await executor.run_request(_synthesize, req.input, voice, req.speed)
     if samples.size == 0:
         raise HTTPException(500, "synthesis produced no audio for this input")
     pcm = _pcm16(samples)
     if req.response_format == "pcm":
-        return Response(pcm, media_type="audio/pcm", headers={"x-sample-rate": str(sample_rate)})
-    return Response(_wav(pcm, sample_rate), media_type="audio/wav")
+        return Response(pcm, media_type="audio/pcm", headers={"x-sample-rate": str(SAMPLE_RATE)})
+    return Response(_wav(pcm, SAMPLE_RATE), media_type="audio/wav")

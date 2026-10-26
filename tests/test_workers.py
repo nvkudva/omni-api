@@ -1,6 +1,6 @@
 """Worker apps answer health and reject bad requests without ever loading a model.
 
-The heavy runtimes (torch, mlx, parakeet) are imported lazily inside each worker, so importing the
+The heavy runtimes (torch, onnxruntime, onnx-asr) are imported lazily inside each worker, so importing the
 apps and calling their validation paths here does not load a model.
 """
 import asyncio
@@ -149,41 +149,46 @@ class WorkerApps(unittest.TestCase):
                 self.assertFalse(module.model.loaded, module.__name__)
 
 
-class SttModelThread(unittest.TestCase):
-    def test_load_and_transcribe_stay_on_one_thread(self):
-        # MLX streams are thread-local: if load and transcribe land on
-        # different threads, parakeet raises "no Stream in current thread".
-        import threading
+class SttTranscription(unittest.TestCase):
+    def transcribe(self, response_format):
         from types import SimpleNamespace
+        from unittest.mock import patch
 
-        seen = []
+        import numpy as np
 
         class FakeTranscriber:
-            def transcribe(self, path):
-                seen.append(threading.get_ident())
-                sentence = SimpleNamespace(start=0.0, end=1.0, text="hello")
-                return SimpleNamespace(text="hello", sentences=[sentence])
-
-        def fake_load():
-            seen.append(threading.get_ident())
-            return FakeTranscriber()
+            def recognize(self, samples, sample_rate):
+                return SimpleNamespace(text="Hello there. Bye", tokens=["\u2581Hello", "\u2581there", ".", "\u2581Bye"],
+                                       timestamps=[0.1, 0.5, 0.6, 1.2])
 
         original = stt.model
-        stt.model = Lazy(fake_load, idle_seconds=10_000)
+        stt.model = Lazy(FakeTranscriber, idle_seconds=10_000)
         try:
-            with TestClient(stt.app) as client:
-                for _ in range(2):
-                    response = client.post(
-                        "/v1/audio/transcriptions",
-                        files={"file": ("a.wav", b"data", "audio/wav")},
-                        data={"response_format": "verbose_json"},
-                    )
-                    self.assertEqual(response.status_code, 200)
-                    self.assertEqual(response.json()["text"], "hello")
+            silence = np.zeros(stt.SAMPLE_RATE * 2, dtype=np.float32)
+            with patch.object(stt, "_decode", return_value=silence), TestClient(stt.app) as client:
+                return client.post("/v1/audio/transcriptions", files={"file": ("a.wav", b"data", "audio/wav")},
+                                   data={"response_format": response_format})
         finally:
             stt.model = original
-        self.assertEqual(len(seen), 3)
-        self.assertEqual(len(set(seen)), 1, seen)
+
+    def test_json_returns_the_text(self):
+        response = self.transcribe("json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"text": "Hello there. Bye"})
+
+    def test_verbose_json_splits_sentences_with_times(self):
+        body = self.transcribe("verbose_json").json()
+        self.assertEqual([(s["start"], s["end"], s["text"]) for s in body["segments"]],
+                         [(0.1, 0.6, "Hello there."), (1.2, 1.2, "Bye")])
+        self.assertEqual(body["duration"], 1.2)
+
+
+class TtsChunking(unittest.TestCase):
+    def test_sentences_pack_up_to_the_phoneme_limit_and_long_ones_are_cut(self):
+        limit = tts.MAX_PHONEMES
+        chunks = tts._phoneme_chunks(["a" * 300, "b" * 300, "c" * (limit + 10)])
+        self.assertTrue(all(len(chunk) <= limit for chunk in chunks))
+        self.assertEqual("".join(chunks).replace(" ", ""), "a" * 300 + "b" * 300 + "c" * (limit + 10))
 
 
 class WorkerValidation(unittest.TestCase):

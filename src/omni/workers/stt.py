@@ -1,42 +1,79 @@
-"""Speech to text: POST /v1/audio/transcriptions on parakeet-mlx."""
+"""Speech to text: POST /v1/audio/transcriptions on Parakeet through onnx-asr (int8 ONNX)."""
 import asyncio
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import Annotated
 
+import numpy as np
 from fastapi import File, Form, HTTPException, UploadFile
 from fastapi.responses import PlainTextResponse
 
 from omni import config, schemas, workers
+
+SAMPLE_RATE = 16000
+# Attention grows with the square of the audio length, so a long file goes through in windows.
+# shortcut: a window edge can split a word, when that matters overlap the windows or cut at silence.
+WINDOW_SECONDS = 180
+SENTENCE_END = (".", "?", "!")
 
 settings = config.load()
 model_name = settings["stt"]["model"]
 
 
 def _load():
-    import parakeet_mlx
+    import onnx_asr
 
-    return parakeet_mlx.from_pretrained(model_name)
-
-
-def _clear_cache() -> None:
-    import mlx.core
-
-    mlx.core.clear_cache()
+    return onnx_asr.load_model(model_name, quantization="int8").with_timestamps()
 
 
-model = workers.Lazy(_load, config.idle_seconds(settings), _clear_cache)
-# MLX streams are thread-local, so every call into the model (load, unload,
-# transcribe) must land on this one thread or parakeet raises
-# "There is no Stream(...) in current thread".
+model = workers.Lazy(_load, config.idle_seconds(settings))
 executor = workers.ModelExecutor("stt-model", max_pending=4)
 app = workers.app(model, model_executor=executor)
 
 
-def _transcribe(path: Path):
-    # parakeet decodes the file with ffmpeg, so any container the browser records (webm, ogg, m4a) works.
+def _decode(path: Path) -> np.ndarray:
+    """16 kHz mono samples. ffmpeg reads any container the browser records (webm, ogg, m4a)."""
+    command = ["ffmpeg", "-nostdin", "-v", "error", "-i", str(path), "-f", "f32le", "-ac", "1", "-ar", str(SAMPLE_RATE), "-"]
+    try:
+        done = subprocess.run(command, capture_output=True, check=False)
+    except FileNotFoundError as error:
+        raise HTTPException(500, "ffmpeg is not installed; stt needs it to read audio files") from error
+    if done.returncode != 0:
+        raise HTTPException(400, f"file: could not decode audio ({done.stderr.decode(errors='replace').strip()[-200:]})")
+    return np.frombuffer(done.stdout, dtype=np.float32)
+
+
+def _segments(tokens: list[str], timestamps: list[float], offset: float) -> list[dict]:
+    """Sentence segments from token times: a token ending in . ? or ! closes one."""
+    segments = []
+    pieces: list[str] = []
+    start = 0.0
+    for token, time in zip(tokens, timestamps, strict=False):
+        if not pieces:
+            start = time
+        pieces.append(token)
+        if token.endswith(SENTENCE_END):
+            segments.append({"start": round(offset + start, 2), "end": round(offset + time, 2),
+                             "text": "".join(pieces).replace("\u2581", " ").strip()})
+            pieces = []
+    if pieces:
+        segments.append({"start": round(offset + start, 2), "end": round(offset + timestamps[-1], 2),
+                         "text": "".join(pieces).replace("\u2581", " ").strip()})
+    return segments
+
+
+def _transcribe(path: Path) -> tuple[str, list[dict]]:
+    samples = _decode(path)
+    window = WINDOW_SECONDS * SAMPLE_RATE
+    texts: list[str] = []
+    segments: list[dict] = []
     with model.use() as transcriber:
-        return transcriber.transcribe(path)
+        for begin in range(0, len(samples), window):
+            result = transcriber.recognize(samples[begin:begin + window], sample_rate=SAMPLE_RATE)
+            texts.append(result.text.strip())
+            segments += _segments(result.tokens or [], result.timestamps or [], begin / SAMPLE_RATE)
+    return " ".join(text for text in texts if text), segments
 
 
 def _write_upload(upload, data: bytes) -> None:
@@ -77,16 +114,12 @@ async def transcriptions(
 
     with tempfile.NamedTemporaryFile(suffix=_suffix(file.filename)) as upload:
         await asyncio.to_thread(_write_upload, upload, data)
-        result = await executor.run_request(_transcribe, Path(upload.name))
+        text, segments = await executor.run_request(_transcribe, Path(upload.name))
 
     if response_format == "text":
-        return PlainTextResponse(result.text)
+        return PlainTextResponse(text)
     if response_format != "verbose_json":
-        return {"text": result.text}
-    segments = [
-        {"id": index, "start": round(sentence.start, 2), "end": round(sentence.end, 2),
-         "text": sentence.text.strip()}
-        for index, sentence in enumerate(result.sentences)
-    ]
-    duration = segments[-1]["end"] if segments else 0.0
-    return {"task": "transcribe", "duration": duration, "text": result.text, "segments": segments}
+        return {"text": text}
+    numbered = [{"id": index, **segment} for index, segment in enumerate(segments)]
+    duration = numbered[-1]["end"] if numbered else 0.0
+    return {"task": "transcribe", "duration": duration, "text": text, "segments": numbered}

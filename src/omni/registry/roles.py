@@ -11,12 +11,12 @@ OLLAMA_ROLES = ("chat", "decide", "embed")
 HF_ROLES = ("stt", "tts", "image", "video")
 PYTHON_WORKERS = HF_ROLES
 
-# What each Python worker must be able to import to run at all. MLX ships macOS, Linux
-# (CUDA or CPU) and Windows wheels, so only the image worker is platform-bound: it renders
-# on Metal through torch's MPS backend.
+# What each Python worker must be able to import to run at all. The speech workers run on ONNX
+# Runtime (CPU) anywhere; video needs MLX, whose wheels cover macOS, Linux and Windows; image
+# renders on Metal through torch's MPS backend, so it is the one platform-bound worker.
 MEDIA_DEPS = {
-    "stt": ("mlx", "parakeet_mlx"),
-    "tts": ("mlx", "mlx_audio"),
+    "stt": ("onnxruntime", "onnx_asr"),
+    "tts": ("onnxruntime", "misaki"),
     "video": ("mlx", "ltx_pipelines_mlx"),
     "image": ("torch", "diffusers"),
 }
@@ -40,13 +40,13 @@ def unavailable_reason(role: str) -> str | None:
 # lives in SEARCH_FILTERS below, so search and the cached-repo filter agree by construction.
 
 # What a role's runtime can load, for the Hugging Face search endpoint.
-# Ollama takes GGUF; the workers use parakeet-mlx, mlx-audio, diffusers' QwenImage21Pipeline and ltx-pipelines-mlx.
+# Ollama takes GGUF; the workers use onnx-asr, ONNX Runtime (Kokoro), diffusers' QwenImage21Pipeline and ltx-pipelines-mlx.
 SEARCH_FILTERS = {
     "chat": {"filter": ["gguf"], "pipeline_tag": "text-generation"},
     "decide": {"filter": ["gguf"], "pipeline_tag": "text-generation"},
     "embed": {"filter": ["gguf"], "pipeline_tag": "feature-extraction"},
-    "stt": {"filter": ["mlx"], "pipeline_tag": "automatic-speech-recognition", "family": "parakeet"},
-    "tts": {"filter": ["mlx"], "pipeline_tag": "text-to-speech", "family": "kokoro"},
+    "stt": {"filter": ["onnx"], "pipeline_tag": "automatic-speech-recognition", "family": "parakeet"},
+    "tts": {"filter": ["onnx"], "pipeline_tag": "text-to-speech", "family": "kokoro"},
     "image": {"filter": ["diffusers"], "pipeline_tag": "text-to-image", "family": "qwen-image-2"},
     "video": {"filter": ["mlx"], "family": "ltx"},
 }

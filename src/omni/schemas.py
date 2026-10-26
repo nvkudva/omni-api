@@ -30,6 +30,9 @@ EMBED_MAX_CHARS = 2000
 
 STT_FORMATS = ("json", "text", "verbose_json")
 STT_MAX_BYTES = 100 * 1024 * 1024
+# What each speech runtime loads from its Hugging Face repo, so a download skips the other quants.
+STT_FILES = ["config.json", "vocab.txt", "encoder-model.int8.onnx", "decoder_joint-model.int8.onnx"]
+TTS_FILES = ["config.json", "tokenizer.json", "onnx/model_quantized.onnx", "voices/*.bin"]
 
 # Kokoro's American (a) and British (b) English voices; misaki[en] covers only these two.
 TTS_VOICES = (

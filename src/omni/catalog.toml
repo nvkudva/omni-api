@@ -13,14 +13,12 @@ model = "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0"
 model = "embeddinggemma-2:270m"
 
 [stt]
-# parakeet-mlx builds a dense model from the repo's NeMo config.json and loads it
-# strictly, so packed weights cannot work: a 4-bit pack fails with "442 parameters
-# not in model", and moondream/parakeet-redux has no NeMo `target` at all
-# ("Model is not supported yet!").
-model = "mlx-community/parakeet-tdt-0.6b-v3"
+# Parakeet TDT 0.6B v2 (English) as int8 ONNX, run by onnx-asr: about 660 MB, no MLX or torch.
+model = "istupakov/parakeet-tdt-0.6b-v2-onnx"
 
 [tts]
-model = "mlx-community/Kokoro-82M-8bit"
+# Kokoro-82M, int8 ONNX: 92 MB plus about 30 MB of voices.
+model = "onnx-community/Kokoro-82M-v1.0-ONNX"
 voice = "af_heart"
 
 [image]

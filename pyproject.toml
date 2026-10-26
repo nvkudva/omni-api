@@ -15,16 +15,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# The speech, image and video workers. MLX and Metal are macOS on Apple Silicon only, so this
-# extra cannot install anywhere else: omni without it serves chat, decide and embed through Ollama.
+# The speech, image and video workers. omni without it serves chat, decide and embed through Ollama.
 media = [
   "python-multipart>=0.0.9",
   "numpy>=1.26",
   "pillow>=10",
   "torch==2.14.1",
   "transformers==5.19.0",
-  "parakeet-mlx>=0.2",
-  "mlx-audio>=0.2",
+  "onnx-asr>=0.11",
+  "onnxruntime>=1.20",
   "misaki[en]>=0.7",
   "torchvision>=0.29.1",
   "diffusers",

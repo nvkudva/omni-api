@@ -16,8 +16,8 @@ export const ROLE_META = {
   embed: { label: "Embed", endpoint: "/v1/embeddings", runner: "ollama", color: "var(--role-embed)" },
   image: { label: "Image", endpoint: "/v1/images/generations", runner: "diffusers", color: "var(--role-image)" },
   video: { label: "Video", endpoint: "/v1/videos", runner: "ltx-mlx", color: "var(--role-video)" },
-  stt: { label: "Speech to text", endpoint: "/v1/audio/transcriptions", runner: "parakeet-mlx", color: "var(--role-stt)" },
-  tts: { label: "Text to speech", endpoint: "/v1/audio/speech", runner: "mlx-audio", color: "var(--role-tts)" },
+  stt: { label: "Speech to text", endpoint: "/v1/audio/transcriptions", runner: "onnx-asr", color: "var(--role-stt)" },
+  tts: { label: "Text to speech", endpoint: "/v1/audio/speech", runner: "onnxruntime", color: "var(--role-tts)" },
 };
 
 export const ROLE_ORDER = Object.keys(ROLE_META);

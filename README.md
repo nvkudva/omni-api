@@ -159,8 +159,8 @@ omni brings all of that together:
 | **embed** | `POST /v1/embeddings` | `embeddinggemma-2:270m` (text) | Ollama |
 | **image** | `POST /v1/images/generations` | `unsloth/Qwen-Image-2.1-Turbo-GGUF` | diffusers (MPS, Q8_0) |
 | **video** | `POST /v1/videos`, `GET /v1/videos/{id}`, `GET /v1/videos/{id}/content` | `baa-ai/LTX-2.3-22B-RAM-12GB-MLX` | ltx-2-mlx (LTX-2.3 distilled, RAM-quantized) |
-| **stt** | `POST /v1/audio/transcriptions` | `mlx-community/parakeet-tdt-0.6b-v3` | parakeet-mlx |
-| **tts** | `POST /v1/audio/speech`, `GET /v1/audio/voices` | `mlx-community/Kokoro-82M-8bit` (27 voices) | mlx-audio |
+| **stt** | `POST /v1/audio/transcriptions` | `istupakov/parakeet-tdt-0.6b-v2-onnx` (English, int8, ~0.7 GB) | onnx-asr |
+| **tts** | `POST /v1/audio/speech`, `GET /v1/audio/voices` | `onnx-community/Kokoro-82M-v1.0-ONNX` (int8, ~0.12 GB, 27 voices) | ONNX Runtime |
 | — | `GET /health`, `GET /v1/models` | | |
 | — | `GET /admin/models`, `GET /admin/models/{search,status,downloads,check}`, `POST /admin/models/{pull,pull/stop,delete,default,load,unload}` | list, search Hugging Face (per-role filter), check a model id, install (with progress), delete, switch, load and unload | |
 | — | `GET /admin/pins`, `POST /admin/pins` | keep a role's model resident, and re-apply that on the next start | |
@@ -233,7 +233,7 @@ omni up       # gateway and workers in the background
 
 `omni init` validates `~/.omni-api/config.toml`, asks whether to install Ollama when the binary is missing (it stops if you say no), starts the server it just installed, pulls the chat/decide/embed models and confirms they landed, then starts the gateway and loads the stt and tts models (downloading them first); every failure prints the command to fix it and a link. The image and video models download on first use, or now with `omni init --media`. When something is wrong and you would rather not install anything, `omni doctor` runs the same checks read-only and prints one line per check. Release and packaging notes live in [`docs/publishing.md`](docs/publishing.md).
 
-The shipped defaults are the small profile: `qwen2.5:0.5b` (chat), `OneJev1.5-0.8B` (decide), `embeddinggemma-2:270m` (embed), `parakeet-tdt-0.6b-v3` (stt, 2.5 GB), `Kokoro-82M-8bit` (tts), `Qwen-Image-2.1-Turbo` at Q8_0 (image, 7.6 GB transformer, about 26 GB once the shared text encoder and VAE land) and `LTX-2.3-22B-RAM-12GB-MLX` (video). Any role can be changed in the playground (add a model, set it as default) or in `~/.omni-api/config.toml`; each role's list keeps the bigger models one click away.
+The shipped defaults are the small profile: `qwen2.5:0.5b` (chat), `OneJev1.5-0.8B` (decide), `embeddinggemma-2:270m` (embed), `parakeet-tdt-0.6b-v2-onnx` (stt, 0.7 GB), `Kokoro-82M-v1.0-ONNX` (tts, 0.12 GB), `Qwen-Image-2.1-Turbo` at Q8_0 (image, 7.6 GB transformer, about 26 GB once the shared text encoder and VAE land) and `LTX-2.3-22B-RAM-12GB-MLX` (video). Any role can be changed in the playground (add a model, set it as default) or in `~/.omni-api/config.toml`; each role's list keeps the bigger models one click away.
 
 ---
 
@@ -381,8 +381,8 @@ Ports:
   loaded instead:
   - **image:** loading Qwen-Image-2.1-Turbo takes about a minute; each 1024² image takes under a minute at 8 steps.
   - **video:** the LTX-2.3 RAM pack is about 19 GB plus its Gemma text encoder; loading takes minutes. Ollama can't run video models, so this runs on MLX. Its layers carry 2 to 8 bits each, so the worker quantizes per layer instead of the one width the upstream loader assumes.
-  - **stt stays unquantized:** parakeet-mlx loads dense checkpoints only, so a 4-bit parakeet pack cannot load. It also needs the repo's NeMo `config.json`; packed formats such as `moondream/parakeet-redux` need their own runtime (Photon) and fail with `Model is not supported yet!`.
-  - **tts:** the first call also downloads a spaCy model and voice weights.
+  - **stt:** runs the int8 ONNX files of a Parakeet repo on the CPU (`istupakov/parakeet-tdt-0.6b-v3-onnx` adds 25 European languages). It needs `ffmpeg` to read audio, and transcribes long files in 3-minute windows.
+  - **tts:** the first call also downloads a spaCy model.
 - **Ollama roles are never downloaded by a load.** `POST /admin/models/load` (and a pin) answers `409`
   `conflict` for an Ollama model that is not installed; install it with `POST /admin/models/pull` first.
   Worker roles are different — loading them does download the repo on first use.

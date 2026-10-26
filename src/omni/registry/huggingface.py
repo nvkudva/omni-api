@@ -1,6 +1,7 @@
 """The Hugging Face cache: what is downloaded, how big it is, search, and delete."""
 import asyncio
 import contextlib
+import fnmatch
 import json
 import os
 import signal
@@ -12,12 +13,14 @@ from typing import NamedTuple
 from huggingface_hub import HfApi, constants, scan_cache_dir
 from huggingface_hub.errors import CacheNotFound, HfHubHTTPError
 
+from omni import schemas
 from omni.registry.roles import SEARCH_FILTERS, runner
 from omni.supervisor import guard
 
 # what a Hub call can raise that a route should report as a bad gateway, not a crash
 ERRORS = (HfHubHTTPError, OSError)
 
+SPEECH_FILES = {"stt": schemas.STT_FILES, "tts": schemas.TTS_FILES}
 CACHE_TTL_SECONDS = 30.0
 _installed_cache: tuple[float, list[dict]] | None = None
 
@@ -61,9 +64,14 @@ def download_plan(role: str, repo_id: str) -> Plan:
     """The files this role loads, so a quant repo does not download every quant.
 
     `unsloth/Qwen-Image-2.1-Turbo-GGUF` holds twelve GGUFs (65 GB); the image worker loads one,
-    and pulling the rest costs 57 GB nothing reads.
+    and pulling the rest costs 57 GB nothing reads. The speech repos ship fp32, fp16 and int8
+    ONNX side by side; the workers read the int8 ones.
     """
     siblings = HfApi().model_info(repo_id, files_metadata=True).siblings or []
+    if role in SPEECH_FILES:
+        wanted = [sibling for sibling in siblings if any(fnmatch.fnmatch(sibling.rfilename, pattern) for pattern in SPEECH_FILES[role])]
+        if wanted:
+            return Plan(SPEECH_FILES[role], sum(sibling.size or 0 for sibling in wanted))
     if role == "image":
         file = preferred_gguf([sibling.rfilename for sibling in siblings])
         if file is not None:
