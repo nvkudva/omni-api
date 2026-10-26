@@ -78,10 +78,10 @@ export default function Tts({ active = true }) {
     const { signal, execId: id } = run;
     add({ id, at: Date.now(), request: payload, text: payload.input, pending: true });
     setMeta("speaking…");
-    const start = performance.now();
+    const began = performance.now();
     try {
       const response = await synthesize(payload, signal, id);
-      const elapsed = since(start);
+      const elapsed = since(began);
       record("tts", response.status, elapsed);
       if (!response.ok) throw new Error(await errorText(response));
       const buffer = await response.arrayBuffer();
