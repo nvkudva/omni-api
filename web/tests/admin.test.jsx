@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import { render } from "preact-render-to-string";
 
 const ModelsModule = await import("../src/tabs/Models.jsx");
-const { GlobalControls, Find, DownloadedList, Memory, GatedNotice, orderRoles } = ModelsModule;
+const { GlobalControls, Find, ModelList, Memory, GatedNotice, orderRoles } = ModelsModule;
 const { LogsCard } = await import("../src/components/LogsCard.jsx");
 const { HealthCard } = await import("../src/components/HealthCard.jsx");
 const { health } = await import("../src/api/health.js");
@@ -63,6 +63,7 @@ const MISSING_ENTRY = {
   default: "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0",
   runner: "ollama",
   installed: [],
+  recommended: [{ model: "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0", gb: 0.9, note: "current default", installed: false, blockers: [] }],
   state: "missing",
   reason: "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0 is not installed; install it first",
   total_bytes: 0,
@@ -103,8 +104,7 @@ describe("a role's setup card", () => {
 
   test("a missing default names the reason and disables the warm switch", () => {
     const html = render(<RoleModelCard density="detail" role="decide" entry={MISSING_ENTRY} pinned={false} onChanged={noop} />);
-    expect(html).toContain("Not downloaded yet");
-    expect(html).not.toContain("Nothing downloaded");
+    expect(html).toContain("Download</button>");
     expect(html).toContain('role="switch"');
     expect(html).toContain("disabled");
   });
@@ -124,7 +124,7 @@ describe("a role's setup card", () => {
 
   test("the downloaded list covers every model with a delete each", () => {
     const html = render(
-      <DownloadedList role="chat" installed={READY_ENTRY.installed} onChanged={noop} />,
+      <ModelList role="chat" installed={READY_ENTRY.installed} onChanged={noop} />,
     );
     expect(html).toContain("qwen2.5:3b");
     expect(html).toContain("Delete");

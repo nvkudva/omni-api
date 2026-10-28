@@ -1,7 +1,7 @@
 import { useEffect, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { ask, withForce } from "./Confirm.jsx";
-import { ROLE_META, isWorker, downloadFor, install, pollRuntime, runtime, setPinned, stopDownload } from "../api/roles.js";
+import { ROLE_META, isWorker, matchesModel, downloadFor, install, pollRuntime, runtime, setPinned, stopDownload } from "../api/roles.js";
 import { notify } from "../api/notify.js";
 import { deleteModel, loadRole, saveSetting, setRoleDefault, unloadRole, workerAction } from "../api/endpoints.js";
 import { InstallProgress } from "./FindAndInstall.jsx";
@@ -293,7 +293,25 @@ const ROLE_TUNABLES = {
   ],
 };
 
-export function DownloadedList({ role, installed, onChanged, current, busy, canLoad, onLoad, onUnload }) {
+/** Default first, then the curated order, then anything else on disk. One row per model, downloaded or not. */
+function modelRows(installed, recommended, current) {
+  const rows = recommended.map((row) => ({
+    name: row.model,
+    note: row.note,
+    gb: row.gb,
+    tight: Boolean(row.blockers?.length),
+    disk: installed.find((model) => matchesModel(model.name, row.model)) ?? null,
+  }));
+  for (const model of installed) {
+    if (!rows.some((row) => row.disk === model)) rows.push({ name: model.name, disk: model });
+  }
+  const defaultIndex = rows.findIndex((row) => matchesModel(row.name, current));
+  if (defaultIndex > 0) rows.unshift(...rows.splice(defaultIndex, 1));
+  return rows;
+}
+
+export function ModelList({ role, installed, recommended = [], onChanged, current, busy, canLoad, defaultMissing, onLoad, onUnload }) {
+  const downloading = Boolean(downloadFor(role)?.busy);
   const remove = async (model) => {
     const go = await ask({
       title: `Delete ${model}?`,
@@ -309,25 +327,58 @@ export function DownloadedList({ role, installed, onChanged, current, busy, canL
       onChanged(error.message);
     }
   };
-  if (!installed.length) return <ui.Empty>Nothing downloaded for this role yet.</ui.Empty>;
+  const makeDefault = async (model) => {
+    try {
+      await setRoleDefault({ role, model });
+      onChanged(`${model} is now the ${role} default`);
+    } catch (error) {
+      onChanged(error.message);
+    }
+  };
+  // A role with no working default gets the first model it downloads, so a fresh install ends up usable.
+  const download = async (model) => {
+    if (!(await install(role, model))) return;
+    if (!defaultMissing || matchesModel(model, current)) return onChanged(`installed ${model}`);
+    try {
+      await setRoleDefault({ role, model });
+      onChanged(`installed ${model}, now the ${role} default`);
+    } catch (error) {
+      onChanged(error.message);
+    }
+  };
+  const rows = modelRows(installed, recommended, current);
+  if (!rows.length) return <ui.Empty>No models for this role yet.</ui.Empty>;
   return (
     <div class={styles.modelTable}>
       <table>
-        <thead><tr><th>Downloaded models</th><th>Size</th><th /></tr></thead>
+        <thead><tr><th>Models</th><th>Size</th><th /></tr></thead>
         <tbody>
-          {installed.map((model) => (
-            <tr key={model.name}>
-              <td>{model.name}{model.name === current && <span class={styles.defaultTag}>default</span>}</td>
-              <td class={ui.css.numeric}>{modelDetail(model)}</td>
-              <td class={ui.css.actionCell}>
-                <span class={styles.rowActions}>
-                  {onLoad && <ui.Button small disabled={busy || !canLoad} onClick={() => onLoad(model.name)}>Load</ui.Button>}
-                  {onUnload && <ui.Button small disabled={busy} onClick={() => onUnload(model.name)}>Unload</ui.Button>}
-                  <ui.IconButton icon="trash" danger label={`Delete ${model.name}`} title="Delete (frees disk space)" onClick={() => remove(model.name)} />
-                </span>
-              </td>
-            </tr>
-          ))}
+          {rows.map((row) => {
+            const isDefault = matchesModel(row.name, current);
+            return (
+              <tr key={row.name}>
+                <td>
+                  {row.name}
+                  {isDefault && <span class={styles.defaultTag}>default</span>}
+                  {!row.disk && row.tight && <span class={styles.defaultTag}>tight</span>}
+                  {row.note && <span class={styles.rowNote}>{row.note}</span>}
+                </td>
+                <td class={ui.css.numeric}>{row.disk ? modelDetail(row.disk) : row.gb ? `${row.gb} GB` : "—"}</td>
+                <td class={ui.css.actionCell}>
+                  {row.disk ? (
+                    <span class={styles.rowActions}>
+                      {!isDefault && <ui.Button small disabled={busy} onClick={() => makeDefault(row.name)}>Set default</ui.Button>}
+                      {onLoad && <ui.Button small disabled={busy || !canLoad} onClick={() => onLoad(row.name)}>Load</ui.Button>}
+                      {onUnload && <ui.Button small disabled={busy} onClick={() => onUnload(row.name)}>Unload</ui.Button>}
+                      <ui.IconButton icon="trash" danger label={`Delete ${row.name}`} title="Delete (frees disk space)" onClick={() => remove(row.name)} />
+                    </span>
+                  ) : (
+                    <ui.Button small variant="primary" disabled={busy || downloading} onClick={() => download(row.name)}>Download</ui.Button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -489,9 +540,6 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
   }, `loaded ${model}`);
   const unloadModel = (model) => run(() => setResidency(role, false, model), `unloaded ${model}`);
   const installing = Boolean(downloadFor(role)?.busy);
-  const installDefault = async () => {
-    if (await install(role, entry.default)) onChanged(`installed ${entry.default}`);
-  };
 
   // A model can be on disk and still serve nothing: its worker may be stopped, or
   // Ollama may be down. Say which, and offer the one fix this card owns. A missing
@@ -532,30 +580,19 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
       {engineDown && (
         <ui.Notice tone="warn">{`Ollama is not answering, so ${label} cannot serve ${entry.default}. Restart it from the Workers section above.`}</ui.Notice>
       )}
-      {entry.state === "missing" && (
-        <div class={styles.setup}>
-          <div class={styles.setupText}>
-            <span class={styles.setupModel}>{entry.default}</span>
-            <span class={styles.setupHint}>Not downloaded yet. Download it to start using {label}.</span>
-          </div>
-          <ui.Button small variant="primary" disabled={installing} onClick={installDefault}>
-            {installing ? "Downloading…" : "Download"}
-          </ui.Button>
-        </div>
-      )}
       <InstallProgress role={role} />
-      {(entry.installed.length > 0 || entry.state !== "missing") && (
-        <DownloadedList
-          role={role}
-          installed={entry.installed}
-          onChanged={onChanged}
-          current={entry.default}
-          busy={busy}
-          canLoad={entry.state === "ready"}
-          onLoad={loadModel}
-          onUnload={unloadModel}
-        />
-      )}
+      <ModelList
+        role={role}
+        installed={entry.installed}
+        recommended={entry.recommended}
+        onChanged={onChanged}
+        current={entry.default}
+        busy={busy}
+        canLoad={entry.state === "ready"}
+        defaultMissing={entry.state === "missing"}
+        onLoad={loadModel}
+        onUnload={unloadModel}
+      />
       {specs.map((spec) => <Tunable key={spec.key} spec={spec} stored={tunables[spec.key]} onSaved={onSaved} />)}
     </Section>
   );
