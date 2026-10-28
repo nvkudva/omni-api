@@ -176,7 +176,7 @@ describe("keeping a model warm", () => {
     seed({ pinned: ["chat"] });
     const html = render(<App />);
     expect(html).toContain(">loaded · kept<");
-    expect(html).toContain('aria-checked="true"');
+    expect(html).toContain(">Unload<");
     expect(html).toContain("stop keeping warm Chat");
   });
 

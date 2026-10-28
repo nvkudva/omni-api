@@ -91,8 +91,7 @@ describe("a role's setup card", () => {
     expect(html).toContain("qwen2.5:3b");
     expect(html).toContain("Load");
     expect(html).toContain("qwen2.5:3b is the default");
-    // the keep-warm control is a switch in the card header, not a text button
-    expect(html).toContain('role="switch"');
+    // the keep-warm control is a Load/Unload button in the card header
     expect(html).toContain("keep warm Chat");
     expect(html).toContain("Delete");
     expect(html).toContain(gb(1_900_000_000));
@@ -141,11 +140,12 @@ describe("a role's setup card", () => {
     expect(html).not.toContain(">Restart<");
   });
 
-  test("an Ollama role's card keeps one keep-warm switch and no Settings box", () => {
+  test("an Ollama role's card keeps one keep-warm button and no Settings box", () => {
     const html = render(<RoleModelCard density="detail" role="chat" entry={READY_ENTRY} pinned={false} onChanged={noop} />);
     expect(html).not.toContain("<h4>Settings</h4>");
     expect(html).not.toContain('aria-label="start Chat"');
-    expect(html.match(/role="switch"/g)).toHaveLength(1);
+    expect(html.match(/aria-label="keep warm Chat"/g)).toHaveLength(1);
+    expect(html).not.toContain('role="switch"');
   });
 
   test("the downloaded list covers every model with a delete each", () => {
@@ -363,9 +363,9 @@ describe("the sidebar card", () => {
     expect(sidebar("chat", blocked)).toContain(">needs setup<");
   });
 
-  test("a ready role keeps its warm switch", () => {
+  test("a ready role keeps its Load button", () => {
     const html = sidebar("chat", { status: "ready" });
-    expect(html).toContain('role="switch"');
+    expect(html).toContain(">Load<");
     expect(html).not.toContain("Set up Chat");
   });
 
@@ -413,11 +413,11 @@ describe("the sidebar card", () => {
   test("warm and running differ only in whether the model is held", () => {
     const warm = sidebar("chat", { status: "loaded", loaded: true, pinned: true, memoryBytes: 2_000_000_000 });
     expect(warm).toContain(">loaded · kept<");
-    expect(warm).toContain('aria-checked="true"');
+    expect(warm).toContain(">Unload<");
 
     const running = sidebar("chat", { status: "loaded", loaded: true, memoryBytes: 2_000_000_000 });
     expect(running).toContain(">loaded<");
-    expect(running).toContain('aria-checked="false"');
+    expect(running).toContain(">Load<");
   });
 
   test("a pinned role still loading says so", () => {

@@ -549,15 +549,16 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
           <ui.IconButton class={styles.footAction} icon="server" label="Open the server controls" size={14} onClick={server} />
         )}
         {action === "warm" && (
-          <WarmSwitch
-            pinned={pinned}
-            busy={warmBusy}
-            disabled={checking}
-            label={`${pinned ? "stop keeping warm" : "keep warm"} ${state.label}`}
+          <ui.Button
+            small
+            disabled={warmBusy || checking}
+            aria-label={`${pinned ? "stop keeping warm" : "keep warm"} ${state.label}`}
             title={checking ? "waiting for the gateway"
               : pinned ? `Stop keeping ${shownModel} loaded` : `Keep model loaded: loads ${state.model} now and holds it in memory`}
             onClick={flip}
-          />
+          >
+            {pinned ? "Unload" : "Load"}
+          </ui.Button>
         )}
       </span>
       {working && (
@@ -624,14 +625,15 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
             )}
         </>
       ) : (
-        <WarmSwitch
-          pinned={pinned}
-          busy={warmBusy}
-          disabled={entry.state !== "ready"}
-          label={`${pinned ? "stop keeping warm" : "keep warm"} ${meta?.label ?? role}`}
+        <ui.Button
+          small
+          disabled={warmBusy || entry.state !== "ready"}
+          aria-label={`${pinned ? "stop keeping warm" : "keep warm"} ${meta?.label ?? role}`}
           title={pinned ? `Stop keeping ${entry.default} warm` : `Keep ${entry.default} warm (loads it now and holds it)`}
           onClick={flipWarm}
-        />
+        >
+          {pinned ? "Unload" : "Load"}
+        </ui.Button>
       )}
       meta={`${entry.runner} · ${entry.installed.length} downloaded · ${gb(entry.total_bytes)} · ${STATE_LABEL[entry.state] ?? entry.state}`}
     >
