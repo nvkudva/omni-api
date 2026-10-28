@@ -15,7 +15,7 @@ from huggingface_hub import HfApi, constants, scan_cache_dir
 from huggingface_hub.errors import CacheNotFound, HfHubHTTPError
 
 from omni import config
-from omni.registry.roles import ROLE_SPECS, family, files, has_family, runner
+from omni.registry.roles import ROLE_SPECS, backend, family, files, has_family, runner
 from omni.supervisor import guard
 
 # what a Hub call can raise that a route should report as a bad gateway, not a crash
@@ -149,7 +149,13 @@ def bundle(role: str, repo_id: str) -> list[Part]:
     patterns = [pattern for pattern in files(role, repo_id) or []
                 if any(_matching(sibling.rfilename, [pattern]) for sibling in siblings)]
     if patterns:
-        return [Part(repo_id, patterns, _size(siblings, patterns))]
+        parts = [Part(repo_id, patterns, _size(siblings, patterns))]
+        base = ROLE_SPECS[role].get("bases", {}).get(backend(role, repo_id))
+        if base:
+            base_repo_id, base_patterns = base
+            base_siblings = HfApi().model_info(base_repo_id, files_metadata=True).siblings or []
+            parts.append(Part(base_repo_id, base_patterns, _size(base_siblings, base_patterns)))
+        return parts
     if ROLE_SPECS[role]["engine"] == "diffusers":
         pinned = _pinned(role, repo_id)
         file = pinned.get("file") or preferred_gguf([sibling.rfilename for sibling in siblings])

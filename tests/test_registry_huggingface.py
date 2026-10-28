@@ -63,6 +63,23 @@ class Bundle(unittest.TestCase):
         self.assertEqual(parts[1].repo, "Qwen/Qwen-Image-2.1-Turbo")
         self.assertEqual(parts[1].size, 300)
 
+    def test_lightning_takes_its_unet_and_the_sdxl_base_text_encoders(self):
+        parts = self.bundle("image", [FakeSibling("sdxl_lightning_4step_unet.safetensors", 5_140_000_000),
+                                      FakeSibling("sdxl_lightning_8step_unet.safetensors", 5_140_000_000)],
+                            repo="ByteDance/SDXL-Lightning")
+        self.assertEqual(parts[0].files, ["sdxl_lightning_4step_unet.safetensors"])
+        self.assertEqual(parts[0].size, 5_140_000_000)
+        self.assertEqual(parts[1].repo, "stabilityai/stable-diffusion-xl-base-1.0")
+        self.assertIn("text_encoder_2/model.fp16.safetensors", parts[1].files)
+        self.assertNotIn("unet/diffusion_pytorch_model.fp16.safetensors", parts[1].files)
+
+    def test_stable_diffusion_is_one_part_of_half_precision_files(self):
+        parts = self.bundle("image", [FakeSibling("unet/diffusion_pytorch_model.fp16.safetensors", 1_720_000_000),
+                                      FakeSibling("unet/diffusion_pytorch_model.safetensors", 3_440_000_000)],
+                            repo="stable-diffusion-v1-5/stable-diffusion-v1-5")
+        self.assertEqual(len(parts), 1)
+        self.assertEqual(parts[0].size, 1_720_000_000)
+
     def test_the_config_pins_win_over_discovery(self):
         parts = self.bundle("video", [FakeSibling("a-Q8_0.gguf", 1), FakeSibling("own.gguf", 2)],
                             pinned={"file": "own.gguf", "base": "a/b"})

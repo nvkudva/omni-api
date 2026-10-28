@@ -318,7 +318,7 @@ const ROLE_TUNABLES = {
     { key: "tts.voice", label: "Default voice", hint: "Voice used when a speech request names none. Restarts tts.", number: false },
   ],
   image: [
-    { key: "image.steps", label: "Image steps", hint: "Denoising steps per image. More is slower and finer. Restarts image.", number: true, step: 1 },
+    { key: "image.steps", label: "Image steps", hint: "Denoising steps per image for Qwen; Stable Diffusion and Lightning use their own. Restarts image.", number: true, step: 1 },
   ],
   video: [
     { key: "video.fps", label: "Video fps", hint: "Playback rate of generated clips. Restarts video.", number: true, step: 1 },

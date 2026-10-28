@@ -26,6 +26,19 @@ class SavedSigmas(unittest.TestCase):
         self.assertIsNone(image._sigmas_for(8))
 
 
+class DefaultSteps(unittest.TestCase):
+    def steps(self, family):
+        with patch.object(image, "family", family):
+            return image._default_steps()
+
+    def test_each_family_runs_the_sampler_it_was_trained_for(self):
+        self.assertEqual(self.steps("sdxl-lightning"), 4)
+        self.assertEqual(self.steps("stable-diffusion-v1-5"), 25)
+
+    def test_qwen_uses_the_configured_step_count(self):
+        self.assertEqual(self.steps("qwen-image-2"), image.default_steps)
+
+
 class Source(unittest.TestCase):
     def source(self, manifest, fetch=lambda download: "local"):
         with patch.object(huggingface, "load_manifest", return_value=manifest), \
@@ -50,6 +63,14 @@ class Source(unittest.TestCase):
     def test_a_plain_checkpoint_has_no_gguf_parts(self):
         paths, _, _ = self.source([huggingface.Part("Qwen/Qwen-Image-2.1", None, 9)])
         self.assertEqual(paths, (None, None))
+
+
+class Checkpoint(unittest.TestCase):
+    def test_a_unet_only_repo_gives_its_weights_and_the_base_folder(self):
+        manifest = [huggingface.Part("b/lightning", ["unet.safetensors"], 5), huggingface.Part("s/base", ["vae/*"], 2)]
+        with patch.object(huggingface, "load_manifest", return_value=manifest), \
+                patch.object(gguf, "_fetch", side_effect=lambda download: "local"):
+            self.assertEqual(gguf.checkpoint("image", "b/lightning"), ("local", "local"))
 
 
 class Fetch(unittest.TestCase):

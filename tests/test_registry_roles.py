@@ -28,6 +28,18 @@ class Supports(unittest.TestCase):
         for role, repo in defaults.items():
             self.assertTrue(roles.supports(role, repo), role)
 
+    def test_image_takes_stable_diffusion_and_lightning_as_well_as_qwen(self):
+        self.assertTrue(roles.supports("image", "stable-diffusion-v1-5/stable-diffusion-v1-5"))
+        self.assertTrue(roles.supports("image", "ByteDance/SDXL-Lightning"))
+        self.assertFalse(roles.supports("image", "stabilityai/sdxl-turbo"))
+        self.assertEqual(roles.backend("image", "ByteDance/SDXL-Lightning"), "sdxl-lightning")
+
+    def test_image_downloads_only_the_half_precision_files(self):
+        sd15 = roles.files("image", "stable-diffusion-v1-5/stable-diffusion-v1-5")
+        self.assertIn("unet/diffusion_pytorch_model.fp16.safetensors", sd15)
+        self.assertEqual(roles.files("image", "ByteDance/SDXL-Lightning"), ["sdxl_lightning_4step_unet.safetensors"])
+        self.assertIsNone(roles.files("image", "Qwen/Qwen-Image-2.1"))
+
     def test_image_no_longer_accepts_any_repo_that_merely_says_qwen_image(self):
         self.assertFalse(roles.supports("image", "someone/Qwen-Image-XL"))
         self.assertTrue(roles.supports("image", "Qwen/Qwen-Image-2.1"))

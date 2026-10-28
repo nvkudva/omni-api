@@ -11,14 +11,25 @@ def source(role: str, repo: str) -> tuple[str | None, str | None]:
     Read from the manifest the download wrote, so a cached model loads offline. A model nobody
     pulled first is resolved against the Hub once, and remembered.
     """
+    main, *rest = _parts(role, repo)
+    if not rest or not main.files or not main.files[0].endswith(".gguf"):
+        return None, None
+    base = rest[0]
+    return _fetch(lambda **kw: hf_hub_download(repo, main.files[0], **kw)), \
+        _fetch(lambda **kw: snapshot_download(base.repo, allow_patterns=base.files, **kw))
+
+
+def _parts(role: str, repo: str) -> list[huggingface.Part]:
     parts = huggingface.load_manifest(role, repo)
     if parts is None:
         parts = huggingface.bundle(role, repo)
         huggingface.save_manifest(role, repo, parts)
-    main, *rest = parts
-    if not rest or not main.files or not main.files[0].endswith(".gguf"):
-        return None, None
-    base = rest[0]
+    return parts
+
+
+def checkpoint(role: str, repo: str) -> tuple[str, str]:
+    """Local paths for a UNet-only repo (SDXL-Lightning): its weights file, and the base checkpoint's folder."""
+    main, base = _parts(role, repo)[:2]
     return _fetch(lambda **kw: hf_hub_download(repo, main.files[0], **kw)), \
         _fetch(lambda **kw: snapshot_download(base.repo, allow_patterns=base.files, **kw))
 
