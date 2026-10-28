@@ -48,12 +48,12 @@ class FakeSizeApi:
 
 
 class Bundle(unittest.TestCase):
-    def bundle(self, role, siblings, pinned=None):
+    def bundle(self, role, siblings, pinned=None, repo="unsloth/Qwen-Image-2.1-Turbo-GGUF"):
         with patch.object(huggingface, "HfApi", return_value=FakeSizeApi(siblings)), \
                 patch.object(huggingface, "_pinned", return_value=pinned or {}), \
                 patch.object(huggingface, "base_repo", return_value="Qwen/Qwen-Image-2.1-Turbo"), \
                 patch.object(huggingface, "diffusers_files", side_effect=lambda repo: (repo, ["vae/*"])):
-            return huggingface.bundle(role, "unsloth/Qwen-Image-2.1-Turbo-GGUF")
+            return huggingface.bundle(role, repo)
 
     def test_a_quant_repo_takes_the_eight_bit_file_and_the_base_behind_it(self):
         parts = self.bundle("image", [FakeSibling("turbo-F16.gguf", 14_230_000_000),
@@ -62,6 +62,23 @@ class Bundle(unittest.TestCase):
         self.assertEqual(parts[0], huggingface.Part("unsloth/Qwen-Image-2.1-Turbo-GGUF", ["turbo-Q8_0.gguf"], 7_640_000_000))
         self.assertEqual(parts[1].repo, "Qwen/Qwen-Image-2.1-Turbo")
         self.assertEqual(parts[1].size, 300)
+
+    def test_lightning_takes_its_unet_and_the_sdxl_base_text_encoders(self):
+        parts = self.bundle("image", [FakeSibling("sdxl_lightning_4step_unet.safetensors", 5_140_000_000),
+                                      FakeSibling("sdxl_lightning_8step_unet.safetensors", 5_140_000_000)],
+                            repo="ByteDance/SDXL-Lightning")
+        self.assertEqual(parts[0].files, ["sdxl_lightning_4step_unet.safetensors"])
+        self.assertEqual(parts[0].size, 5_140_000_000)
+        self.assertEqual(parts[1].repo, "stabilityai/stable-diffusion-xl-base-1.0")
+        self.assertIn("text_encoder_2/model.fp16.safetensors", parts[1].files)
+        self.assertNotIn("unet/diffusion_pytorch_model.fp16.safetensors", parts[1].files)
+
+    def test_stable_diffusion_is_one_part_of_half_precision_files(self):
+        parts = self.bundle("image", [FakeSibling("unet/diffusion_pytorch_model.fp16.safetensors", 1_720_000_000),
+                                      FakeSibling("unet/diffusion_pytorch_model.safetensors", 3_440_000_000)],
+                            repo="stable-diffusion-v1-5/stable-diffusion-v1-5")
+        self.assertEqual(len(parts), 1)
+        self.assertEqual(parts[0].size, 1_720_000_000)
 
     def test_the_config_pins_win_over_discovery(self):
         parts = self.bundle("video", [FakeSibling("a-Q8_0.gguf", 1), FakeSibling("own.gguf", 2)],
@@ -77,8 +94,14 @@ class Bundle(unittest.TestCase):
     def test_a_speech_repo_takes_only_the_files_its_runtime_reads(self):
         parts = self.bundle("tts", [FakeSibling("config.json", 1), FakeSibling("tokenizer.json", 1),
                                     FakeSibling("onnx/model_quantized.onnx", 90), FakeSibling("onnx/model.onnx", 300),
-                                    FakeSibling("voices/af.bin", 5)])
+                                    FakeSibling("voices/af.bin", 5)], repo="onnx-community/Kokoro-82M-v1.0-ONNX")
         self.assertEqual(parts[0].size, 97)
+
+    def test_a_pattern_no_file_matches_is_dropped_so_the_repo_can_count_as_installed(self):
+        parts = self.bundle("stt", [FakeSibling("config.json", 1), FakeSibling("model.safetensors", 100),
+                                    FakeSibling("modeling.py.txt", 1)], repo="UsefulSensors/moonshine-tiny")
+        self.assertEqual(parts[0].files, ["*.json", "*.safetensors"])
+        self.assertEqual(parts[0].size, 101)
 
 
 class HeldSize(unittest.TestCase):
@@ -202,3 +225,14 @@ class FolderSize(unittest.TestCase):
             (repo / "blobs" / "other").symlink_to(shared / "done")
             (repo / "blobs" / "partial.incomplete").write_bytes(b"y" * 7)
             self.assertEqual(huggingface.folder_size(repo), 107)
+
+
+class DiffusersFilesTest(unittest.TestCase):
+    def test_a_list_of_numbers_in_the_index_is_not_a_component_folder(self):
+        index = '{"vae": ["diffusers", "AutoencoderKL"], "transformer": ["x", "T"], "sample_sigmas": [1.0, 0.9]}'
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "model_index.json"
+            path.write_text(index)
+            with patch("huggingface_hub.hf_hub_download", return_value=str(path)):
+                repo, patterns = huggingface.diffusers_files("a/b")
+        self.assertEqual(patterns, ["model_index.json", "transformer/config.json", "vae/*"])

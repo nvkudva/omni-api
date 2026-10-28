@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import { render } from "preact-render-to-string";
 
 const ModelsModule = await import("../src/tabs/Models.jsx");
-const { GlobalControls, Search, Install, DownloadedList, Memory, GatedNotice, orderRoles } = ModelsModule;
+const { GlobalControls, Find, ModelList, Memory, GatedNotice, orderRoles } = ModelsModule;
 const { LogsCard } = await import("../src/components/LogsCard.jsx");
 const { HealthCard } = await import("../src/components/HealthCard.jsx");
 const { health } = await import("../src/api/health.js");
@@ -63,6 +63,7 @@ const MISSING_ENTRY = {
   default: "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0",
   runner: "ollama",
   installed: [],
+  recommended: [{ model: "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0", gb: 0.9, note: "current default", installed: false, blockers: [] }],
   state: "missing",
   reason: "hf.co/mradermacher/OneJev1.5-0.8B-GGUF:Q8_0 is not installed; install it first",
   total_bytes: 0,
@@ -89,9 +90,8 @@ describe("a role's setup card", () => {
     const html = render(<RoleModelCard density="detail" role="chat" entry={READY_ENTRY} pinned={false} onChanged={noop} />);
     expect(html).toContain("qwen2.5:3b");
     expect(html).toContain("Load");
-    expect(html).toContain("Unload");
-    // the keep-warm control is a switch in the card header, not a text button
-    expect(html).toContain('role="switch"');
+    expect(html).toContain("qwen2.5:3b is the default");
+    // keep warm is a switch inside the card's Settings box
     expect(html).toContain("keep warm Chat");
     expect(html).toContain("Delete");
     expect(html).toContain(gb(1_900_000_000));
@@ -103,8 +103,7 @@ describe("a role's setup card", () => {
 
   test("a missing default names the reason and disables the warm switch", () => {
     const html = render(<RoleModelCard density="detail" role="decide" entry={MISSING_ENTRY} pinned={false} onChanged={noop} />);
-    expect(html).toContain("is not installed; install it first");
-    expect(html).toContain("Nothing downloaded for this role yet.");
+    expect(html).toContain("Download</button>");
     expect(html).toContain('role="switch"');
     expect(html).toContain("disabled");
   });
@@ -122,19 +121,66 @@ describe("a role's setup card", () => {
     expect(html).toContain('value="af_heart"');
   });
 
+  const withRuntime = (roles, view) => {
+    runtime.value = { ...runtime.value, roles };
+    const html = view();
+    runtime.value = { ready: false, error: "", roles: {}, warnings: [], memory: null, pins: [] };
+    return html;
+  };
+
+  test("every card's header has Load, and keep warm is a switch inside Settings", () => {
+    const html = withRuntime({ image: { status: "ready", loaded: false } }, () => render(
+      <RoleModelCard density="detail" role="image" entry={READY_ENTRY} pinned onChanged={noop} />,
+    ));
+    expect(html).toContain("<h4>Settings</h4>");
+    expect(html).toContain('aria-label="load Image"');
+    expect(html).toContain('aria-label="stop keeping warm Image"');
+    expect(html).toContain(">Restart<");
+    expect(html).not.toContain(">Start<");
+    expect(html).not.toContain(">Stop<");
+  });
+
+  test("a loaded role's header says Unload", () => {
+    const html = withRuntime({ image: { status: "loaded", loaded: true } }, () => render(
+      <RoleModelCard density="detail" role="image" entry={READY_ENTRY} pinned onChanged={noop} />,
+    ));
+    expect(html).toContain('aria-label="unload Image"');
+  });
+
+  test("a stopped worker says so, and Load starts it, with no Restart", () => {
+    const html = withRuntime({ image: { status: "stopped" } }, () => render(
+      <RoleModelCard density="detail" role="image" entry={READY_ENTRY} pinned onChanged={noop} />,
+    ));
+    expect(html).toContain("Load starts it.");
+    expect(html).toContain('aria-label="load Image"');
+    expect(html).not.toContain(">Restart<");
+  });
+
+  test("a missing default offers Download in the header", () => {
+    const html = render(<RoleModelCard density="detail" role="decide" entry={MISSING_ENTRY} pinned={false} onChanged={noop} />);
+    expect(html).toContain(">Download<");
+    expect(html).not.toContain('aria-label="load Decide"');
+  });
+
+  test("an Ollama role has no Restart, and one keep-warm switch", () => {
+    const html = withRuntime({ chat: { status: "ready", loaded: false } }, () => render(
+      <RoleModelCard density="detail" role="chat" entry={READY_ENTRY} pinned={false} onChanged={noop} />,
+    ));
+    expect(html).not.toContain(">Restart<");
+    expect(html.match(/aria-label="keep warm Chat"/g)).toHaveLength(1);
+  });
+
   test("the downloaded list covers every model with a delete each", () => {
     const html = render(
-      <DownloadedList role="chat" installed={READY_ENTRY.installed} onChanged={noop} />,
+      <ModelList role="chat" installed={READY_ENTRY.installed} onChanged={noop} />,
     );
     expect(html).toContain("qwen2.5:3b");
     expect(html).toContain("Delete");
   });
 
-  test("search is per role and install shows the runner hint", () => {
-    expect(render(<Search role="chat" onPick={noop} />)).toContain("blank: most downloaded");
-    // the pump that follows a picked model is an effect, so it is not exercised here
-    const html = render(<Install role="chat" initial={null} onInstalled={noop} />);
-    expect(html).toContain("Check");
+  test("one box searches per role and installs, with the runner hint", () => {
+    const html = render(<Find role="chat" onInstalled={noop} />);
+    expect(html).toContain("Search Hugging Face");
     expect(html).toContain("Install");
     expect(html).toContain("hf.co/user/repo-GGUF:Q4_K_M");
     expect(html).toContain("Ollama: a library name");
@@ -167,16 +213,10 @@ describe("the Find and Install popup", () => {
     expect(stt).toContain("istupakov/parakeet-tdt-0.6b-v2-onnx");
   });
 
-  test("a recommended table lists the server's candidates with their download state and fit", () => {
+  test("the dialog only searches: the recommended list lives on the model card", () => {
     const html = render(<FindAndInstall role="chat" onClose={noop} onInstalled={noop} />);
-    expect(html).toContain("Recommended");
-    expect(html).toContain("qwen3.8:27b");
-    expect(html).toContain("17.7 GB");
-    expect(html).toContain("Downloaded");
-    expect(html).toContain("Fits here");
-    expect(html).toContain("only 10.0 GB RAM free");
-    // the configured default is marked as such
-    expect(html).toContain("default");
+    expect(html).not.toContain("Recommended");
+    expect(html).toContain("Search Hugging Face");
   });
 
   test("criteria come from the server's role specs, and an unknown role opens nothing", () => {
@@ -325,7 +365,8 @@ describe("the sidebar card", () => {
   test("a role whose default cannot run shows a setup action instead of the switch", () => {
     const html = sidebar("chat", blocked);
     expect(html).toContain("Set up Chat");
-    expect(html).not.toContain('role="switch"');
+    expect(html).toContain(">Download<");
+    expect(html).not.toContain(">Load<");
   });
 
   test("the card marks the problem with a badge, never error text", () => {
@@ -339,9 +380,9 @@ describe("the sidebar card", () => {
     expect(sidebar("chat", blocked)).toContain(">needs setup<");
   });
 
-  test("a ready role keeps its warm switch", () => {
+  test("a ready role keeps its load switch", () => {
     const html = sidebar("chat", { status: "ready" });
-    expect(html).toContain('role="switch"');
+    expect(html).toContain('aria-label="load Chat"');
     expect(html).not.toContain("Set up Chat");
   });
 
@@ -351,20 +392,26 @@ describe("the sidebar card", () => {
     const html = sidebar("tts", { status: "ready" });
     expect(html).toContain(">idle · not loaded<");
     expect(html).not.toContain(">loaded<");
-    expect(html).toContain('role="switch"');
+    expect(html).toContain('aria-label="load Text to speech"');
   });
 
-  test("a stopped worker offers Start, not a keep-warm switch", () => {
+  test("a stopped worker's card offers a load switch, which starts it", () => {
     const html = sidebar("tts", { status: "stopped" });
     expect(html).toContain(">off<");
-    expect(html).toContain("Start the Text to speech worker");
-    expect(html).not.toContain('role="switch"');
+    expect(html).toContain('aria-label="load Text to speech"');
+    expect(html).toContain('aria-checked="false"');
   });
 
-  test("a failed worker offers Start too", () => {
+  test("a loaded worker's card offers Unload", () => {
+    const html = sidebar("tts", { status: "loaded", loaded: true });
+    expect(html).toContain('aria-label="unload Text to speech"');
+    expect(html).not.toContain(">Stop<");
+  });
+
+  test("a failed worker offers Load too", () => {
     const html = sidebar("image", { status: "failed" });
     expect(html).toContain(">failed<");
-    expect(html).toContain("Start the Image worker");
+    expect(html).toContain('aria-label="load Image"');
   });
 
   test("an unreachable Ollama reads stopped and points at the server controls", () => {
@@ -377,14 +424,14 @@ describe("the sidebar card", () => {
     expect(html).not.toContain("Start the Chat worker");
   });
 
-  test("warm and running differ only in whether the model is held", () => {
+  test("warm and running differ only in the word; both offer Unload", () => {
     const warm = sidebar("chat", { status: "loaded", loaded: true, pinned: true, memoryBytes: 2_000_000_000 });
     expect(warm).toContain(">loaded · kept<");
-    expect(warm).toContain('aria-checked="true"');
+    expect(warm).toContain('aria-label="unload Chat"');
 
     const running = sidebar("chat", { status: "loaded", loaded: true, memoryBytes: 2_000_000_000 });
     expect(running).toContain(">loaded<");
-    expect(running).toContain('aria-checked="false"');
+    expect(running).toContain('aria-label="unload Chat"');
   });
 
   test("a pinned role still loading says so", () => {
@@ -420,8 +467,9 @@ describe("the memory panel", () => {
     expect(html).toContain("9.4 GB swapped out: models will run slowly");
     expect(html).toContain("Loaded in Ollama");
     expect(html).toContain("qwen2.5:3b");
-    expect(html).toContain("stopped");
     expect(html).toContain("12.5");
+    // worker start/stop lives on the role cards, not here
+    expect(html).not.toContain("<h3>Workers</h3>");
   });
 
   test("says so while memory is still unread, and with nothing loaded", () => {

@@ -59,7 +59,7 @@ function seed({ pinned = [] } = {}) {
     pins: pinned,
     roles: Object.fromEntries(ROLE_ORDER.map((role) => [role, {
       ...ROLE_META[role], role, model: MODEL, loaded: true, pinned: pinned.includes(role),
-      runningModel: MODEL, memoryBytes: BYTES, status: "ready", cpuPercent: 12.5, held: false,
+      runningModel: MODEL, memoryBytes: BYTES, modelBytes: BYTES, status: "ready", cpuPercent: 12.5, held: false,
     }])),
   };
   models.value = {
@@ -129,6 +129,22 @@ describe("pages render before the first poll", () => {
 describe("pages render against a live-looking runtime", () => {
   beforeEach(seed);
 
+  test("the Decide page offers an image only when the decide model can read one", () => {
+    expect(render(<pages.Decide active />)).toContain("Drop an invoice");
+    runtime.value = {
+      ...runtime.value,
+      roles: { ...runtime.value.roles, decide: { ...runtime.value.roles.decide, readsImages: false } },
+    };
+    expect(render(<pages.Decide active />)).not.toContain("Drop an invoice");
+  });
+
+  test("voices that are not Kokoro codes are labelled by name", async () => {
+    const { voiceLabel } = await import("../src/tabs/Tts.jsx");
+    expect(voiceLabel("Bella")).toBe("Bella");
+    expect(voiceLabel("M1")).toBe("M1");
+    expect(voiceLabel("af_heart")).toBe("heart · American female");
+  });
+
   test("the role cards show each role's model, memory and loaded state", () => {
     const html = render(<App />);
     expect(html).toContain(MODEL);
@@ -160,8 +176,7 @@ describe("keeping a model warm", () => {
     seed({ pinned: ["chat"] });
     const html = render(<App />);
     expect(html).toContain(">loaded · kept<");
-    expect(html).toContain('aria-checked="true"');
-    expect(html).toContain("stop keeping warm Chat");
+    expect(html).toContain('aria-label="unload Chat"');
   });
 
   test("a pinned role whose model is still loading says so", () => {
@@ -182,7 +197,6 @@ describe("keeping a model warm", () => {
     seed();
     const html = render(<App />);
     expect(html).not.toContain(">loaded · kept<");
-    expect(html).toContain("keep warm Chat");
   });
 });
 

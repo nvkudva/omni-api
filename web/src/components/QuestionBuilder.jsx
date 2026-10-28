@@ -95,7 +95,7 @@ export function QuestionBuilder({ rows, onRows }) {
       ))}
       <div class={styles.adder}>
         <span class={styles.label}>Add a new question</span>
-        <ui.Button small onClick={() => add("noul")}>+ noul</ui.Button>
+        <ui.Button small onClick={() => add("noul")}>+ yes/no</ui.Button>
         <ui.Button small onClick={() => add("choice")}>+ choice</ui.Button>
         <ui.Button small onClick={() => add("score")}>+ score</ui.Button>
       </div>

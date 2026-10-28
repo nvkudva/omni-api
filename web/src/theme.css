@@ -42,6 +42,7 @@
   --card: rgba(255, 255, 255, 0.86);
   --card-foreground: #0e1330;
   --popover: rgba(255, 255, 255, 0.97);
+  --dialog-solid: #fff;
   --popover-foreground: #0e1330;
   --primary: #4f46e5;
   --primary-foreground: #ffffff;
@@ -125,6 +126,7 @@
   --card: rgba(25, 28, 42, 0.94);
   --card-foreground: #f8f9ff;
   --popover: rgba(14, 18, 38, 0.94);
+  --dialog-solid: #0e1226;
   --popover-foreground: #eef1ff;
   --primary: #818cf8;
   --primary-foreground: #05060f;
@@ -326,18 +328,18 @@ table {
   font-size: 0.875rem;
 }
 th {
-  height: 2.5rem;
+  height: 1.75rem;
   padding: 0 0.5rem;
   text-align: left;
   vertical-align: middle;
   font-weight: 500;
-  font-size: 0.875rem;
+  font-size: 0.75rem;
   color: var(--muted-foreground);
   background: transparent;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
-td { padding: 0.5rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+td { padding: 0.25rem 0.5rem; font-size: 0.8125rem; line-height: 1.25rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
 tr:last-child td { border-bottom: none; }
 tbody tr { transition: background-color 0.12s; }
 tbody tr:hover { background: color-mix(in oklab, var(--muted) 50%, transparent); }

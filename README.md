@@ -155,12 +155,12 @@ omni brings all of that together:
 | Role | Endpoint | Default model | Engine |
 |---|---|---|---|
 | **chat** | `POST /v1/chat/completions` (streaming) | `qwen2.5:0.5b` | Ollama |
-| **decide** | `POST /v1/systemone` | `nvkudva/vega-onnx-q8` (8-bit ONNX, ~0.93 GB) | ONNX Runtime (Vega) |
+| **decide** | `POST /v1/systemone` | `nvkudva/vega-onnx-q8` (8-bit ONNX, ~0.93 GB); also Laya (English and multilingual) and GLiNER2.5-Decide | ONNX Runtime (Vega), transformers (Laya, GLiNER2.5) |
 | **embed** | `POST /v1/embeddings` | `embeddinggemma-2:270m` (text) | Ollama |
 | **image** | `POST /v1/images/generations` | `unsloth/Qwen-Image-2.1-Turbo-GGUF` | diffusers (MPS, Q8_0) |
 | **video** | `POST /v1/videos`, `GET /v1/videos/{id}`, `GET /v1/videos/{id}/content` | `QuantStack/Wan2.2-TI2V-5B-GGUF` (Wan 2.2 TI2V-5B, Q8_0) | diffusers (also runs LTX-Video GGUFs) |
-| **stt** | `POST /v1/audio/transcriptions` | `istupakov/parakeet-tdt-0.6b-v2-onnx` (English, int8, ~0.7 GB) | onnx-asr |
-| **tts** | `POST /v1/audio/speech`, `GET /v1/audio/voices` | `onnx-community/Kokoro-82M-v1.0-ONNX` (int8, ~0.12 GB, 27 voices) | ONNX Runtime |
+| **stt** | `POST /v1/audio/transcriptions` | `istupakov/parakeet-tdt-0.6b-v2-onnx` (English, int8, ~0.7 GB); also Moonshine Tiny, Whisper Small and oruk-loop | onnx-asr, transformers |
+| **tts** | `POST /v1/audio/speech`, `GET /v1/audio/voices` | `onnx-community/Kokoro-82M-v1.0-ONNX` (int8, ~0.12 GB, 27 voices); also Kitten TTS Nano/Mini and Supertonic 3 | ONNX Runtime |
 | — | `GET /health`, `GET /v1/models` | | |
 | — | `GET /admin/models`, `GET /admin/models/{search,status,downloads,check}`, `POST /admin/models/{pull,pull/stop,delete,default,load,unload}` | list, search Hugging Face (per-role filter), check a model id, install (with progress), delete, switch, load and unload | |
 | — | `GET /admin/pins`, `POST /admin/pins` | keep a role's model resident, and re-apply that on the next start | |
@@ -381,7 +381,7 @@ Ports:
   loaded instead:
   - **image:** loading Qwen-Image-2.1-Turbo takes about a minute; each 1024² image takes under a minute at 8 steps.
   - **video:** Wan 2.2 TI2V-5B at Q8_0 is 5.4 GB, plus about 14 GB for its text encoder and VAE, fetched on the first load from the diffusers repo named by `video.base`. Ollama can't run video models, so this runs diffusers (Metal, CUDA or CPU) and needs `ffmpeg` to write the mp4. LTX-Video GGUFs also load.
-  - **stt:** runs the int8 ONNX files of a Parakeet repo on the CPU (`istupakov/parakeet-tdt-0.6b-v3-onnx` adds 25 European languages). It needs `ffmpeg` to read audio, and transcribes long files in 3-minute windows.
+  - **stt:** besides Parakeet, `UsefulSensors/moonshine-tiny` (27M, English), `openai/whisper-small` (about 100 languages) and `oruk/oruk-loop-153M` (English; its repo's own code runs, so only that exact repo is trusted, and it needs about 4 GB RAM; free for non-commercial and small-business use) load through transformers on the CPU. The Parakeet path runs the int8 ONNX files of a Parakeet repo on the CPU (`istupakov/parakeet-tdt-0.6b-v3-onnx` adds 25 European languages). It needs `ffmpeg` to read audio, and transcribes long files in 3-minute windows.
   - **tts:** the first call also downloads a spaCy model.
 - **Ollama roles are never downloaded by a load.** `POST /admin/models/load` (and a pin) answers `409`
   `conflict` for an Ollama model that is not installed; install it with `POST /admin/models/pull` first.

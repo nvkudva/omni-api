@@ -8,6 +8,7 @@
   composes: card from "./ui.module.css";
   display: flex; flex-direction: column; gap: 8px;
   padding: 12px 14px;
+  background: color-mix(in srgb, var(--role-color) 8%, var(--card));
   position: relative; overflow: hidden;
   cursor: pointer; text-align: left; min-width: 0;
   transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
@@ -91,20 +92,23 @@
   display: flex; flex-direction: column; min-width: 0;
 
   & .head {
-    flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
     padding: 12px 16px; border-bottom: 1px solid var(--border);
     /* The header is the card's first child, so its own top corners have to follow
        the card's curve (inset by the card's 1px border) instead of squaring off over it. */
     border-top-left-radius: calc(var(--radius-xl) - 1px);
     border-top-right-radius: calc(var(--radius-xl) - 1px);
   }
+  /* a header with no body under it (Workers) has nothing to divide from */
+  & .head:last-child { border-bottom: 0; border-radius: calc(var(--radius-xl) - 1px); }
   /* A role's head stacks: identity row over endpoint line. */
-  & .head.role { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 4px; }
+  & .head.role { background: color-mix(in srgb, var(--role-color) 10%, var(--card)); flex-direction: column; flex-wrap: nowrap; align-items: stretch; justify-content: flex-start; gap: 4px; }
   & .headRow { display: flex; align-items: center; gap: 8px; min-width: 0; }
   & .headRow .tools { margin-left: auto; }
-  & .headSub { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; padding-left: 28px; }
+  & .headSub { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; }
   & .title { font-size: 0.875rem; font-weight: 600; }
-  & .tools { flex: none; display: inline-flex; align-items: center; gap: 4px; }
+  & .tools { flex: none; display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+  & .head:not(.role) .tools { gap: 8px; }
   /* Header icon buttons read as secondary buttons: a hairline-bordered surface at
      the same height as the Add model button beside them. */
   & .icons { display: inline-flex; align-items: center; gap: 4px; }
@@ -116,6 +120,11 @@
 
     &:hover:not(:disabled) { background: var(--accent); color: var(--accent-foreground); border-color: var(--ring); }
   }
+  & .settings {
+    display: flex; flex-direction: column; gap: 12px; padding: 12px 14px;
+    border: 1px solid var(--border); border-radius: var(--radius-xl);
+  }
+  & .settings h4 { margin: 0; font-size: 0.8125rem; font-weight: 600; }
   & .tunable { display: flex; gap: 8px; align-items: center; }
   & .tunable input, & .tunable select { max-width: 260px; }
   & .body {
@@ -131,4 +140,46 @@
 
 @media (prefers-reduced-motion: reduce) {
   .miniCard .waiting .downloadFill { animation: none; }
+}
+
+.modelTable {
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 0.5rem);
+  overflow: hidden;
+
+  & td:first-child { overflow-wrap: anywhere; }
+}
+
+.rowActions { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: nowrap; white-space: nowrap; gap: 6px; }
+
+.rowNote { display: block; font-size: 0.75rem; color: var(--muted-foreground); }
+
+.defaultTag {
+  margin-left: 8px;
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 6px;
+}
+
+.nameCell { display: flex; align-items: flex-start; gap: 10px; }
+.radioSpace { flex: none; width: 14px; }
+.radio {
+  flex: none; width: 14px; height: 14px; margin-top: 3px; padding: 0;
+  border: 1.5px solid var(--input); border-radius: 50%; background: transparent; cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+
+  &:hover:not(:disabled) { border-color: var(--primary); }
+  &.radioOn { border-color: var(--primary); background: radial-gradient(circle, var(--primary) 0 38%, transparent 42%); cursor: default; }
+  &:disabled { opacity: 1; }
+}
+.rowButton { min-width: 4.5rem; }
+.iconSpace { flex: none; width: var(--control-h); }
+
+.inlineTunable {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 0.75rem; color: var(--muted-foreground); white-space: nowrap;
+
+  & select { height: var(--control-h-sm); font-size: 0.75rem; padding: 0 1.75rem 0 0.5rem; }
 }

@@ -34,12 +34,20 @@ export function LogsCard({ role, initialOpen = false }) {
     }
   }, LOG_POLL_MS, { active: open && pageActive });
 
+  // Follow the newest line, like a live tail, until the reader scrolls up; scrolling back to the
+  // bottom resumes it. A fresh open starts at the bottom.
+  const followingRef = useRef(true);
+  const trackFollowing = () => {
+    const view = viewRef.current;
+    followingRef.current = view.scrollHeight - view.scrollTop - view.clientHeight < 24;
+  };
+
+  useEffect(() => { if (open) followingRef.current = true; }, [open]);
+
   useEffect(() => {
     const view = viewRef.current;
-    if (!view || !open) return;
-    const nearBottom = view.scrollHeight - view.scrollTop - view.clientHeight < 80;
-    if (nearBottom) view.scrollTop = view.scrollHeight;
-  }, [text, open]);
+    if (view && open && followingRef.current) view.scrollTop = view.scrollHeight;
+  }, [text, error, open]);
 
   return (
     <section class={styles.logsCard}>
@@ -51,7 +59,7 @@ export function LogsCard({ role, initialOpen = false }) {
       </button>
       {open && (
         <div class={styles.terminal}>
-          <pre ref={viewRef} class={styles.terminalBody}>{error || text || "loading…"}</pre>
+          <pre ref={viewRef} onScroll={trackFollowing} class={styles.terminalBody}>{error || text || "loading…"}</pre>
         </div>
       )}
     </section>

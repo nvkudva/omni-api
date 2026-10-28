@@ -15,7 +15,7 @@ from huggingface_hub import HfApi, constants, scan_cache_dir
 from huggingface_hub.errors import CacheNotFound, HfHubHTTPError
 
 from omni import config
-from omni.registry.roles import ROLE_SPECS, family, files, has_family, runner
+from omni.registry.roles import ROLE_SPECS, backend, family, files, has_family, runner
 from omni.supervisor import guard
 
 # what a Hub call can raise that a route should report as a bad gateway, not a crash
@@ -72,7 +72,7 @@ def held_size(role: str, repo_id: str) -> int | None:
     if ROLE_SPECS[role]["engine"] == "diffusers":
         parts = load_manifest(role, repo_id)
     else:
-        parts = [Part(repo_id, files(role), 0)]
+        parts = [Part(repo_id, files(role, repo_id), 0)]
     if not parts:
         return None
     sizes = [_cached_size(part) for part in parts]
@@ -123,7 +123,7 @@ def diffusers_files(repo: str) -> tuple[str, list[str]]:
     except Exception:  # noqa: BLE001 - a card's base_model may name the original, not the diffusers conversion
         repo = f"{repo}-Diffusers"
         index = json.loads(Path(hf_hub_download(repo, "model_index.json")).read_text())
-    others = [name for name, value in index.items() if isinstance(value, list) and value[0] and name != "transformer"]
+    others = [name for name, value in index.items() if isinstance(value, list) and isinstance(value[0], str) and value[0] and name != "transformer"]
     return repo, ["model_index.json", "transformer/config.json", *(f"{name}/*" for name in others)]
 
 
@@ -145,9 +145,17 @@ def bundle(role: str, repo_id: str) -> list[Part]:
     by side; the workers read the int8 ones. Asks the Hub, so call it before downloading, not to load.
     """
     siblings = HfApi().model_info(repo_id, files_metadata=True).siblings or []
-    patterns = files(role)
-    if patterns and any(_matching(sibling.rfilename, patterns) for sibling in siblings):
-        return [Part(repo_id, patterns, _size(siblings, patterns))]
+    # a pattern no file matches could never be satisfied, and would leave the model "not installed" forever
+    patterns = [pattern for pattern in files(role, repo_id) or []
+                if any(_matching(sibling.rfilename, [pattern]) for sibling in siblings)]
+    if patterns:
+        parts = [Part(repo_id, patterns, _size(siblings, patterns))]
+        base = ROLE_SPECS[role].get("bases", {}).get(backend(role, repo_id))
+        if base:
+            base_repo_id, base_patterns = base
+            base_siblings = HfApi().model_info(base_repo_id, files_metadata=True).siblings or []
+            parts.append(Part(base_repo_id, base_patterns, _size(base_siblings, base_patterns)))
+        return parts
     if ROLE_SPECS[role]["engine"] == "diffusers":
         pinned = _pinned(role, repo_id)
         file = pinned.get("file") or preferred_gguf([sibling.rfilename for sibling in siblings])
@@ -326,8 +334,36 @@ async def stop_process(process: asyncio.subprocess.Process) -> None:
     await process.wait()
 
 
+def _started_downloads() -> list[str]:
+    try:
+        return list(json.loads(config.DOWNLOADS.read_text()))
+    except (OSError, ValueError, TypeError):
+        return []
+
+
+def _save_started_downloads(repos: list[str]) -> None:
+    config.DOWNLOADS.parent.mkdir(parents=True, exist_ok=True)
+    config.DOWNLOADS.write_text(json.dumps(sorted(set(repos))))
+
+
+def remove_partial_downloads() -> int:
+    """Delete the `*.incomplete` files of repos omni started downloading and never finished; their count.
+
+    The Hugging Face cache is shared with other tools, so a repo omni did not start is left alone.
+    """
+    removed = 0
+    for repo_id in _started_downloads():
+        for partial in (cache_dir(repo_id) / "blobs").glob("*.incomplete"):
+            with contextlib.suppress(OSError):
+                partial.unlink()
+                removed += 1
+    _save_started_downloads([])
+    return removed
+
+
 async def download(repo_id: str, files: list[str] | None = None) -> None:
     """Download in a child process so cancelling really stops it. Raises OSError on failure."""
+    _save_started_downloads([*_started_downloads(), repo_id])
     process = await asyncio.create_subprocess_exec(
         *guard.command(download_command(repo_id, files)), stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.PIPE, start_new_session=True,
@@ -338,6 +374,7 @@ async def download(repo_id: str, files: list[str] | None = None) -> None:
         await asyncio.shield(stop_process(process))
     if process.returncode != 0:
         raise OSError(failure_message(stderr, process.returncode))
+    _save_started_downloads([repo for repo in _started_downloads() if repo != repo_id])
 
 
 def disk_usage_root() -> Path:

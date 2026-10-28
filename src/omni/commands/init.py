@@ -271,7 +271,7 @@ def warm_media(host: str, port: int, wanted_roles: tuple[str, ...]) -> int:
     """
     from omni.commands import lifecycle
 
-    if not lifecycle.gateway_pid():
+    if not lifecycle.gateway_pid() or lifecycle.is_stale():
         code = lifecycle.up(host, port)
         if code:
             return code
@@ -329,6 +329,13 @@ def run(all_media: bool = False) -> int:
             stop_started_ollama(server)
 
 
+def remove_partial_downloads() -> int:
+    """Delete the half-finished downloads omni itself started; a running gateway may be mid-download, so only when none is up."""
+    from omni.commands import lifecycle
+
+    return 0 if lifecycle.gateway_pid() else registry.huggingface.remove_partial_downloads()
+
+
 def _run(all_media: bool, started: list[subprocess.Popen]) -> int:
     try:
         settings = config.load()
@@ -343,6 +350,9 @@ def _run(all_media: bool, started: list[subprocess.Popen]) -> int:
 
     for line in plan_lines(settings, all_media):
         print(line)
+    leftovers = remove_partial_downloads()
+    if leftovers:
+        print(f"removed {leftovers} half-downloaded file(s) from interrupted omni downloads")
     present, installed_now = require_ollama()
     if not present:
         return 1

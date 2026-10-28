@@ -16,6 +16,7 @@ VIDEO_DIR = HOME / "videos"
 BUNDLE_DIR = HOME / "bundles"
 PIDFILE = RUN_DIR / "omni.pid"
 PINS = HOME / "pins.json"
+DOWNLOADS = HOME / "downloads.json"
 USER_CONFIG = HOME / "config.toml"
 CATALOG = Path(__file__).with_name("catalog.toml")
 OLLAMA_DEFAULT_PORT = 11434
@@ -262,7 +263,12 @@ def idle_seconds(settings: dict) -> float:
 
 
 def load_pins() -> list[str]:
-    """The roles whose models should stay resident, in role order. Unknown names are dropped."""
+    """The roles whose models should stay resident, in role order. Unknown names are dropped.
+
+    Before anything is saved, every role is warm; a saved choice, even an empty one, wins.
+    """
+    if not PINS.exists():
+        return list(ROLES)
     try:
         raw = json.loads(PINS.read_text())
     except (OSError, ValueError):

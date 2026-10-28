@@ -3,7 +3,7 @@
 
 .confirm {
   gap: 16px;
-  width: min(440px, 100%);
+  width: min(506px, 100%);
   padding: 24px;
 
   & .title {

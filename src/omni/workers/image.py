@@ -1,4 +1,4 @@
-"""Text to image: POST /v1/images/generations on Qwen-Image-2.1 through diffusers (MPS, bf16)."""
+"""Text to image: POST /v1/images/generations through diffusers on MPS: Qwen-Image-2.1 (bf16), Stable Diffusion 1.5 or SDXL-Lightning (fp16)."""
 import base64
 import io
 import json
@@ -9,11 +9,18 @@ from pathlib import Path
 from fastapi import HTTPException
 
 from omni import config, schemas, workers
+from omni.registry import roles
 from omni.workers import gguf
 
 settings = config.load()
 model_name = settings["image"]["model"]
 default_steps = settings["image"]["steps"]
+family = roles.backend("image", model_name)
+# The sampler each non-Qwen family was trained for. Qwen's step count is the `image.steps` setting.
+SAMPLING = {
+    "stable-diffusion-v1-5": {"steps": 25, "guidance_scale": 7.5},
+    "sdxl-lightning": {"steps": 4, "guidance_scale": 0.0},
+}
 
 _saved_sigmas: list[float] | None = None
 
@@ -33,13 +40,39 @@ def _read_saved_sigmas(repo: str) -> list[float] | None:
         return None
 
 
+def _default_steps() -> int:
+    return SAMPLING[family]["steps"] if family in SAMPLING else default_steps
+
+
 def _sigmas_for(steps: int) -> list[float] | None:
     if _saved_sigmas and len(_saved_sigmas) == steps:
         return _saved_sigmas
     return None
 
 
-def _load():
+def _load_stable_diffusion():
+    import torch
+    from diffusers import StableDiffusionPipeline
+
+    # no safety checker: it is a 1.2 GB download this worker never reads
+    return StableDiffusionPipeline.from_pretrained(
+        model_name, torch_dtype=torch.float16, variant="fp16", safety_checker=None, requires_safety_checker=False)
+
+
+def _load_lightning():
+    import torch
+    from diffusers import EulerDiscreteScheduler, StableDiffusionXLPipeline, UNet2DConditionModel
+    from safetensors.torch import load_file
+
+    weights, base = gguf.checkpoint("image", model_name)
+    unet = UNet2DConditionModel.from_config(base, subfolder="unet").to(torch.float16)
+    unet.load_state_dict(load_file(weights))
+    pipe = StableDiffusionXLPipeline.from_pretrained(base, unet=unet, torch_dtype=torch.float16, variant="fp16")
+    pipe.scheduler = EulerDiscreteScheduler.from_config(pipe.scheduler.config, timestep_spacing="trailing")
+    return pipe
+
+
+def _load_qwen():
     import torch
     from diffusers import QwenImage21Pipeline
 
@@ -56,9 +89,13 @@ def _load():
                                                    torch_dtype=torch.bfloat16)
     else:
         pipe = QwenImage21Pipeline.from_pretrained(model_name, torch_dtype=torch.bfloat16)
-    pipe = pipe.to("mps")
     _saved_sigmas = _read_saved_sigmas(base or model_name)
     return pipe
+
+
+def _load():
+    loaders = {"stable-diffusion-v1-5": _load_stable_diffusion, "sdxl-lightning": _load_lightning}
+    return loaders.get(family, _load_qwen)().to("mps")
 
 
 def _empty_cache() -> None:
@@ -77,9 +114,9 @@ def _generate(req: schemas.ImageRequest, width: int, height: int, steps: int) ->
 
     generator = None if req.seed is None else torch.Generator("mps").manual_seed(req.seed)
     with model.use() as pipe:
+        options = {"sigmas": _sigmas_for(steps)} if family not in SAMPLING else {"guidance_scale": SAMPLING[family]["guidance_scale"]}
         images = pipe(prompt=req.prompt, negative_prompt=req.negative_prompt, width=width, height=height,
-                      num_inference_steps=steps, sigmas=_sigmas_for(steps),
-                      num_images_per_prompt=req.n, generator=generator).images
+                      num_inference_steps=steps, num_images_per_prompt=req.n, generator=generator, **options).images
     encoded = []
     for image in images:
         buffer = io.BytesIO()
@@ -101,7 +138,7 @@ async def generations(req: schemas.ImageRequest) -> dict:
         width, height = schemas.parse_size(req.size, max_side=schemas.IMAGE_MAX_SIDE, align=schemas.IMAGE_ALIGN)
     except ValueError as error:
         raise HTTPException(400, str(error)) from error
-    steps = req.steps if req.steps is not None else default_steps
+    steps = req.steps if req.steps is not None else _default_steps()
     images = await executor.run_request(_generate, req, width, height, steps)
     return {"created": int(time.time()), "model": model_name, "size": f"{width}x{height}",
             "data": [{"b64_json": image, "revised_prompt": None} for image in images]}
