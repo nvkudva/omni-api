@@ -125,7 +125,7 @@ describe("a role's setup card", () => {
   test("a worker role's card has a start/stop switch and a keep-warm switch inside Settings", () => {
     const html = render(<RoleModelCard density="detail" role="image" entry={READY_ENTRY} pinned onChanged={noop} />);
     expect(html).toContain("<h4>Settings</h4>");
-    expect(html).toContain('aria-label="stop Image"');
+    expect(html).toContain(">Stop<");
     expect(html).toContain('aria-label="stop keeping warm Image"');
     expect(html).toContain(">Stop<");
     expect(html).toContain(">Restart<");
@@ -375,22 +375,23 @@ describe("the sidebar card", () => {
     const html = sidebar("tts", { status: "ready" });
     expect(html).toContain(">idle · not loaded<");
     expect(html).not.toContain(">loaded<");
-    expect(html).toContain('role="switch"');
+    expect(html).toContain(">Stop<");
   });
 
-  test("a stopped worker's switch is off and starts it", () => {
+  test("a stopped worker's card offers Start", () => {
     const html = sidebar("tts", { status: "stopped" });
     expect(html).toContain(">off<");
     expect(html).toContain("Start the Text to speech worker");
-    expect(html).toContain('aria-label="start Text to speech"');
-    expect(html).toContain('aria-checked="false"');
+    expect(html).toContain(">Start<");
+    expect(html).not.toContain('role="switch"');
   });
 
-  test("a running worker's switch is on and stops it, whether or not it is kept warm", () => {
+  test("a running worker's card offers Stop", () => {
     const html = sidebar("tts", { status: "ready" });
     expect(html).toContain("Stop the Text to speech worker");
-    expect(html).toContain('aria-label="stop Text to speech"');
-    expect(html).toContain('aria-checked="true"');
+    expect(html).toContain(">Stop<");
+    expect(html).not.toContain(">Start<");
+    expect(html).not.toContain('role="switch"');
   });
 
   test("a failed worker offers Start too", () => {

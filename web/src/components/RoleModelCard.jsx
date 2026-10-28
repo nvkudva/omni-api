@@ -536,14 +536,14 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
           <ui.IconButton class={styles.footAction} icon="download" label={`Set up ${state.label}`} disabled={installing} size={14} onClick={explain} />
         )}
         {action === "run" && (
-          <WarmSwitch
-            pinned={!stopped}
-            busy={runBusy}
-            disabled={checking}
-            label={`${stopped ? "start" : "stop"} ${state.label}`}
+          <ui.Button
+            small
+            disabled={runBusy || checking}
             title={stopped ? `Start the ${state.label} worker` : `Stop the ${state.label} worker`}
             onClick={flipRun}
-          />
+          >
+            {stopped ? "Start" : "Stop"}
+          </ui.Button>
         )}
         {action === "server" && (
           <ui.IconButton class={styles.footAction} icon="server" label="Open the server controls" size={14} onClick={server} />
@@ -614,19 +614,11 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
       tools={<ui.Button small onClick={() => onAdd?.(role)}>Add model</ui.Button>}
       warmToggle={workerRole ? (
         <>
-          <WarmSwitch
-            pinned={!workerStopped}
-            busy={runBusy}
-            disabled={!status || status === "unknown"}
-            label={`${workerStopped ? "start" : "stop"} ${label}`}
-            title={workerStopped ? `Start the ${label} worker` : `Stop the ${label} worker`}
-            onClick={flipRun}
-          />
           {workerStopped
-            ? <ui.Button small disabled={runBusy} onClick={flipRun}>Start</ui.Button>
+            ? <ui.Button small disabled={runBusy || !status || status === "unknown"} title={`Start the ${label} worker`} onClick={flipRun}>Start</ui.Button>
             : (
               <>
-                <ui.Button small disabled={runBusy} onClick={flipRun}>Stop</ui.Button>
+                <ui.Button small disabled={runBusy} title={`Stop the ${label} worker`} onClick={flipRun}>Stop</ui.Button>
                 <ui.Button small disabled={busy} onClick={restartWorker}>Restart</ui.Button>
               </>
             )}
