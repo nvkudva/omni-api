@@ -1,4 +1,4 @@
-"""Text to speech: POST /v1/audio/speech and GET /v1/audio/voices on Kokoro through ONNX Runtime."""
+"""Text to speech: POST /v1/audio/speech and GET /v1/audio/voices on Kokoro, Kitten TTS or Supertonic through ONNX Runtime."""
 import io
 import json
 import re
@@ -11,8 +11,8 @@ from fastapi.responses import Response
 
 from omni import config, schemas, workers
 from omni.registry import roles
+from omni.workers import tts_engines
 
-VOICES = schemas.TTS_VOICES
 SAMPLE_RATE = 24000
 # The model reads at most 510 phoneme tokens at once; the two pad tokens make 512.
 MAX_PHONEMES = 500
@@ -20,14 +20,16 @@ STYLE_SIZE = 256
 
 settings = config.load()
 model_name = settings["tts"]["model"]
-default_voice = settings["tts"]["voice"]
-# fail fast on a bad shipped default instead of on the first request
-if default_voice not in VOICES:
-    raise config.ConfigError(f"tts.voice {default_voice!r} is not a known Kokoro voice")
+VOICES = roles.tts_voices(model_name)
+# a configured voice from another family (the shipped default is a Kokoro one) falls back to this model's own
+default_voice = roles.tts_default_voice(model_name, settings["tts"]["voice"])
+# fail fast on a model no engine here loads instead of on the first request
+roles.require("tts", model_name)
 
 
 class Speaker:
-    """The ONNX session, the phoneme vocabulary and per-accent text-to-phoneme converters."""
+    """Kokoro: the ONNX session, the phoneme vocabulary and per-accent text-to-phoneme converters."""
+    sample_rate = SAMPLE_RATE
 
     def __init__(self, folder: Path):
         import onnxruntime
@@ -55,6 +57,11 @@ class Speaker:
             self.styles[voice] = np.fromfile(path, dtype=np.float32).reshape(-1, STYLE_SIZE)
         return self.styles[voice]
 
+    def synthesize(self, text: str, voice: str, speed: float) -> np.ndarray:
+        pieces = [self.phonemes(sentence, voice[0]) for sentence in _sentences(text)]
+        audio = [self.speak(chunk, voice, speed) for chunk in _phoneme_chunks(pieces)]
+        return np.concatenate(audio) if audio else np.zeros(0, dtype=np.float32)
+
     def speak(self, phonemes: str, voice: str, speed: float) -> np.ndarray:
         ids = [self.token_ids[char] for char in phonemes if char in self.token_ids]
         if not ids:
@@ -68,11 +75,14 @@ class Speaker:
         return np.asarray(outputs[0], dtype=np.float32).reshape(-1)
 
 
-def _load() -> Speaker:
+ENGINES = {"kokoro": Speaker, "kitten": tts_engines.Kitten, "supertonic": tts_engines.Supertonic}
+
+
+def _load():
     from huggingface_hub import snapshot_download
 
-    roles.require("tts", model_name)
-    return Speaker(Path(snapshot_download(model_name, allow_patterns=roles.files("tts"))))
+    folder = Path(snapshot_download(model_name, allow_patterns=roles.files("tts", model_name)))
+    return ENGINES[roles.backend("tts", model_name)](folder)
 
 
 model = workers.Lazy(_load)
@@ -101,11 +111,9 @@ def _phoneme_chunks(phoneme_pieces: list[str]) -> list[str]:
     return chunks
 
 
-def _synthesize(text: str, voice: str, speed: float) -> np.ndarray:
-    with model.use() as speaker:
-        pieces = [speaker.phonemes(sentence, voice[0]) for sentence in _sentences(text)]
-        audio = [speaker.speak(chunk, voice, speed) for chunk in _phoneme_chunks(pieces)]
-    return np.concatenate(audio) if audio else np.zeros(0, dtype=np.float32)
+def _synthesize(text: str, voice: str, speed: float) -> tuple[np.ndarray, int]:
+    with model.use() as engine:
+        return engine.synthesize(text, voice, speed), engine.sample_rate
 
 
 def _pcm16(samples: np.ndarray) -> bytes:
@@ -139,10 +147,10 @@ async def speech(req: schemas.SpeechRequest) -> Response:
     voice = req.voice or default_voice
     if voice not in VOICES:
         raise HTTPException(422, f"unknown voice {voice!r}; GET /v1/audio/voices lists them")
-    samples = await executor.run_request(_synthesize, req.input, voice, req.speed)
+    samples, sample_rate = await executor.run_request(_synthesize, req.input, voice, req.speed)
     if samples.size == 0:
         raise HTTPException(400, "input: nothing speakable in this text")
     pcm = _pcm16(samples)
     if req.response_format == "pcm":
-        return Response(pcm, media_type="audio/pcm", headers={"x-sample-rate": str(SAMPLE_RATE)})
-    return Response(_wav(pcm, SAMPLE_RATE), media_type="audio/wav")
+        return Response(pcm, media_type="audio/pcm", headers={"x-sample-rate": str(sample_rate)})
+    return Response(_wav(pcm, sample_rate), media_type="audio/wav")

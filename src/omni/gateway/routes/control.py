@@ -6,7 +6,7 @@ import psutil
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from omni import config, logs, schemas, version
+from omni import config, logs, registry, version
 from omni.commands import lifecycle
 from omni.errors import error_response
 from omni.gateway.context import Context
@@ -65,8 +65,9 @@ def register(app: FastAPI, ctx: Context) -> None:
         candidate[section][key] = value
         try:
             config.validate(candidate)
-            if (section, key) == ("tts", "voice") and value not in schemas.TTS_VOICES:
-                raise config.ConfigError(f"tts.voice: one of {', '.join(schemas.TTS_VOICES)}")
+            voices = registry.tts_voices(settings["tts"]["model"])
+            if (section, key) == ("tts", "voice") and value not in voices:
+                raise config.ConfigError(f"tts.voice: one of {', '.join(voices)}")
         except config.ConfigError as error:
             return error_response(400, str(error), "invalid_request_error")
         config.save_override(section, key, value)

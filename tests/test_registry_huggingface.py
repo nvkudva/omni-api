@@ -48,12 +48,12 @@ class FakeSizeApi:
 
 
 class Bundle(unittest.TestCase):
-    def bundle(self, role, siblings, pinned=None):
+    def bundle(self, role, siblings, pinned=None, repo="unsloth/Qwen-Image-2.1-Turbo-GGUF"):
         with patch.object(huggingface, "HfApi", return_value=FakeSizeApi(siblings)), \
                 patch.object(huggingface, "_pinned", return_value=pinned or {}), \
                 patch.object(huggingface, "base_repo", return_value="Qwen/Qwen-Image-2.1-Turbo"), \
                 patch.object(huggingface, "diffusers_files", side_effect=lambda repo: (repo, ["vae/*"])):
-            return huggingface.bundle(role, "unsloth/Qwen-Image-2.1-Turbo-GGUF")
+            return huggingface.bundle(role, repo)
 
     def test_a_quant_repo_takes_the_eight_bit_file_and_the_base_behind_it(self):
         parts = self.bundle("image", [FakeSibling("turbo-F16.gguf", 14_230_000_000),
@@ -77,8 +77,14 @@ class Bundle(unittest.TestCase):
     def test_a_speech_repo_takes_only_the_files_its_runtime_reads(self):
         parts = self.bundle("tts", [FakeSibling("config.json", 1), FakeSibling("tokenizer.json", 1),
                                     FakeSibling("onnx/model_quantized.onnx", 90), FakeSibling("onnx/model.onnx", 300),
-                                    FakeSibling("voices/af.bin", 5)])
+                                    FakeSibling("voices/af.bin", 5)], repo="onnx-community/Kokoro-82M-v1.0-ONNX")
         self.assertEqual(parts[0].size, 97)
+
+    def test_a_pattern_no_file_matches_is_dropped_so_the_repo_can_count_as_installed(self):
+        parts = self.bundle("stt", [FakeSibling("config.json", 1), FakeSibling("model.safetensors", 100),
+                                    FakeSibling("modeling.py.txt", 1)], repo="UsefulSensors/moonshine-tiny")
+        self.assertEqual(parts[0].files, ["*.json", "*.safetensors"])
+        self.assertEqual(parts[0].size, 101)
 
 
 class HeldSize(unittest.TestCase):

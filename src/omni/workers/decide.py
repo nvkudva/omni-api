@@ -15,7 +15,7 @@ from fastapi import HTTPException
 from omni import config, schemas, workers
 from omni.inference import vega
 from omni.registry import roles
-from omni.workers import pictures
+from omni.workers import decide_engines, pictures
 
 MAX_QUESTIONS = 32
 MAX_STATE_CHARS = 20000
@@ -127,11 +127,16 @@ class Decider:
         return vega.answer(rendered, vega.decide_one(self.config, rendered, engine)), length
 
 
-def _load() -> Decider:
+def _load():
     from huggingface_hub import snapshot_download
 
     roles.require("decide", model_name)
-    return Decider(_real_files(Path(snapshot_download(model_name, allow_patterns=roles.files("decide"))) / RELEASE))
+    roles.require_backend_deps("decide", model_name)
+    backend = roles.backend("decide", model_name)
+    folder = Path(snapshot_download(model_name, allow_patterns=roles.files("decide", model_name)))
+    if backend == "vega":
+        return Decider(_real_files(folder / RELEASE))
+    return {"laya": decide_engines.Laya, "gliner2": decide_engines.Gliner}[backend](folder)
 
 
 model = workers.Lazy(_load)
@@ -143,6 +148,15 @@ def _decide_all(state_text: str, rendered: dict[str, dict], picture_bytes: bytes
     answers = {}
     prompt_tokens = 0
     with model.use() as decider:
+        if picture_bytes is not None and not getattr(decider, "reads_images", True):
+            raise HTTPException(400, f"image: {model_name} reads text only")
+        if hasattr(decider, "decide_all"):
+            try:
+                answers, prompt_tokens = decider.decide_all(state_text, rendered)
+            except ValueError as error:
+                raise HTTPException(400, f"questions: {error}") from error
+            return {"model": model_name, "answers": answers,
+                    "usage": {"prompt_tokens": prompt_tokens, "completion_tokens": 0, "total_tokens": prompt_tokens}}
         image = None
         if picture_bytes is not None:
             from PIL import Image

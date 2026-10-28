@@ -72,7 +72,7 @@ def held_size(role: str, repo_id: str) -> int | None:
     if ROLE_SPECS[role]["engine"] == "diffusers":
         parts = load_manifest(role, repo_id)
     else:
-        parts = [Part(repo_id, files(role), 0)]
+        parts = [Part(repo_id, files(role, repo_id), 0)]
     if not parts:
         return None
     sizes = [_cached_size(part) for part in parts]
@@ -145,8 +145,10 @@ def bundle(role: str, repo_id: str) -> list[Part]:
     by side; the workers read the int8 ones. Asks the Hub, so call it before downloading, not to load.
     """
     siblings = HfApi().model_info(repo_id, files_metadata=True).siblings or []
-    patterns = files(role)
-    if patterns and any(_matching(sibling.rfilename, patterns) for sibling in siblings):
+    # a pattern no file matches could never be satisfied, and would leave the model "not installed" forever
+    patterns = [pattern for pattern in files(role, repo_id) or []
+                if any(_matching(sibling.rfilename, [pattern]) for sibling in siblings)]
+    if patterns:
         return [Part(repo_id, patterns, _size(siblings, patterns))]
     if ROLE_SPECS[role]["engine"] == "diffusers":
         pinned = _pinned(role, repo_id)

@@ -1,8 +1,9 @@
-"""Speech to text: POST /v1/audio/transcriptions on Parakeet through onnx-asr (int8 ONNX)."""
+"""Speech to text: POST /v1/audio/transcriptions on Parakeet (int8 ONNX through onnx-asr), or Moonshine, Whisper and oruk through transformers."""
 import asyncio
 import subprocess
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Annotated
 
 import numpy as np
@@ -22,11 +23,52 @@ settings = config.load()
 model_name = settings["stt"]["model"]
 
 
-def _load():
-    import onnx_asr
+# transformers cuts audio into pieces of this length and joins their text
+PIPELINE_CHUNK_SECONDS = 30
+# oruk's repo ships its own modeling code, which transformers must execute: only this exact repo is trusted,
+# since the family marker alone would match any repo with "oruk" in its name
+TRUSTED_REMOTE_CODE = ("oruk/oruk-loop-153M",)
 
+
+class PipelineTranscriber:
+    """Moonshine and Whisper through the transformers speech pipeline, on the CPU."""
+
+    def __init__(self, folder: Path):
+        from transformers import pipeline
+
+        self.pipe = pipeline("automatic-speech-recognition", model=str(folder), device="cpu")
+
+    def recognize(self, samples: np.ndarray, sample_rate: int):
+        out = self.pipe({"raw": samples, "sampling_rate": sample_rate}, chunk_length_s=PIPELINE_CHUNK_SECONDS)
+        return SimpleNamespace(text=out["text"], tokens=None, timestamps=None)
+
+
+class OrukTranscriber:
+    """oruk-loop: the repo's own `transcribe`, which cuts long audio itself."""
+
+    def __init__(self, folder: Path):
+        from transformers import AutoModel, AutoProcessor
+
+        self.model = AutoModel.from_pretrained(str(folder), trust_remote_code=True, device="cpu")
+        self.processor = AutoProcessor.from_pretrained(str(folder))
+
+    def recognize(self, samples: np.ndarray, sample_rate: int):
+        return SimpleNamespace(text=self.model.transcribe((samples, sample_rate), self.processor), tokens=None, timestamps=None)
+
+
+def _load():
     roles.require("stt", model_name)
-    return onnx_asr.load_model(model_name, quantization="int8").with_timestamps()
+    backend = roles.backend("stt", model_name)
+    if backend == "parakeet":
+        import onnx_asr
+
+        return onnx_asr.load_model(model_name, quantization="int8").with_timestamps()
+    from huggingface_hub import snapshot_download
+
+    if backend == "oruk" and model_name not in TRUSTED_REMOTE_CODE:
+        raise config.ConfigError(f"stt.model {model_name!r} would run code from its repo; only {', '.join(TRUSTED_REMOTE_CODE)} is trusted to")
+    folder = Path(snapshot_download(model_name, allow_patterns=roles.files("stt", model_name)))
+    return (OrukTranscriber if backend == "oruk" else PipelineTranscriber)(folder)
 
 
 model = workers.Lazy(_load)
@@ -75,7 +117,11 @@ def _transcribe(path: Path) -> tuple[str, list[dict]]:
             result = transcriber.recognize(samples[begin:begin + window], sample_rate=SAMPLE_RATE)
             texts.append(result.text.strip())
             segments += _segments(result.tokens or [], result.timestamps or [], begin / SAMPLE_RATE)
-    return " ".join(text for text in texts if text), segments
+    text = " ".join(text for text in texts if text)
+    if text and not segments:
+        # the transformers models report no token times, so the whole file is one segment
+        segments = [{"start": 0.0, "end": round(len(samples) / SAMPLE_RATE, 2), "text": text}]
+    return text, segments
 
 
 def _write_upload(upload, data: bytes) -> None:
