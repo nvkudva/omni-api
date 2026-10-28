@@ -38,9 +38,9 @@ Install the omni CLI.
   curl -fsSL https://raw.githubusercontent.com/nvkudva/omni-api/main/install.sh | sh
 
 Options:
-  --from SPEC      Install from a uv tool spec instead of the main branch
-                   (a local path, a git URL, or a package name). A local
-                   checkout on Apple Silicon also gets the media extra.
+  --from SPEC      Install from a local path, a git+ or https URL, or a package
+                   name instead of the main branch. Paths and URLs also get the
+                   media extra where it applies; not with --version.
   --version TAG    Install the release tag TAG (v0.2.0 counts as 0.2.0).
   --init           Run `omni init` afterwards: install Ollama and pull the
                    chat, decide and embed models (a few GB).
@@ -179,6 +179,59 @@ if [ ! -w "$BIN_DIR" ]; then
     "or fix the permissions: chmod u+w \"$BIN_DIR\""
 fi
 
+# --- what to install --------------------------------------------------------
+require_git() {
+  have git && git --version >/dev/null 2>&1 && [ "$(git --version 2>&1 | cut -d' ' -f1)" = "git" ] && return 0
+  die "git is not usable on this machine" \
+    "macOS: xcode-select --install" \
+    "Debian/Ubuntu: sudo apt install git" \
+    "then rerun this script"
+}
+
+[ -z "$SOURCE" ] || [ -z "$VERSION" ] || die "--version cannot be combined with --from" \
+  "pin the release inside the source instead, for example git+$REPO@v0.9.0" \
+  "or drop --from to install a release tag"
+
+if [ -n "$SOURCE" ]; then
+  if [ -d "$SOURCE" ]; then
+    [ -f "$SOURCE/pyproject.toml" ] || die "$SOURCE has no pyproject.toml, so it is not an omni-api checkout" \
+      "point --from at the repository root" \
+      "or drop --from to install the published main branch"
+    SOURCE="$(cd "$SOURCE" && pwd)"
+    encoded="$(printf '%s' "$SOURCE" | sed 's/%/%25/g; s/ /%20/g; s/#/%23/g; s/?/%3F/g')"
+    spec="omni-api$EXTRAS @ file://$encoded"
+  else
+    case "$SOURCE" in
+      git+*|http://*|https://*|file://*) spec="omni-api$EXTRAS @ $SOURCE" ;;
+      *)
+        spec="$SOURCE"
+        if [ -n "$EXTRAS" ]; then
+          warn "--from $SOURCE is a package name, so the media extra is not added"
+          EXTRAS=""
+        fi
+        ;;
+    esac
+  fi
+else
+  require_git
+  if ! git ls-remote --exit-code "$REPO" HEAD > /dev/null 2>&1; then
+    die "cannot reach $REPO" \
+      "check your network connection (and any proxy or VPN), then rerun" \
+      "or install from a local checkout: --from /path/to/omni-api"
+  fi
+  ref="$DEFAULT_REF"
+  if [ -n "$VERSION" ]; then
+    ref="$VERSION"
+    case "$ref" in v*) ;; *) ref="v$ref" ;; esac
+    if ! git ls-remote --exit-code --tags "$REPO" "refs/tags/$ref" > /dev/null 2>&1; then
+      released="$(git ls-remote --tags --refs "$REPO" 2>/dev/null | awk -F'refs/tags/' '{print $2}' | sort -V | tail -5 | tr '\n' ' ' | sed 's/ *$//')"
+      die "release $ref does not exist" \
+        "available releases: ${released:-none yet}" \
+        "or drop --version to install the latest main branch"
+    fi
+  fi
+  spec="omni-api$EXTRAS @ git+$REPO@$ref"
+fi
 # --- uv ---------------------------------------------------------------------
 install_uv_via_script() {
   have curl || die "curl is missing, so uv cannot be downloaded" \
@@ -217,59 +270,24 @@ fi
 install_ffmpeg() {
   have ffmpeg && return 0
   say "ffmpeg is not installed; the stt and video workers need it."
+  ffmpeg_log="$WORK/ffmpeg.log"
+  : > "$ffmpeg_log"
   if have brew; then
-    HOMEBREW_NO_AUTO_UPDATE=1 brew install ffmpeg < /dev/null > "$LOG" 2>&1 && return 0
-  elif have apt-get; then
+    HOMEBREW_NO_AUTO_UPDATE=1 brew install ffmpeg < /dev/null >> "$ffmpeg_log" 2>&1 && return 0
+  fi
+  if have apt-get; then
     if [ "$(id -u)" -eq 0 ]; then
-      apt-get install -y ffmpeg < /dev/null > "$LOG" 2>&1 && return 0
+      apt-get install -y ffmpeg < /dev/null >> "$ffmpeg_log" 2>&1 && return 0
     elif have sudo; then
-      sudo apt-get install -y ffmpeg < /dev/null > "$LOG" 2>&1 && return 0
+      sudo apt-get install -y ffmpeg < /dev/null >> "$ffmpeg_log" 2>&1 && return 0
     fi
   fi
+  tail -n 10 "$ffmpeg_log" >&2
   warn "could not install ffmpeg; stt and video will not work until you do"
-  warn "  macOS: brew install ffmpeg    Debian/Ubuntu: sudo apt install ffmpeg"
+  warn "  macOS: brew install ffmpeg    Debian/Ubuntu: sudo apt update && sudo apt install ffmpeg"
 }
 [ -z "$EXTRAS" ] || install_ffmpeg
 
-# --- what to install --------------------------------------------------------
-require_git() {
-  have git && git --version >/dev/null 2>&1 && [ "$(git --version 2>&1 | cut -d' ' -f1)" = "git" ] && return 0
-  die "git is not usable on this machine" \
-    "macOS: xcode-select --install" \
-    "Debian/Ubuntu: sudo apt install git" \
-    "then rerun this script"
-}
-
-if [ -n "$SOURCE" ]; then
-  if [ -d "$SOURCE" ]; then
-    [ -f "$SOURCE/pyproject.toml" ] || die "$SOURCE has no pyproject.toml, so it is not an omni-api checkout" \
-      "point --from at the repository root" \
-      "or drop --from to install the published main branch"
-    SOURCE="$(cd "$SOURCE" && pwd)"
-    spec="omni-api$EXTRAS @ file://$SOURCE"
-  else
-    spec="$SOURCE"
-  fi
-else
-  require_git
-  if ! git ls-remote --exit-code "$REPO" HEAD > /dev/null 2>&1; then
-    die "cannot reach $REPO" \
-      "check your network connection (and any proxy or VPN), then rerun" \
-      "or install from a local checkout: --from /path/to/omni-api"
-  fi
-  ref="$DEFAULT_REF"
-  if [ -n "$VERSION" ]; then
-    ref="$VERSION"
-    case "$ref" in v*) ;; *) ref="v$ref" ;; esac
-    if ! git ls-remote --exit-code --tags "$REPO" "refs/tags/$ref" > /dev/null 2>&1; then
-      released="$(git ls-remote --tags --refs "$REPO" 2>/dev/null | awk -F'refs/tags/' '{print $2}' | sort -V | tail -5 | tr '\n' ' ' | sed 's/ *$//')"
-      die "release $ref does not exist" \
-        "available releases: ${released:-none yet}" \
-        "or drop --version to install the latest main branch"
-    fi
-  fi
-  spec="omni-api$EXTRAS @ git+$REPO@$ref"
-fi
 # --- install ----------------------------------------------------------------
 say "installing omni from $spec"
 if [ -n "$EXTRAS" ]; then
@@ -280,8 +298,16 @@ export UV_TOOL_BIN_DIR="$BIN_DIR"
 # torch wheels are large; uv's 30s default read timeout fails on slow links.
 export UV_HTTP_TIMEOUT="${UV_HTTP_TIMEOUT:-120}"
 
+# uv applies [tool.uv.sources] only to the root project, and omni-api is a dependency here,
+# so the media extra's two pinned sources are repeated. Keep them equal to pyproject.toml.
+pinned_sources=""
+if [ -n "$EXTRAS" ]; then
+  pinned_sources="--with diffusers@git+https://github.com/huggingface/diffusers@4295ee3ec58efa6577bc459e9b84ca3f63aa9a96 --with en-core-web-sm@https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl"
+fi
+
 run_uv_install() {
-  uv tool install --force --python 3.12 "$spec" < /dev/null 2>&1
+  # shellcheck disable=SC2086
+  uv tool install --force --python 3.12 $pinned_sources "$spec" < /dev/null 2>&1
   echo $? > "$WORK/uv.status"
 }
 
@@ -298,7 +324,7 @@ show_uv_steps() {
 # Cloning and building the git packages prints nothing for a while; say we are alive.
 heartbeat() {
   started=$(date +%s)
-  while sleep 20; do
+  while sleep 20 > /dev/null 2>&1; do
     say "  still working... $(( $(date +%s) - started ))s elapsed (downloads and builds can be quiet)"
   done
 }
@@ -311,10 +337,7 @@ kill "$heartbeat_pid" 2>/dev/null
 wait "$heartbeat_pid" 2>/dev/null
 if [ "$(cat "$WORK/uv.status" 2>/dev/null)" != "0" ]; then
   tail -n 20 "$LOG" >&2
-  if grep -qi "failed to download\|error sending request\|dns error\|timed out\|connection" "$LOG"; then
-    die "could not download the Python packages" \
-      "check your network connection (and any proxy or VPN), then rerun"
-  elif grep -qi "couldn't find remote ref\|could not find remote ref\|repository not found" "$LOG"; then
+  if grep -qi "couldn't find remote ref\|could not find remote ref\|repository not found" "$LOG"; then
     die "the branch or tag in the install source does not exist" \
       "check what follows @ in: $spec" \
       "for a release, use --version TAG instead"
@@ -330,6 +353,9 @@ if [ "$(cat "$WORK/uv.status" 2>/dev/null)" != "0" ]; then
     die "the dependencies could not be resolved" \
       "install from a checkout to rule out the git source: --from /path/to/omni-api" \
       "if it still fails, open an issue: https://github.com/nvkudva/omni-api/issues"
+  elif grep -qi "failed to download\|error sending request\|dns error\|timed out\|connection refused\|connection reset\|connection closed" "$LOG"; then
+    die "could not download the Python packages" \
+      "check your network connection (and any proxy or VPN), then rerun"
   else
     die "uv tool install failed (the last 20 lines are above)" \
       "retry once: the network or the git host may have been flaky" \
@@ -383,7 +409,6 @@ if [ "$on_path" -eq 0 ]; then
         say "$rc already mentions $BIN_DIR"
       elif printf '\n# omni\n%s\n' "$fish_line" >> "$rc" 2>/dev/null; then
         say "added $BIN_DIR to PATH in $rc (open a new terminal to use it)"
-        on_path=1
       else
         warn "could not write to $rc; add this by hand:"
         warn "  $fish_line"

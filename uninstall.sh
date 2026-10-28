@@ -21,13 +21,21 @@ die() {
 }
 have() { command -v "$1" >/dev/null 2>&1; }
 
-for arg do
+while [ $# -gt 0 ]; do
+  arg=$1
+  shift
   case "$arg" in
     --purge) PURGE=1 ;;
+    --bin-dir)
+      [ $# -ge 1 ] || die "--bin-dir needs a value" "example: --bin-dir \"\$HOME/bin\""
+      BIN_DIR=$1
+      shift
+      ;;
     -h|--help)
       cat <<'USAGE'
 Uninstall the omni CLI.
 
+  --bin-dir DIR  Where install.sh put `omni` (default ~/.local/bin).
   --purge    Also delete ~/.omni-api (or $OMNI_HOME): config, pins, sockets, logs.
   -h, --help Show this text.
 
@@ -71,11 +79,13 @@ if [ "$PURGE" -eq 1 ]; then
     /*) ;;
     *) die "refusing to delete '$OMNI_STATE'" "OMNI_HOME must be omni's state directory, an absolute path (default ~/.omni-api)" ;;
   esac
-  trimmed="${OMNI_STATE%/}"
-  [ -n "$trimmed" ] || trimmed="/"
-  case "$trimmed" in
-    /|"$HOME") die "refusing to delete '$OMNI_STATE'" "point OMNI_HOME at omni's state directory, not your home" ;;
-  esac
+  if [ -d "$OMNI_STATE" ]; then
+    resolved_state="$(cd "$OMNI_STATE" && pwd -P)"
+    resolved_home="$(cd "$HOME" && pwd -P)"
+    case "$resolved_state" in
+      /|"$resolved_home"|"$(dirname "$resolved_home")") die "refusing to delete '$OMNI_STATE'" "point OMNI_HOME at omni's state directory, not your home or a parent of it" ;;
+    esac
+  fi
   rm -rf "$OMNI_STATE"
   say "deleted $OMNI_STATE"
 else
