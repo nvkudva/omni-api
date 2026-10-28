@@ -177,7 +177,6 @@ describe("keeping a model warm", () => {
     const html = render(<App />);
     expect(html).toContain(">loaded · kept<");
     expect(html).toContain(">Unload<");
-    expect(html).toContain("stop keeping warm Chat");
   });
 
   test("a pinned role whose model is still loading says so", () => {
@@ -198,7 +197,6 @@ describe("keeping a model warm", () => {
     seed();
     const html = render(<App />);
     expect(html).not.toContain(">loaded · kept<");
-    expect(html).toContain("keep warm Chat");
   });
 });
 

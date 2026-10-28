@@ -121,38 +121,44 @@ function useWarmToggle(role, model, pinned, { onChanged, onProblem } = {}) {
 }
 
 /**
- * The run switch of a worker role: off starts the worker omni supervises, on stops it. The card
- * reads the runtime signal, which polls on its own, but a person who just pressed a switch should
- * not wait for the next tick, so it polls once more before it settles.
+ * The Load / Unload button every role shares. Load brings the role up if its worker is down, then
+ * loads the model; Unload frees the model, and also stops keeping it warm, or the keep-warm loop
+ * would load it straight back.
  */
-function useRunSwitch(role, running, { onChanged, onProblem } = {}) {
+function useLoadToggle(role, { onChanged, onProblem } = {}) {
   const [busy, setBusy] = useState(false);
   const label = ROLE_META[role]?.label ?? role;
-  const flip = async (event) => {
+  const toggle = async (event) => {
     event?.stopPropagation();
-    if (running) {
-      const confirmed = await ask({
-        title: `Stop ${label}?`,
-        message: `In-flight ${label} requests will be interrupted.`,
-        confirmLabel: "Stop",
-        tone: "danger",
-      });
-      if (!confirmed) return;
-    }
+    const { model, loaded, status, pinned } = { ...runtime.value.roles[role], pinned: runtime.value.pins?.includes(role) };
+    const wasStopped = status === "stopped" || status === "failed";
     setBusy(true);
     onProblem?.("");
     try {
-      await workerAction(role, running ? "stop" : "start");
+      if (loaded) {
+        await (pinned ? setPinned(role, false) : setResidency(role, false, model));
+      } else {
+        if (wasStopped) await workerAction(role, "start");
+        try {
+          await withForce((options) => setResidency(role, true, model, options), {
+            title: `Load ${label} anyway?`,
+            message: `${model} on this machine:`,
+          });
+        } catch (error) {
+          // a worker that was just started is not answering yet; its first request loads the model
+          if (!wasStopped) throw error;
+        }
+      }
       await pollRuntime();
-      onChanged?.(`${running ? "stopped" : "started"} the ${label} worker`);
+      onChanged?.(loaded ? `unloaded ${model}` : `loading ${model}`);
     } catch (error) {
       onProblem?.(error.message);
-      notify(error.message, { title: `Could not ${running ? "stop" : "start"} ${label}` });
+      notify(error.message, { title: `Could not ${loaded ? "unload" : "load"} ${label}` });
     } finally {
       setBusy(false);
     }
   };
-  return [busy, flip];
+  return [busy, toggle];
 }
 
 /** The keep-warm switch. Mini puts it in the card's footer and detail in the
@@ -444,23 +450,16 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
   // Loading and starting have no byte count, so their bar pulses instead of filling.
   const working = installing || status === "loading" || status === "starting";
   const fraction = installing ? download.fraction || 0 : 0;
-  const [warmBusy, flipWarm] = useWarmToggle(role, state.model, pinned, { onProblem: setProblem });
   const stopped = status === "stopped" || status === "failed";
-  const [runBusy, flipRun] = useRunSwitch(role, !stopped, { onProblem: setProblem });
+  const [loadBusy, toggleLoad] = useLoadToggle(role, { onProblem: setProblem });
 
-  // The one thing this card invites: set it up, bring it back up, or decide whether it stays warm.
+  // The one thing this card invites: download or set it up, open the server controls, or load or unload it.
   // The footer does not change shape between those beyond swapping its button, so the eye keeps
   // finding the light and the word in the same place on every card.
   const action = installing ? "stop"
     : needsSetup ? "setup"
-    : isWorker(role) ? "run"
-    : stopped ? "server"
-    : "warm";
-
-  const flip = (event) => {
-    event.stopPropagation();
-    flipWarm();
-  };
+    : stopped && !isWorker(role) ? "server"
+    : "load";
 
   const stopDownloading = (event) => {
     event.stopPropagation();
@@ -533,31 +532,22 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
           <ui.IconButton class={styles.footAction} icon="x" label={`Stop downloading ${download.model}`} size={14} onClick={stopDownloading} />
         )}
         {action === "setup" && (
-          <ui.IconButton class={styles.footAction} icon="download" label={`Set up ${state.label}`} disabled={installing} size={14} onClick={explain} />
-        )}
-        {action === "run" && (
-          <ui.Button
-            small
-            disabled={runBusy || checking}
-            title={stopped ? `Start the ${state.label} worker` : `Stop the ${state.label} worker`}
-            onClick={flipRun}
-          >
-            {stopped ? "Start" : "Stop"}
+          <ui.Button small disabled={installing} title={`Set up ${state.label}`} onClick={explain}>
+            {state.setupState === "missing" ? "Download" : "Set up"}
           </ui.Button>
         )}
         {action === "server" && (
           <ui.IconButton class={styles.footAction} icon="server" label="Open the server controls" size={14} onClick={server} />
         )}
-        {action === "warm" && (
+        {action === "load" && (
           <ui.Button
             small
-            disabled={warmBusy || checking}
-            aria-label={`${pinned ? "stop keeping warm" : "keep warm"} ${state.label}`}
+            disabled={loadBusy || checking}
             title={checking ? "waiting for the gateway"
-              : pinned ? `Stop keeping ${shownModel} loaded` : `Keep model loaded: loads ${state.model} now and holds it in memory`}
-            onClick={flip}
+              : state.loaded ? `Unload ${shownModel}` : `Load ${state.model} into memory`}
+            onClick={toggleLoad}
           >
-            {pinned ? "Unload" : "Load"}
+            {state.loaded ? "Unload" : "Load"}
           </ui.Button>
         )}
       </span>
@@ -582,11 +572,11 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
   const label = meta?.label ?? role;
   const [busy, run] = useAction(onChanged);
   const [warmBusy, flipWarm] = useWarmToggle(role, entry.default, pinned, { onChanged });
+  const [loadBusy, toggleLoad] = useLoadToggle(role, { onChanged });
   const status = runtime.value.roles[role]?.status;
+  const loaded = Boolean(runtime.value.roles[role]?.loaded);
   const specs = (tunables && ROLE_TUNABLES[role]) || [];
   const workerRole = isWorker(role);
-  const workerStopped = status === "stopped" || status === "failed";
-  const [runBusy, flipRun] = useRunSwitch(role, !workerStopped, { onChanged });
 
   const loadModel = (model) => run(async (options) => {
     if (model !== entry.default) await setRoleDefault({ role, model });
@@ -600,10 +590,9 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
   // model is already the install notice's story, so it wins over a stopped worker.
   const workerDown = (status === "stopped" || status === "failed") && entry.state !== "missing" && !entry.reason;
   const engineDown = status === "unavailable";
-  const startWorker = () => run(async () => {
-    await workerAction(role, "start");
-    await pollRuntime();
-  }, `started the ${label} worker`);
+  const installDefault = async () => {
+    if (await install(role, entry.default)) onChanged(`installed ${entry.default}`);
+  };
 
   const restartWorker = () => run(() => workerAction(role, "restart"), `restarted the ${label} worker`);
 
@@ -613,36 +602,28 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
       role={role}
       health
       tools={<ui.Button small onClick={() => onAdd?.(role)}>Add model</ui.Button>}
-      warmToggle={workerRole ? (
+      warmToggle={(
         <>
-          {workerStopped
-            ? <ui.Button small disabled={runBusy || !status || status === "unknown"} title={`Start the ${label} worker`} onClick={flipRun}>Start</ui.Button>
+          {entry.state === "missing"
+            ? <ui.Button small disabled={installing} onClick={installDefault}>{installing ? "Downloading…" : "Download"}</ui.Button>
             : (
-              <>
-                <ui.Button small disabled={runBusy} title={`Stop the ${label} worker`} onClick={flipRun}>Stop</ui.Button>
-                <ui.Button small disabled={busy} onClick={restartWorker}>Restart</ui.Button>
-              </>
+              <ui.Button
+                small
+                disabled={loadBusy || !status || status === "unknown" || entry.state !== "ready"}
+                title={loaded ? `Unload ${entry.default}` : `Load ${entry.default} into memory`}
+                onClick={toggleLoad}
+              >
+                {loaded ? "Unload" : "Load"}
+              </ui.Button>
             )}
+          {workerRole && !workerDown && status !== "unknown" && <ui.Button small disabled={busy} onClick={restartWorker}>Restart</ui.Button>}
         </>
-      ) : (
-        <ui.Button
-          small
-          disabled={warmBusy || entry.state !== "ready"}
-          aria-label={`${pinned ? "stop keeping warm" : "keep warm"} ${meta?.label ?? role}`}
-          title={pinned ? `Stop keeping ${entry.default} warm` : `Keep ${entry.default} warm (loads it now and holds it)`}
-          onClick={flipWarm}
-        >
-          {pinned ? "Unload" : "Load"}
-        </ui.Button>
       )}
       meta={`${entry.runner} · ${entry.installed.length} downloaded · ${gb(entry.total_bytes)} · ${STATE_LABEL[entry.state] ?? entry.state}`}
     >
       {entry.reason && entry.state !== "missing" && <ui.Notice tone="error">{entry.reason}</ui.Notice>}
       {workerDown && (
-        <div class={styles.standing}>
-          <ui.Notice tone="warn">{`${label} worker is stopped.`}</ui.Notice>
-          <ui.Button small variant="primary" disabled={busy} onClick={startWorker}>Start</ui.Button>
-        </div>
+        <ui.Notice tone="warn">{`${label} worker is stopped. Load starts it.`}</ui.Notice>
       )}
       {engineDown && (
         <ui.Notice tone="warn">{`Ollama is not answering, so ${label} cannot serve ${entry.default}. Restart it from the Server page.`}</ui.Notice>
@@ -660,25 +641,21 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
         onLoad={loadModel}
         onUnload={unloadModel}
       />
-      {(specs.length > 0 || workerRole) && (
-        <div class={styles.settings}>
-          <h4>Settings</h4>
-          {workerRole && (
-            <div class={styles.tunable}>
-              <WarmSwitch
-                pinned={pinned}
-                busy={warmBusy}
-                disabled={entry.state !== "ready"}
-                label={`${pinned ? "stop keeping warm" : "keep warm"} ${label}`}
-                title={pinned ? `Stop keeping ${entry.default} warm` : `Keep ${entry.default} warm (loads it now and holds it)`}
-                onClick={flipWarm}
-              />
-              <span>Keep warm: hold the model in memory instead of unloading it when idle</span>
-            </div>
-          )}
-          {specs.map((spec) => <Tunable key={spec.key} spec={spec} stored={tunables[spec.key]} onSaved={onSaved} />)}
+      <div class={styles.settings}>
+        <h4>Settings</h4>
+        <div class={styles.tunable}>
+          <WarmSwitch
+            pinned={pinned}
+            busy={warmBusy}
+            disabled={entry.state !== "ready"}
+            label={`${pinned ? "stop keeping warm" : "keep warm"} ${label}`}
+            title={pinned ? `Stop keeping ${entry.default} warm` : `Keep ${entry.default} warm (loads it now and holds it)`}
+            onClick={flipWarm}
+          />
+          <span>Keep warm: hold the model in memory instead of unloading it when idle</span>
         </div>
-      )}
+        {specs.map((spec) => <Tunable key={spec.key} spec={spec} stored={tunables[spec.key]} onSaved={onSaved} />)}
+      </div>
     </Section>
   );
 }
