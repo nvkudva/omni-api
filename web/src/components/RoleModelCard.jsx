@@ -61,6 +61,7 @@ const UNKNOWN = {
   pinned: false,
   runningModel: null,
   memoryBytes: 0,
+  modelBytes: 0,
   status: "unknown",
   held: false,
 };
@@ -292,7 +293,7 @@ const ROLE_TUNABLES = {
   ],
 };
 
-export function DownloadedList({ role, installed, onChanged }) {
+export function DownloadedList({ role, installed, onChanged, current, busy, canLoad, onLoad, onUnload }) {
   const remove = async (model) => {
     const go = await ask({
       title: `Delete ${model}?`,
@@ -310,20 +311,26 @@ export function DownloadedList({ role, installed, onChanged }) {
   };
   if (!installed.length) return <ui.Empty>Nothing downloaded for this role yet.</ui.Empty>;
   return (
-    <table>
-      <thead><tr><th>Model</th><th>Size</th><th /></tr></thead>
-      <tbody>
-        {installed.map((model) => (
-          <tr key={model.name}>
-            <td>{model.name}</td>
-            <td class={ui.css.numeric}>{modelDetail(model)}</td>
-            <td class={ui.css.actionCell}>
-              <ui.IconButton icon="trash" danger label={`Delete ${model.name}`} title="Delete (frees disk space)" onClick={() => remove(model.name)} />
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div class={styles.modelTable}>
+      <table>
+        <thead><tr><th>Downloaded models</th><th>Size</th><th /></tr></thead>
+        <tbody>
+          {installed.map((model) => (
+            <tr key={model.name}>
+              <td>{model.name}{model.name === current && <span class={styles.defaultTag}>default</span>}</td>
+              <td class={ui.css.numeric}>{modelDetail(model)}</td>
+              <td class={ui.css.actionCell}>
+                <span class={styles.rowActions}>
+                  {onLoad && <ui.Button small disabled={busy || !canLoad} onClick={() => onLoad(model.name)}>Load</ui.Button>}
+                  {onUnload && <ui.Button small disabled={busy} onClick={() => onUnload(model.name)}>Unload</ui.Button>}
+                  <ui.IconButton icon="trash" danger label={`Delete ${model.name}`} title="Delete (frees disk space)" onClick={() => remove(model.name)} />
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -422,7 +429,7 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
       <span class={styles.modelRow}>
         <span class={styles.model} title={shownModel}>{shortModel(shownModel)}</span>
         <span class={styles.route} title={state.endpoint}>{state.endpoint}</span>
-        {running && <span class={styles.memory}>{gb(state.memoryBytes)}</span>}
+        {state.modelBytes > 0 && <span class={styles.memory} title="model size on disk">{gb(state.modelBytes)}</span>}
       </span>
       <span class={styles.foot}>
         <span class={styles.status} title={look.hint(state, download)}>
@@ -472,15 +479,15 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
 function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }) {
   const meta = ROLE_META[role];
   const label = meta?.label ?? role;
-  const names = entry.installed.map((model) => model.name);
-  if (!names.includes(entry.default)) names.unshift(entry.default);
-  const current = entry.installed.find((model) => model.name === entry.default);
   const [busy, run] = useAction(onChanged);
   const [warmBusy, flipWarm] = useWarmToggle(role, entry.default, pinned, { onChanged });
   const specs = (tunables && ROLE_TUNABLES[role]) || [];
 
-  const load = () => run((options) => setResidency(role, true, entry.default, options), `loaded ${entry.default}`);
-  const unload = () => run(() => setResidency(role, false, entry.default), `unloaded ${entry.default}`);
+  const loadModel = (model) => run(async (options) => {
+    if (model !== entry.default) await setRoleDefault({ role, model });
+    await setResidency(role, true, model, options);
+  }, `loaded ${model}`);
+  const unloadModel = (model) => run(() => setResidency(role, false, model), `unloaded ${model}`);
   const installing = Boolean(downloadFor(role)?.busy);
   const installDefault = async () => {
     if (await install(role, entry.default)) onChanged(`installed ${entry.default}`);
@@ -490,21 +497,12 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
   // Ollama may be down. Say which, and offer the one fix this card owns. A missing
   // model is already the install notice's story, so it wins over a stopped worker.
   const status = runtime.value.roles[role]?.status;
-  const workerDown = (status === "stopped" || status === "failed") && entry.state !== "missing";
+  const workerDown = (status === "stopped" || status === "failed") && entry.state !== "missing" && !entry.reason;
   const engineDown = status === "unavailable";
   const startWorker = () => run(async () => {
     await workerAction(role, "start");
     await pollRuntime();
   }, `started the ${label} worker`);
-
-  const choose = async (model) => {
-    try {
-      const result = await setRoleDefault({ role, model });
-      onChanged(result.warnings?.join(" ") ?? `now serving ${model}`);
-    } catch (error) {
-      onChanged(error.message);
-    }
-  };
 
   return (
     <Section
@@ -524,10 +522,10 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
       )}
       meta={`${entry.runner} · ${entry.installed.length} downloaded · ${gb(entry.total_bytes)} · ${STATE_LABEL[entry.state] ?? entry.state}`}
     >
-      {entry.reason && <ui.Notice tone={entry.state === "missing" ? "warn" : "error"}>{entry.reason}</ui.Notice>}
+      {entry.reason && entry.state !== "missing" && <ui.Notice tone="error">{entry.reason}</ui.Notice>}
       {workerDown && (
         <div class={styles.standing}>
-          <ui.Notice tone="warn">{`The ${label} worker is not running, so ${entry.default} cannot be served.`}</ui.Notice>
+          <ui.Notice tone="warn">{`${label} worker is stopped.`}</ui.Notice>
           <ui.Button small variant="primary" disabled={busy} onClick={startWorker}>Start</ui.Button>
         </div>
       )}
@@ -535,21 +533,29 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
         <ui.Notice tone="warn">{`Ollama is not answering, so ${label} cannot serve ${entry.default}. Restart it from the Workers section above.`}</ui.Notice>
       )}
       {entry.state === "missing" && (
-        <ui.Row>
+        <div class={styles.setup}>
+          <div class={styles.setupText}>
+            <span class={styles.setupModel}>{entry.default}</span>
+            <span class={styles.setupHint}>Not downloaded yet. Download it to start using {label}.</span>
+          </div>
           <ui.Button small variant="primary" disabled={installing} onClick={installDefault}>
-            {installing ? "Installing…" : `Install ${entry.default}`}
+            {installing ? "Downloading…" : "Download"}
           </ui.Button>
-        </ui.Row>
+        </div>
       )}
       <InstallProgress role={role} />
-      <div class={ui.css.inputRow} title={current ? `On disk · ${modelDetail(current)}` : "Not on disk"}>
-        <select aria-label="Current model" value={entry.default} onChange={(event) => choose(event.currentTarget.value)}>
-          {names.map((name) => <option key={name} value={name}>{name}</option>)}
-        </select>
-        <ui.Button small disabled={busy || entry.state !== "ready"} onClick={load}>Load</ui.Button>
-        <ui.Button small disabled={busy} onClick={unload}>Unload</ui.Button>
-      </div>
-      <DownloadedList role={role} installed={entry.installed} onChanged={onChanged} />
+      {(entry.installed.length > 0 || entry.state !== "missing") && (
+        <DownloadedList
+          role={role}
+          installed={entry.installed}
+          onChanged={onChanged}
+          current={entry.default}
+          busy={busy}
+          canLoad={entry.state === "ready"}
+          onLoad={loadModel}
+          onUnload={unloadModel}
+        />
+      )}
       {specs.map((spec) => <Tunable key={spec.key} spec={spec} stored={tunables[spec.key]} onSaved={onSaved} />)}
     </Section>
   );

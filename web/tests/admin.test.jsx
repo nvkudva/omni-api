@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, test } from "bun:test";
 import { render } from "preact-render-to-string";
 
 const ModelsModule = await import("../src/tabs/Models.jsx");
-const { GlobalControls, Search, Install, DownloadedList, Memory, GatedNotice, orderRoles } = ModelsModule;
+const { GlobalControls, Find, DownloadedList, Memory, GatedNotice, orderRoles } = ModelsModule;
 const { LogsCard } = await import("../src/components/LogsCard.jsx");
 const { HealthCard } = await import("../src/components/HealthCard.jsx");
 const { health } = await import("../src/api/health.js");
@@ -103,8 +103,8 @@ describe("a role's setup card", () => {
 
   test("a missing default names the reason and disables the warm switch", () => {
     const html = render(<RoleModelCard density="detail" role="decide" entry={MISSING_ENTRY} pinned={false} onChanged={noop} />);
-    expect(html).toContain("is not installed; install it first");
-    expect(html).toContain("Nothing downloaded for this role yet.");
+    expect(html).toContain("Not downloaded yet");
+    expect(html).not.toContain("Nothing downloaded");
     expect(html).toContain('role="switch"');
     expect(html).toContain("disabled");
   });
@@ -130,11 +130,9 @@ describe("a role's setup card", () => {
     expect(html).toContain("Delete");
   });
 
-  test("search is per role and install shows the runner hint", () => {
-    expect(render(<Search role="chat" onPick={noop} />)).toContain("blank: most downloaded");
-    // the pump that follows a picked model is an effect, so it is not exercised here
-    const html = render(<Install role="chat" initial={null} onInstalled={noop} />);
-    expect(html).toContain("Check");
+  test("one box searches per role and installs, with the runner hint", () => {
+    const html = render(<Find role="chat" onInstalled={noop} />);
+    expect(html).toContain("Search Hugging Face");
     expect(html).toContain("Install");
     expect(html).toContain("hf.co/user/repo-GGUF:Q4_K_M");
     expect(html).toContain("Ollama: a library name");
@@ -172,8 +170,8 @@ describe("the Find and Install popup", () => {
     expect(html).toContain("Recommended");
     expect(html).toContain("qwen3.8:27b");
     expect(html).toContain("17.7 GB");
-    expect(html).toContain("Downloaded");
-    expect(html).toContain("Fits here");
+    expect(html).toContain("Download</button>");
+    expect(html).toContain("tight");
     expect(html).toContain("only 10.0 GB RAM free");
     // the configured default is marked as such
     expect(html).toContain("default");

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { ROLE_META, downloadFor, install, installs, matchesModel, specs, stopDownload } from "../api/roles.js";
-import { checkModel, modelStatus, searchModels } from "../api/endpoints.js";
+import { checkModel, modelStatus, searchModels, setRoleDefault } from "../api/endpoints.js";
 import { gb, size } from "../lib/format.js";
 import * as ui from "./ui.jsx";
 import styles from "./FindAndInstall.module.css";
@@ -60,9 +60,10 @@ export function InstallProgress({ role }) {
  * would stand in its way on this machine. Reads `/admin/models/status` once per
  * open and again after an install lands, so the table cannot go stale.
  */
-export function Recommended({ role, onPick }) {
+export function Recommended({ role, onUse, onInstalled }) {
   const [entry, setEntry] = useState(specs.value[role] ?? null);
   const finished = installs.value[role]?.fraction;
+  const busy = Boolean(installs.value[role]?.busy);
 
   useEffect(() => {
     let live = true;
@@ -78,11 +79,15 @@ export function Recommended({ role, onPick }) {
 
   const rows = entry?.recommended ?? [];
   const defaultModel = entry?.default ?? null;
+  const isDefault = (row) => matchesModel(row.model, defaultModel);
+  const download = async (model) => {
+    if (await install(role, model)) onInstalled();
+  };
   const sizeLabel = (row) => (row.gb ? `${row.gb} GB` : "—");
 
   return (
     <table>
-      <thead><tr><th>Model</th><th>Size</th><th>Downloaded</th><th>Fits here</th><th /></tr></thead>
+      <thead><tr><th>Model</th><th>Size</th><th /></tr></thead>
       <tbody>
         {rows.map((row) => {
           const fits = !row.blockers?.length;
@@ -91,26 +96,17 @@ export function Recommended({ role, onPick }) {
               <td>
                 <div class={ui.css.nameCell}>
                   {row.model}
-                  {matchesModel(row.model, defaultModel) && <span class={styles.chip}>default</span>}
+                  {isDefault(row) && <span class={styles.chip}>default</span>}
+                  {!fits && <span class={styles.chip}>tight</span>}
                 </div>
                 {row.note && <span class={styles.note}>{row.note}</span>}
                 {!fits && <span class={styles.note}>{row.blockers.join(" ")}</span>}
               </td>
               <td class={ui.css.numeric}>{sizeLabel(row)}</td>
-              <td>
-                <span class={styles.statusCell}>
-                  <ui.Dot tone={row.installed ? "ok" : "idle"} />
-                  {row.installed ? "yes" : "no"}
-                </span>
-              </td>
-              <td>
-                <span class={styles.statusCell}>
-                  <ui.Dot tone={fits ? "ok" : "busy"} />
-                  {fits ? "yes" : "tight"}
-                </span>
-              </td>
               <td class={ui.css.actionCell}>
-                <ui.Button small onClick={() => onPick(row.model)}>Use</ui.Button>
+                {row.installed
+                  ? !isDefault(row) && <ui.Button small onClick={() => onUse(row.model)}>Use</ui.Button>
+                  : <ui.Button small variant="primary" disabled={busy} onClick={() => download(row.model)}>Download</ui.Button>}
               </td>
             </tr>
           );
@@ -120,16 +116,26 @@ export function Recommended({ role, onPick }) {
   );
 }
 
-/** Find a model on Hugging Face that this role's runtime can load. */
-export function Search({ role, onPick, inputRef }) {
+/**
+ * One box for finding and installing: type to search Hugging Face, or paste a repo id or page
+ * URL and install it (checked against the role's runtime first). Picking a result fills the box.
+ */
+export function Find({ role, onInstalled, inputRef }) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState(null);
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [check, setCheck] = useState(null);
+  const busy = Boolean(installs.value[role]?.busy);
   const criteria = criteriaFor(role);
 
+  const edit = (value) => {
+    setQuery(value);
+    setCheck(null);
+  };
+
   const search = async () => {
-    setBusy(true);
+    setSearching(true);
     setError("");
     try {
       const params = new URLSearchParams({ role, q: query.trim() });
@@ -137,72 +143,21 @@ export function Search({ role, onPick, inputRef }) {
     } catch (failure) {
       setError(failure.message);
     } finally {
-      setBusy(false);
+      setSearching(false);
     }
   };
 
-  return (
-    <>
-      <div class={ui.css.inputRow}>
-        <input
-          ref={inputRef}
-          placeholder="Search Hugging Face (blank: most downloaded)"
-          aria-label={`Search Hugging Face for ${ROLE_META[role]?.label ?? role} models`}
-          value={query}
-          onInput={(event) => setQuery(event.currentTarget.value)}
-          onKeyDown={(event) => event.key === "Enter" && search()}
-        />
-        <ui.Button small variant="primary" disabled={busy} onClick={search}>{busy ? "Searching…" : "Search"}</ui.Button>
-      </div>
-      {error && <ui.ErrorText>{error}</ui.ErrorText>}
-      {results && (results.length
-        ? (
-          <table>
-            <thead><tr><th>Model</th><th>Downloads</th><th>Likes</th><th>Size</th><th /></tr></thead>
-            <tbody>
-              {results.map((result) => (
-                <tr key={result.id}>
-                  <td><a class={ui.css.link} href={`https://huggingface.co/${result.id}`} target="_blank" rel="noreferrer">{result.id}</a></td>
-                  <td class={ui.css.numeric}>{(result.downloads ?? 0).toLocaleString()}</td>
-                  <td class={ui.css.numeric}>{(result.likes ?? 0).toLocaleString()}</td>
-                  <td class={ui.css.numeric}>{result.size_bytes ? `≈ ${size(result.size_bytes)}` : "—"}</td>
-                  <td class={ui.css.actionCell}><ui.Button small onClick={() => onPick(result.name)}>Select</ui.Button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )
-        : <ui.Empty>No supported {criteria.kind} models match.</ui.Empty>)}
-    </>
-  );
-}
-
-/** Download a model by id or page URL, after checking the role's runtime can run it. */
-export function Install({ role, initial, onInstalled }) {
-  const [model, setModel] = useState(initial ?? "");
-  const [check, setCheck] = useState(null);
-  const [checking, setChecking] = useState(false);
-  const busy = Boolean(installs.value[role]?.busy);
-  const criteria = criteriaFor(role);
-
-  useEffect(() => {
-    if (initial) {
-      setModel(initial);
-      setCheck(null);
-    }
-  }, [initial]);
+  const pick = (name) => {
+    edit(name);
+    setResults(null);
+  };
 
   const verify = async () => {
-    const name = model.trim();
-    if (!name) return null;
-    setChecking(true);
     let result;
     try {
-      result = await checkModel(new URLSearchParams({ role, model: name }));
+      result = await checkModel(new URLSearchParams({ role, model: query.trim() }));
     } catch (failure) {
       result = { supported: false, reason: failure.message, installed: false, size_bytes: null, blockers: [] };
-    } finally {
-      setChecking(false);
     }
     setCheck(result);
     return result;
@@ -211,7 +166,7 @@ export function Install({ role, initial, onInstalled }) {
   const download = async () => {
     const verdict = check ?? (await verify());
     if (!verdict?.supported || verdict.installed) return;
-    if (await install(role, model.trim())) {
+    if (await install(role, query.trim())) {
       setCheck({ ...verdict, installed: true });
       onInstalled();
     }
@@ -221,22 +176,25 @@ export function Install({ role, initial, onInstalled }) {
     <>
       <div class={ui.css.inputRow}>
         <input
-          placeholder="repo id or huggingface.co page URL"
-          aria-label="Model repo id or Hugging Face page URL"
+          ref={inputRef}
+          placeholder="Search Hugging Face, or paste a repo id or page URL"
+          aria-label={`Search Hugging Face for ${ROLE_META[role]?.label ?? role} models, or enter a repo id or page URL`}
           title={criteria.accepts}
-          value={model}
-          onInput={(event) => { setModel(event.currentTarget.value); setCheck(null); }}
+          value={query}
+          onInput={(event) => edit(event.currentTarget.value)}
+          onKeyDown={(event) => event.key === "Enter" && search()}
         />
-        <ui.Button small disabled={checking || busy || !model.trim()} onClick={verify}>{checking ? "Checking…" : "Check"}</ui.Button>
+        <ui.Button small disabled={searching} onClick={search}>{searching ? "Searching…" : "Search"}</ui.Button>
         <ui.Button
           small
           variant="primary"
-          disabled={checking || busy || !model.trim() || check?.supported === false || check?.installed}
+          disabled={busy || !query.trim() || check?.supported === false || check?.installed}
           onClick={download}
         >
           {busy ? "Installing…" : "Install"}
         </ui.Button>
       </div>
+      {error && <ui.ErrorText>{error}</ui.ErrorText>}
       {check && !check.supported && <ui.ErrorText>{check.reason}</ui.ErrorText>}
       {check?.gated && installs.value[role]?.code !== "gated" && (
         <GatedNotice model={check.model} acceptUrl={check.accept_url} busy={busy} onRetry={download} />
@@ -248,6 +206,24 @@ export function Install({ role, initial, onInstalled }) {
           {check.blockers?.length ? ` · ${check.blockers.join(" ")}` : ""}
         </ui.Meta>
       )}
+      {results && (results.length
+        ? (
+          <table>
+            <thead><tr><th>Model</th><th>Downloads</th><th>Likes</th><th>Size</th><th /></tr></thead>
+            <tbody>
+              {results.map((result) => (
+                <tr key={result.id}>
+                  <td><a class={ui.css.link} href={`https://huggingface.co/${result.id}`} target="_blank" rel="noreferrer">{result.id}</a></td>
+                  <td class={ui.css.numeric}>{(result.downloads ?? 0).toLocaleString()}</td>
+                  <td class={ui.css.numeric}>{(result.likes ?? 0).toLocaleString()}</td>
+                  <td class={ui.css.numeric}>{result.size_bytes ? `≈ ${size(result.size_bytes)}` : "—"}</td>
+                  <td class={ui.css.actionCell}><ui.Button small onClick={() => pick(result.name)}>Select</ui.Button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )
+        : <ui.Empty>No supported {criteria.kind} models match.</ui.Empty>)}
     </>
   );
 }
@@ -258,16 +234,15 @@ export function Install({ role, initial, onInstalled }) {
  * refreshes the caller once a download lands.
  */
 export function FindAndInstall({ role, onClose, onInstalled }) {
-  const [pick, setPick] = useState(null);
   const searchRef = useRef(null);
   const meta = role ? ROLE_META[role] : null;
   const criteria = role ? criteriaFor(role) : null;
 
-  useEffect(() => {
-    if (!role) return undefined;
-    setPick(null);
-    return undefined;
-  }, [role]);
+  const use = async (model) => {
+    await setRoleDefault({ role, model });
+    onInstalled?.();
+    onClose?.();
+  };
 
   if (!role || !meta || !criteria) return null;
 
@@ -294,11 +269,9 @@ export function FindAndInstall({ role, onClose, onInstalled }) {
           <span class={styles.criteriaText}>{criteria.accepts}</span>
         </div>
         <h3 class={styles.subhead}>Recommended</h3>
-        <Recommended role={role} onPick={setPick} />
-        <h3 class={styles.subhead}>Search Hugging Face</h3>
-        <Search role={role} onPick={setPick} inputRef={searchRef} />
-        <h3 class={styles.subhead}>Or install by id</h3>
-        <Install role={role} initial={pick} onInstalled={() => onInstalled?.()} />
+        <Recommended role={role} onUse={use} onInstalled={() => onInstalled?.()} />
+        <h3 class={styles.subhead}>Find another</h3>
+        <Find role={role} onInstalled={() => onInstalled?.()} inputRef={searchRef} />
         <InstallProgress role={role} />
       </div>
       <footer class={ui.css.modalFoot}>

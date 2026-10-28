@@ -48,6 +48,8 @@ function roleState(role, defaults, health, memory, setup) {
   const setupEntry = setup?.roles?.[role];
   const setupState = setupEntry?.state ?? "unknown";
   const setupReason = setupEntry?.reason ?? "";
+  // the whole model on disk (every part of a bundle), not what the process holds in RAM: a mmapped GGUF barely shows there
+  const modelBytes = (setupEntry?.installed ?? []).find((entry) => entry.name === model)?.size_bytes ?? 0;
 
   if (setupEntry?.runner === "ollama") {
     // Ollama's models outlive the role: remember what it pulled, then match it.
@@ -66,6 +68,7 @@ function roleState(role, defaults, health, memory, setup) {
       pinned,
       runningModel: down ? null : running?.name ?? null,
       memoryBytes: down ? 0 : running?.size_bytes ?? 0,
+      modelBytes,
       status: down ? "unavailable" : running ? "loaded" : "idle",
       engineUrl: down ? engine?.url ?? "" : "",
       cpuPercent: 0,
@@ -88,6 +91,7 @@ function roleState(role, defaults, health, memory, setup) {
     pinned,
     runningModel: loaded ? (worker?.model || model) : null,
     memoryBytes: loaded ? (worker?.rss_bytes ?? memoryWorker?.rss_bytes ?? 0) : 0,
+    modelBytes,
     status,
     cpuPercent: memoryWorker?.cpu_percent ?? worker?.cpu_percent ?? 0,
     held: Boolean(memoryWorker?.held ?? worker?.held),

@@ -202,3 +202,14 @@ class FolderSize(unittest.TestCase):
             (repo / "blobs" / "other").symlink_to(shared / "done")
             (repo / "blobs" / "partial.incomplete").write_bytes(b"y" * 7)
             self.assertEqual(huggingface.folder_size(repo), 107)
+
+
+class DiffusersFilesTest(unittest.TestCase):
+    def test_a_list_of_numbers_in_the_index_is_not_a_component_folder(self):
+        index = '{"vae": ["diffusers", "AutoencoderKL"], "transformer": ["x", "T"], "sample_sigmas": [1.0, 0.9]}'
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "model_index.json"
+            path.write_text(index)
+            with patch("huggingface_hub.hf_hub_download", return_value=str(path)):
+                repo, patterns = huggingface.diffusers_files("a/b")
+        self.assertEqual(patterns, ["model_index.json", "transformer/config.json", "vae/*"])

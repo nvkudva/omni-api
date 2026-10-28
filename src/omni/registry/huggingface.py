@@ -123,7 +123,7 @@ def diffusers_files(repo: str) -> tuple[str, list[str]]:
     except Exception:  # noqa: BLE001 - a card's base_model may name the original, not the diffusers conversion
         repo = f"{repo}-Diffusers"
         index = json.loads(Path(hf_hub_download(repo, "model_index.json")).read_text())
-    others = [name for name, value in index.items() if isinstance(value, list) and value[0] and name != "transformer"]
+    others = [name for name, value in index.items() if isinstance(value, list) and isinstance(value[0], str) and value[0] and name != "transformer"]
     return repo, ["model_index.json", "transformer/config.json", *(f"{name}/*" for name in others)]
 
 
@@ -326,8 +326,36 @@ async def stop_process(process: asyncio.subprocess.Process) -> None:
     await process.wait()
 
 
+def _started_downloads() -> list[str]:
+    try:
+        return list(json.loads(config.DOWNLOADS.read_text()))
+    except (OSError, ValueError, TypeError):
+        return []
+
+
+def _save_started_downloads(repos: list[str]) -> None:
+    config.DOWNLOADS.parent.mkdir(parents=True, exist_ok=True)
+    config.DOWNLOADS.write_text(json.dumps(sorted(set(repos))))
+
+
+def remove_partial_downloads() -> int:
+    """Delete the `*.incomplete` files of repos omni started downloading and never finished; their count.
+
+    The Hugging Face cache is shared with other tools, so a repo omni did not start is left alone.
+    """
+    removed = 0
+    for repo_id in _started_downloads():
+        for partial in (cache_dir(repo_id) / "blobs").glob("*.incomplete"):
+            with contextlib.suppress(OSError):
+                partial.unlink()
+                removed += 1
+    _save_started_downloads([])
+    return removed
+
+
 async def download(repo_id: str, files: list[str] | None = None) -> None:
     """Download in a child process so cancelling really stops it. Raises OSError on failure."""
+    _save_started_downloads([*_started_downloads(), repo_id])
     process = await asyncio.create_subprocess_exec(
         *guard.command(download_command(repo_id, files)), stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.DEVNULL,
         stderr=asyncio.subprocess.PIPE, start_new_session=True,
@@ -338,6 +366,7 @@ async def download(repo_id: str, files: list[str] | None = None) -> None:
         await asyncio.shield(stop_process(process))
     if process.returncode != 0:
         raise OSError(failure_message(stderr, process.returncode))
+    _save_started_downloads([repo for repo in _started_downloads() if repo != repo_id])
 
 
 def disk_usage_root() -> Path:
