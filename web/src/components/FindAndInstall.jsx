@@ -106,7 +106,7 @@ export function Recommended({ role, onUse, onInstalled }) {
               <td class={ui.css.actionCell}>
                 {row.installed
                   ? !isDefault(row) && <ui.Button small onClick={() => onUse(row.model)}>Use</ui.Button>
-                  : <ui.Button small variant="primary" disabled={busy} onClick={() => download(row.model)}>Download</ui.Button>}
+                  : <ui.Button small disabled={busy} onClick={() => download(row.model)}>Download</ui.Button>}
               </td>
             </tr>
           );

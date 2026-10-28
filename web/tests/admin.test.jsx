@@ -90,7 +90,7 @@ describe("a role's setup card", () => {
     const html = render(<RoleModelCard density="detail" role="chat" entry={READY_ENTRY} pinned={false} onChanged={noop} />);
     expect(html).toContain("qwen2.5:3b");
     expect(html).toContain("Load");
-    expect(html).toContain("Unload");
+    expect(html).toContain("qwen2.5:3b is the default");
     // the keep-warm control is a switch in the card header, not a text button
     expect(html).toContain('role="switch"');
     expect(html).toContain("keep warm Chat");

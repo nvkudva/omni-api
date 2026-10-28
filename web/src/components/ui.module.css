@@ -72,9 +72,8 @@
   }
   &.primary:hover:not(:disabled) { filter: brightness(1.08); }
 
-  /* outline: bg-background shadow-xs (flat, no border) hover:bg-accent
-     (dark:bg-input/30 — --raised carries the light/dark difference). */
-  &.outline { background: var(--raised); color: var(--foreground); box-shadow: var(--shadow-xs); }
+  /* outline: a light tint (--secondary), not white: --raised vanishes on the white light-mode card. */
+  &.outline { background: var(--secondary); color: var(--foreground); box-shadow: var(--shadow-xs); }
   &.outline:hover:not(:disabled) { background: var(--accent); color: var(--accent-foreground); }
 
   /* secondary: bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80 */

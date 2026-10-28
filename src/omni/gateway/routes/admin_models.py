@@ -196,6 +196,7 @@ def register(app: FastAPI, ctx: Context) -> None:
             roles[role] = {"default": settings[role]["model"], "runner": registry.runner(role),
                            "engine": spec["engine"], "kind": spec["kind"], "family": " or ".join(spec["family"]) or None,
                            "accepts": spec["accepts"], "example": spec["example"],
+                           "reads_images": registry.reads_images(role, settings[role]["model"]),
                            "recommended": recommended(role, available),
                            "installed": available, **setup_state(role, available)}
         return JSONResponse({"roles": roles})

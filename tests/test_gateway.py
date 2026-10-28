@@ -144,7 +144,7 @@ class Gateway(unittest.TestCase):
     def test_admin_status_carries_each_role_spec_and_its_recommendations(self):
         body = self.client.get("/admin/models/status").json()
         stt = body["roles"]["stt"]
-        self.assertEqual(stt["family"], "parakeet")
+        self.assertEqual(stt["family"], "parakeet or moonshine or whisper or oruk")
         self.assertTrue(stt["accepts"])
         first = stt["recommended"][0]
         self.assertEqual(first["model"], stt["default"])

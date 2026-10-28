@@ -211,12 +211,12 @@ export function Section({ title, meta, role, tools, warmToggle, health, children
           <LogsCard role={role} initialOpen />
         </div>
       )}
-      <div class={styles.body}>{children}</div>
+      {children && <div class={styles.body}>{children}</div>}
     </section>
   );
 }
 
-export function Tunable({ spec, stored, onSaved }) {
+export function Tunable({ spec, stored, onSaved, inline }) {
   const [draft, setDraft] = useState(stored == null ? "" : String(stored));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -246,6 +246,22 @@ export function Tunable({ spec, stored, onSaved }) {
     const choices = current !== "" && !spec.options.some((option) => String(option.value) === current)
       ? [...spec.options, { value: current, label: `${current} minutes` }]
       : spec.options;
+    if (inline) {
+      return (
+        <label class={styles.inlineTunable} title={spec.hint}>
+          <span>{spec.label}</span>
+          <select
+            aria-label={spec.label}
+            value={current}
+            disabled={busy}
+            onChange={(event) => write(spec.number ? Number(event.currentTarget.value) : event.currentTarget.value)}
+          >
+            {choices.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+          {(error || saved) && <ui.Meta>{error || saved}</ui.Meta>}
+        </label>
+      );
+    }
     return (
       <ui.Field label={spec.label} hint={error || saved || spec.hint}>
         <div class={styles.tunable}>
@@ -293,8 +309,8 @@ const ROLE_TUNABLES = {
   ],
 };
 
-/** Default first, then the curated order, then anything else on disk. One row per model, downloaded or not. */
-function modelRows(installed, recommended, current) {
+/** Downloaded models first, smallest first; the rest keep the curated order. One row per model, downloaded or not. */
+function modelRows(installed, recommended) {
   const rows = recommended.map((row) => ({
     name: row.model,
     note: row.note,
@@ -305,9 +321,8 @@ function modelRows(installed, recommended, current) {
   for (const model of installed) {
     if (!rows.some((row) => row.disk === model)) rows.push({ name: model.name, disk: model });
   }
-  const defaultIndex = rows.findIndex((row) => matchesModel(row.name, current));
-  if (defaultIndex > 0) rows.unshift(...rows.splice(defaultIndex, 1));
-  return rows;
+  const downloaded = rows.filter((row) => row.disk).sort((a, b) => a.disk.size_bytes - b.disk.size_bytes);
+  return [...downloaded, ...rows.filter((row) => !row.disk)];
 }
 
 export function ModelList({ role, installed, recommended = [], onChanged, current, busy, canLoad, defaultMissing, onLoad, onUnload }) {
@@ -346,7 +361,9 @@ export function ModelList({ role, installed, recommended = [], onChanged, curren
       onChanged(error.message);
     }
   };
-  const rows = modelRows(installed, recommended, current);
+  const rows = modelRows(installed, recommended);
+  const running = runtime.value.roles[role];
+  const isLoaded = (name) => Boolean(running?.loaded && running.runningModel && matchesModel(running.runningModel, name));
   if (!rows.length) return <ui.Empty>No models for this role yet.</ui.Empty>;
   return (
     <div class={styles.modelTable}>
@@ -358,23 +375,35 @@ export function ModelList({ role, installed, recommended = [], onChanged, curren
             return (
               <tr key={row.name}>
                 <td>
-                  {row.name}
-                  {isDefault && <span class={styles.defaultTag}>default</span>}
-                  {!row.disk && row.tight && <span class={styles.defaultTag}>tight</span>}
-                  {row.note && <span class={styles.rowNote}>{row.note}</span>}
+                  <span class={styles.nameCell}>
+                    {row.disk ? (
+                      <button
+                        type="button"
+                        class={cx(styles.radio, isDefault && styles.radioOn)}
+                        aria-pressed={isDefault}
+                        aria-label={isDefault ? `${row.name} is the default` : `Make ${row.name} the default`}
+                        title={isDefault ? "Default model" : "Make default"}
+                        disabled={busy || isDefault}
+                        onClick={() => makeDefault(row.name)}
+                      />
+                    ) : <span class={styles.radioSpace} />}
+                    <span>
+                      {row.name}
+                      {!row.disk && row.tight && <span class={styles.defaultTag}>tight</span>}
+                      {row.note && <span class={styles.rowNote}>{row.note}</span>}
+                    </span>
+                  </span>
                 </td>
                 <td class={ui.css.numeric}>{row.disk ? modelDetail(row.disk) : row.gb ? `${row.gb} GB` : "—"}</td>
                 <td class={ui.css.actionCell}>
-                  {row.disk ? (
-                    <span class={styles.rowActions}>
-                      {!isDefault && <ui.Button small disabled={busy} onClick={() => makeDefault(row.name)}>Set default</ui.Button>}
-                      {onLoad && <ui.Button small disabled={busy || !canLoad} onClick={() => onLoad(row.name)}>Load</ui.Button>}
-                      {onUnload && <ui.Button small disabled={busy} onClick={() => onUnload(row.name)}>Unload</ui.Button>}
-                      <ui.IconButton icon="trash" danger label={`Delete ${row.name}`} title="Delete (frees disk space)" onClick={() => remove(row.name)} />
-                    </span>
-                  ) : (
-                    <ui.Button small variant="primary" disabled={busy || downloading} onClick={() => download(row.name)}>Download</ui.Button>
-                  )}
+                  <span class={styles.rowActions}>
+                    {!row.disk && <ui.Button small class={styles.rowButton} disabled={busy || downloading} onClick={() => download(row.name)}>Download</ui.Button>}
+                    {row.disk && isLoaded(row.name) && <ui.Button small class={styles.rowButton} disabled={busy} onClick={() => onUnload(row.name)}>Unload</ui.Button>}
+                    {row.disk && !isLoaded(row.name) && <ui.Button small class={styles.rowButton} disabled={busy || !canLoad} onClick={() => onLoad(row.name)}>Load</ui.Button>}
+                    {row.disk
+                      ? <ui.IconButton icon="trash" danger label={`Delete ${row.name}`} title="Delete (frees disk space)" onClick={() => remove(row.name)} />
+                      : <span class={styles.iconSpace} />}
+                  </span>
                 </td>
               </tr>
             );

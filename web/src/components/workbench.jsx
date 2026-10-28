@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import { cx } from "../lib/cx.js";
-import { ROLE_META, isWorker, pollRuntime, runtime } from "../api/roles.js";
+import { ROLE_META, downloadFor, install, isWorker, pollRuntime, runtime } from "../api/roles.js";
 import { loadRole, workerAction } from "../api/endpoints.js";
 import * as ui from "./ui.jsx";
 import { ModelSettingsPopup } from "./ModelSettings.jsx";
@@ -45,12 +45,17 @@ function NotReady({ role, state }) {
   const stopped = status === "stopped" || status === "failed";
   const starting = status === "starting" || status === "loading" || status === "checking";
   const start = stopped && isWorker(role);
+  // loading a model that is not on disk would download it first, so say so and offer the download itself
+  const needsDownload = state?.setupState === "missing" && !stopped;
+  const download = needsDownload ? downloadFor(role) : null;
+  const downloading = Boolean(download?.busy);
 
   const run = async () => {
     setBusy(true);
     setError("");
     try {
-      if (start) await workerAction(role, "start");
+      if (needsDownload) await install(role, model);
+      else if (start) await workerAction(role, "start");
       else await loadRole({ role, model });
       await pollRuntime();
     } catch (failure) {
@@ -60,7 +65,9 @@ function NotReady({ role, state }) {
     }
   };
 
-  const message = starting
+  const message = needsDownload
+    ? `${model} is not downloaded yet.`
+    : starting
     ? `${label} is getting ready…`
     : stopped && isWorker(role)
       ? `The ${label.toLowerCase()} worker is not running.`
@@ -72,11 +79,11 @@ function NotReady({ role, state }) {
     <div class={styles.notReady}>
       <span class={styles.notReadyText}>{message}</span>
       {!starting && (
-        <ui.Button small variant="primary" disabled={busy} onClick={run}>
-          {busy ? "Working…" : start ? "Start" : "Load"}
+        <ui.Button small variant="primary" disabled={busy || downloading} onClick={run}>
+          {downloading ? download.status : busy ? "Working…" : needsDownload ? "Download" : start ? "Start" : "Load"}
         </ui.Button>
       )}
-      {error && <ui.ErrorText>{error}</ui.ErrorText>}
+      {(error || download?.error) && <ui.ErrorText>{error || download.error}</ui.ErrorText>}
     </div>
   );
 }

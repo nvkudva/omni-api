@@ -18,7 +18,11 @@ const GENDERS = { f: "female", m: "male" };
 const DEFAULT_TEXT = "Hello from omni. Every model on this machine now answers on a single port, and each one runs in its own process.";
 const MAX_LENGTH = 4096;
 
-function voiceLabel(voice) {
+const KOKORO_VOICE = /^[ab][fm]_/;
+
+export function voiceLabel(voice) {
+  // Kitten and Supertonic voices are plain names ("Bella", "M1"), not Kokoro's accent-gender-name codes
+  if (!KOKORO_VOICE.test(voice)) return voice;
   return `${voice.slice(3)} · ${ACCENTS[voice[0]] ?? voice[0]} ${GENDERS[voice[1]] ?? voice[1]}`;
 }
 
@@ -116,7 +120,7 @@ export default function Tts({ active = true }) {
   const canSpeak = !(view === "json" && json.error) && !(view === "ui" && !body.input.trim()) && !busy;
 
   return (
-    <Workbench class={styles.tts} title="Text to speech" subtitle="Kokoro voices on ONNX Runtime, returned as WAV. The first request loads the voice model." modelRole="tts">
+    <Workbench class={styles.tts} title="Text to speech" subtitle="The loaded model's voices, returned as WAV. The first request loads the voice model." modelRole="tts">
       <Panel
         title="Request"
         endpoint="/v1/audio/speech"

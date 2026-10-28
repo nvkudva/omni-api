@@ -59,9 +59,11 @@ from omni.registry.roles import (
     canonical,
     family,
     matches,
+    reads_images,
     repo_name,
     runner,
     supports,
+    tts_voices,
     unavailable_reason,
 )
 
@@ -94,12 +96,14 @@ __all__ = [
     "overload_advisories",
     "progress",
     "ram_shortfall",
+    "reads_images",
     "recent",
     "repo_name",
     "runner",
     "search",
     "snapshot",
     "supports",
+    "tts_voices",
     "unavailable_reason",
 ]
 

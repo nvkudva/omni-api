@@ -3,7 +3,7 @@ import importlib.util
 import re
 import sys
 
-from omni import config
+from omni import config, schemas
 
 # Everything omni knows about a role's runtime, in one table: the gateway, the workers and the
 # playground (through /admin/models/status) all read it, so a role is described exactly once.
@@ -26,16 +26,25 @@ ROLE_SPECS = {
         ],
     },
     "decide": {
-        "runner": "huggingface", "engine": "onnxruntime", "family": ("vega",), "platform": None,
-        "files": ["v2/embed_q8.onnx*", "v2/decoder_q8.onnx*", "v2/engine.onnx", "v2/tokenizer.json",
-                  "v2/vega_web.json", "v2/vision_q8.onnx*"],
+        "runner": "huggingface", "engine": "onnxruntime", "family": ("vega", "laya", "gliner2"), "platform": None,
+        "files": {
+            "vega": ["v2/embed_q8.onnx*", "v2/decoder_q8.onnx*", "v2/engine.onnx", "v2/tokenizer.json",
+                     "v2/vega_web.json", "v2/vision_q8.onnx*"],
+            "laya": ["rl_agent_config.json", "model.safetensors", "tokenizer/*", "encoder/*"],
+            "gliner2": ["*.json", "model.safetensors"],
+        },
         "deps": ("onnxruntime", "tokenizers"),
-        "search": {"filter": ["onnx"], "pipeline_tag": "text-classification"},
-        "kind": "ONNX · Vega typed decisions",
-        "accepts": "A Vega ONNX repo id with the v2 layout or Hugging Face page URL, e.g. nvkudva/vega-onnx-q8. Downloads to the HF cache.",
+        # what a model other than the shipped Vega needs on top, which only the media extra installs
+        "backend_deps": {"laya": ("laya", "torch"), "gliner2": ("gliner2", "torch")},
+        "search": {"pipeline_tag": "text-classification"},
+        "kind": "Typed decisions · Vega (ONNX), Laya and GLiNER2.5-Decide (transformers)",
+        "accepts": "A Vega ONNX repo with the v2 layout, a Laya checkpoint repo or a GLiNER2.5-Decide repo, or a Hugging Face page URL, e.g. nvkudva/vega-onnx-q8. Downloads to the HF cache.",
         "example": "nvkudva/vega-onnx-q8",
         "recommended": [
             ("nvkudva/vega-onnx-q8", 0.93, "shipped default — Vega 0.8B, 8-bit ONNX; calibrated, with prediction sets and abstain"),
+            ("convaiinnovations/laya", 0.85, "Laya, 421M — English; answers every question in one pass, with its own act/escalate head"),
+            ("convaiinnovations/laya-multilingual", 0.65, "Laya multilingual, 322M — 100+ languages, reads up to 1,024 tokens"),
+            ("fastino/GLiNER2.5-Decide", 1.95, "GLiNER2.5-Decide, 340M — English label-set classifier; reads text only"),
         ],
     },
     "embed": {
@@ -53,28 +62,46 @@ ROLE_SPECS = {
         ],
     },
     "stt": {
-        "runner": "huggingface", "engine": "onnx-asr", "family": ("parakeet",), "platform": None,
-        "files": ["config.json", "vocab.txt", "encoder-model.int8.onnx", "decoder_joint-model.int8.onnx"],
-        "deps": ("onnxruntime", "onnx_asr"),
-        "search": {"filter": ["onnx"], "pipeline_tag": "automatic-speech-recognition"},
-        "kind": "ONNX · Parakeet speech-to-text",
-        "accepts": "ONNX Parakeet repo id (with int8 files) or Hugging Face page URL, e.g. istupakov/parakeet-tdt-0.6b-v2-onnx. Downloads to the HF cache.",
+        "runner": "huggingface", "engine": "onnx-asr", "family": ("parakeet", "moonshine", "whisper", "oruk"),
+        "platform": None,
+        # Parakeet runs as int8 ONNX; the others load through transformers (`*.json` covers their tokenizer and
+        # processor files, and oruk also needs its own modeling code, so it names `*.py`).
+        "files": {
+            "parakeet": ["config.json", "vocab.txt", "encoder-model.int8.onnx", "decoder_joint-model.int8.onnx"],
+            "moonshine": ["*.json", "*.safetensors"],
+            "whisper": ["*.json", "*.safetensors"],
+            "oruk": ["*.json", "*.safetensors", "*.py"],
+        },
+        "deps": ("onnxruntime", "onnx_asr", "transformers", "torch"),
+        "search": {"pipeline_tag": "automatic-speech-recognition"},
+        "kind": "Speech-to-text · Parakeet (ONNX), Moonshine, Whisper, oruk (transformers)",
+        "accepts": "A Parakeet ONNX repo (with int8 files), or a Moonshine, Whisper or oruk transformers repo, or a Hugging Face page URL, e.g. istupakov/parakeet-tdt-0.6b-v2-onnx. Downloads to the HF cache.",
         "example": "istupakov/parakeet-tdt-0.6b-v2-onnx",
         "recommended": [
             ("istupakov/parakeet-tdt-0.6b-v2-onnx", 0.7, "shipped default — English, int8"),
             ("istupakov/parakeet-tdt-0.6b-v3-onnx", 0.7, "25 European languages, int8"),
+            ("UsefulSensors/moonshine-tiny", 0.11, "Moonshine Tiny, 27M — the smallest; English, fast on CPU"),
+            ("openai/whisper-small", 1.0, "Whisper Small, 244M — about 100 languages"),
+            ("oruk/oruk-loop-153M", 0.6, "oruk-loop, 153M — English; runs the repo's own code and needs about 4 GB RAM; free for non-commercial and small-business use"),
         ],
     },
     "tts": {
-        "runner": "huggingface", "engine": "onnxruntime", "family": ("kokoro",), "platform": None,
-        "files": ["config.json", "tokenizer.json", "onnx/model_quantized.onnx", "voices/*.bin"],
-        "deps": ("onnxruntime", "misaki"),
-        "search": {"filter": ["onnx"], "pipeline_tag": "text-to-speech"},
-        "kind": "ONNX · Kokoro text-to-speech",
-        "accepts": "Kokoro ONNX repo id or Hugging Face page URL, e.g. onnx-community/Kokoro-82M-v1.0-ONNX. Downloads to the HF cache.",
+        "runner": "huggingface", "engine": "onnxruntime", "family": ("kokoro", "kitten", "supertonic"), "platform": None,
+        "files": {
+            "kokoro": ["config.json", "tokenizer.json", "onnx/model_quantized.onnx", "voices/*.bin"],
+            "kitten": ["config.json", "voices.npz", "*.onnx"],
+            "supertonic": ["onnx/*.onnx", "onnx/*.json", "voice_styles/*.json"],
+        },
+        "deps": ("onnxruntime", "misaki", "supertonic"),
+        "search": {"pipeline_tag": "text-to-speech"},
+        "kind": "Text-to-speech · Kokoro, Kitten TTS, Supertonic (ONNX)",
+        "accepts": "A Kokoro, Kitten TTS or Supertonic ONNX repo id or Hugging Face page URL, e.g. onnx-community/Kokoro-82M-v1.0-ONNX. Downloads to the HF cache.",
         "example": "onnx-community/Kokoro-82M-v1.0-ONNX",
         "recommended": [
             ("onnx-community/Kokoro-82M-v1.0-ONNX", 0.12, "shipped default — int8, 27 voices"),
+            ("KittenML/kitten-tts-nano-0.8-int8", 0.03, "Kitten TTS Nano, 15M — the smallest; English, 8 voices"),
+            ("KittenML/kitten-tts-mini-0.8", 0.08, "Kitten TTS Mini, 80M — English, 8 voices, better quality"),
+            ("Supertone/supertonic-3", 0.4, "Supertonic 3 — 31 languages, 10 voices; OpenRAIL licence"),
         ],
     },
     "image": {
@@ -124,9 +151,58 @@ def unavailable_reason(role: str) -> str | None:
     return None
 
 
-def files(role: str) -> list[str] | None:
-    """The files a fixed-layout runtime reads from its repo, or None when it reads the whole repo."""
-    return ROLE_SPECS[role]["files"]
+# the voices each text-to-speech family ships, and the one a family uses when the configured voice is not its own
+TTS_VOICES = {
+    "kokoro": schemas.TTS_VOICES,
+    "kitten": ("Bella", "Jasper", "Luna", "Bruno", "Rosie", "Hugo", "Kiki", "Leo"),
+    "supertonic": ("M1", "M2", "M3", "M4", "M5", "F1", "F2", "F3", "F4", "F5"),
+}
+TTS_FALLBACK_VOICE = {"kokoro": "af_heart", "kitten": "Jasper", "supertonic": "M1"}
+
+
+def tts_voices(model: str) -> tuple[str, ...]:
+    """The voices a text-to-speech model offers; empty for a repo no engine here loads."""
+    return TTS_VOICES.get(backend("tts", model) or "", ())
+
+
+def tts_default_voice(model: str, configured: str) -> str:
+    """The configured voice when this model has it, else the model's own default."""
+    return configured if configured in tts_voices(model) else TTS_FALLBACK_VOICE.get(backend("tts", model) or "", configured)
+
+
+def reads_images(role: str, name: str) -> bool:
+    """Whether the role's engine for this model accepts an image; the Laya and GLiNER decide engines read text only."""
+    return not (role == "decide" and backend(role, name) in ("laya", "gliner2"))
+
+
+def require_backend_deps(role: str, name: str) -> None:
+    """Refuse a model whose engine package this install lacks, saying how to get it."""
+    needed = ROLE_SPECS[role].get("backend_deps", {}).get(backend(role, name) or "", ())
+    missing = [dep for dep in needed if importlib.util.find_spec(dep) is None]
+    if missing:
+        raise config.ConfigError(
+            f"{role}.model {name!r} needs {', '.join(missing)}, which come with the media extra. "
+            'Reinstall with it: uv tool install --force "omni-api[media]" (or brew reinstall omni if you installed with Homebrew)')
+
+
+def backend(role: str, name: str) -> str | None:
+    """Which of the role's model families `name` belongs to (`kitten` for a Kitten TTS repo), or None."""
+    lowered = name.lower()
+    for marker in family(role):
+        if re.search(rf"(?<![a-z0-9]){re.escape(marker)}", lowered):
+            return marker
+    return None
+
+
+def files(role: str, name: str | None = None) -> list[str] | None:
+    """The files a fixed-layout runtime reads from its repo, or None when it reads the whole repo.
+
+    A role with several model families keeps one list per family, so `name` picks the list.
+    """
+    patterns = ROLE_SPECS[role]["files"]
+    if isinstance(patterns, dict):
+        return patterns.get(backend(role, name or ""))
+    return patterns
 
 
 def canonical(name) -> str:
