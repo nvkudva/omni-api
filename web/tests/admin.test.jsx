@@ -122,6 +122,21 @@ describe("a role's setup card", () => {
     expect(html).toContain('value="af_heart"');
   });
 
+  test("a worker role's card has a start/stop switch and a keep-warm switch inside Settings", () => {
+    const html = render(<RoleModelCard density="detail" role="image" entry={READY_ENTRY} pinned onChanged={noop} />);
+    expect(html).toContain("<h4>Settings</h4>");
+    expect(html).toContain('aria-label="stop Image"');
+    expect(html).toContain('aria-label="stop keeping warm Image"');
+    expect(html).toContain("Restart");
+  });
+
+  test("an Ollama role's card keeps one keep-warm switch and no Settings box", () => {
+    const html = render(<RoleModelCard density="detail" role="chat" entry={READY_ENTRY} pinned={false} onChanged={noop} />);
+    expect(html).not.toContain("<h4>Settings</h4>");
+    expect(html).not.toContain('aria-label="start Chat"');
+    expect(html.match(/role="switch"/g)).toHaveLength(1);
+  });
+
   test("the downloaded list covers every model with a delete each", () => {
     const html = render(
       <ModelList role="chat" installed={READY_ENTRY.installed} onChanged={noop} />,
@@ -352,11 +367,19 @@ describe("the sidebar card", () => {
     expect(html).toContain('role="switch"');
   });
 
-  test("a stopped worker offers Start, not a keep-warm switch", () => {
+  test("a stopped worker's switch is off and starts it", () => {
     const html = sidebar("tts", { status: "stopped" });
     expect(html).toContain(">off<");
     expect(html).toContain("Start the Text to speech worker");
-    expect(html).not.toContain('role="switch"');
+    expect(html).toContain('aria-label="start Text to speech"');
+    expect(html).toContain('aria-checked="false"');
+  });
+
+  test("a running worker's switch is on and stops it, whether or not it is kept warm", () => {
+    const html = sidebar("tts", { status: "ready" });
+    expect(html).toContain("Stop the Text to speech worker");
+    expect(html).toContain('aria-label="stop Text to speech"');
+    expect(html).toContain('aria-checked="true"');
   });
 
   test("a failed worker offers Start too", () => {
@@ -418,8 +441,9 @@ describe("the memory panel", () => {
     expect(html).toContain("9.4 GB swapped out: models will run slowly");
     expect(html).toContain("Loaded in Ollama");
     expect(html).toContain("qwen2.5:3b");
-    expect(html).toContain("stopped");
     expect(html).toContain("12.5");
+    // worker start/stop lives on the role cards, not here
+    expect(html).not.toContain("<h3>Workers</h3>");
   });
 
   test("says so while memory is still unread, and with nothing loaded", () => {

@@ -153,47 +153,6 @@ export function OllamaRow({ model, roles, onChanged }) {
   );
 }
 
-export function WorkerRow({ name, state, worker, model, onChanged }) {
-  const [busy, run] = useAction(onChanged);
-  const label = ROLE_META[name]?.label ?? name;
-  const control = (action) => run(() => workerAction(name, action), `${name}: ${action} sent`);
-  const stop = async () => {
-    const confirmed = await ask({
-      title: `Stop ${label}?`,
-      message: `In-flight ${label} requests will be interrupted.`,
-      confirmLabel: "Stop",
-      tone: "danger",
-    });
-    if (confirmed) control("stop");
-  };
-  // The role's own state is what the cards show, so this table cannot drift from them.
-  const status = state?.status ?? worker?.status ?? "unknown";
-  const stopped = status === "stopped" || status === "failed";
-  const loaded = state ? state.loaded : Boolean(worker?.loaded);
-  const word = loaded ? "loaded" : stopped ? "stopped" : status === "starting" ? "starting…" : "idle";
-  const dot = loaded ? "loaded" : stopped ? "stopped" : status === "starting" ? "unknown" : "idle";
-  const shownModel = state?.runningModel ?? worker?.model ?? model ?? "—";
-  const memory = state ? (loaded ? gb(state.memoryBytes) : "—") : gb(worker?.rss_bytes ?? 0);
-  const cpu = state?.cpuPercent ?? worker?.cpu_percent ?? 0;
-  return (
-    <tr>
-      <td>{label}</td>
-      <td>{shownModel}</td>
-      <td><span class={ui.css.nameCell}><ui.Dot status={dot} />{word}</span></td>
-      <td class={ui.css.numeric}>{cpu.toFixed(0)}%</td>
-      <td class={ui.css.numeric}>{memory}</td>
-      <td class={ui.css.actionCell}>
-        <span class={styles.buttons}>
-          {stopped
-            ? <ui.Button small disabled={busy} onClick={() => control("start")}>Start</ui.Button>
-            : <ui.Button small disabled={busy} onClick={stop}>Stop</ui.Button>}
-          <ui.Button small disabled={busy} onClick={() => control("restart")}>Restart</ui.Button>
-        </span>
-      </td>
-    </tr>
-  );
-}
-
 // a worker with no model loaded still holds ~0.1 GB; unloading it frees nothing worth suggesting
 const RECLAIMABLE_MIN_BYTES = 512 * 1024 * 1024;
 
@@ -253,22 +212,6 @@ export function Memory({ memory, roles, onChanged }) {
           </table>
         )
         : <ui.Meta>none loaded</ui.Meta>}
-      <h3 class={styles.subhead}>Workers</h3>
-      <table>
-        <thead><tr><th>Worker</th><th>Model</th><th>State</th><th>CPU</th><th>Memory</th><th /></tr></thead>
-        <tbody>
-          {ROLE_ORDER.filter((name) => memory.workers?.[name]).map((name) => (
-            <WorkerRow
-              key={name}
-              name={name}
-              state={runtime.value.roles?.[name]}
-              worker={memory.workers[name]}
-              model={roles?.[name]?.default}
-              onChanged={onChanged}
-            />
-          ))}
-        </tbody>
-      </table>
     </Section>
   );
 }

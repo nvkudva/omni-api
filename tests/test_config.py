@@ -99,9 +99,15 @@ class Overrides(unittest.TestCase):
 
 
 class Pins(unittest.TestCase):
-    def test_a_missing_file_means_nothing_is_pinned(self):
+    def test_a_missing_file_means_every_role_is_pinned(self):
         with tempfile.TemporaryDirectory() as directory, \
                 patch.object(config, "PINS", Path(directory) / "pins.json"):
+            self.assertEqual(config.load_pins(), list(config.ROLES))
+
+    def test_a_saved_empty_choice_stays_empty(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.object(config, "PINS", Path(directory) / "pins.json"):
+            config.save_pins([])
             self.assertEqual(config.load_pins(), [])
 
     def test_save_and_load_round_trip_in_role_order(self):

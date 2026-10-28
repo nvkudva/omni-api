@@ -263,7 +263,12 @@ def idle_seconds(settings: dict) -> float:
 
 
 def load_pins() -> list[str]:
-    """The roles whose models should stay resident, in role order. Unknown names are dropped."""
+    """The roles whose models should stay resident, in role order. Unknown names are dropped.
+
+    Before anything is saved, every role is warm; a saved choice, even an empty one, wins.
+    """
+    if not PINS.exists():
+        return list(ROLES)
     try:
         raw = json.loads(PINS.read_text())
     except (OSError, ValueError):

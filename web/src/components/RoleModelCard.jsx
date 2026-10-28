@@ -121,27 +121,38 @@ function useWarmToggle(role, model, pinned, { onChanged, onProblem } = {}) {
 }
 
 /**
- * The action a card offers when its runtime is down: start the worker omni supervises. The card
- * reads the runtime signal, which polls on its own, but a person who just pressed a button should
- * not wait for the next tick, so the start polls once more before it settles.
+ * The run switch of a worker role: off starts the worker omni supervises, on stops it. The card
+ * reads the runtime signal, which polls on its own, but a person who just pressed a switch should
+ * not wait for the next tick, so it polls once more before it settles.
  */
-function useStartWorker(role, onProblem) {
+function useRunSwitch(role, running, { onChanged, onProblem } = {}) {
   const [busy, setBusy] = useState(false);
-  const start = async (event) => {
-    event.stopPropagation();
+  const label = ROLE_META[role]?.label ?? role;
+  const flip = async (event) => {
+    event?.stopPropagation();
+    if (running) {
+      const confirmed = await ask({
+        title: `Stop ${label}?`,
+        message: `In-flight ${label} requests will be interrupted.`,
+        confirmLabel: "Stop",
+        tone: "danger",
+      });
+      if (!confirmed) return;
+    }
     setBusy(true);
     onProblem?.("");
     try {
-      await workerAction(role, "start");
+      await workerAction(role, running ? "stop" : "start");
       await pollRuntime();
+      onChanged?.(`${running ? "stopped" : "started"} the ${label} worker`);
     } catch (error) {
       onProblem?.(error.message);
-      notify(error.message, { title: `Could not start ${ROLE_META[role]?.label ?? role}` });
+      notify(error.message, { title: `Could not ${running ? "stop" : "start"} ${label}` });
     } finally {
       setBusy(false);
     }
   };
-  return [busy, start];
+  return [busy, flip];
 }
 
 /** The keep-warm switch. Mini puts it in the card's footer and detail in the
@@ -434,16 +445,17 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
   const working = installing || status === "loading" || status === "starting";
   const fraction = installing ? download.fraction || 0 : 0;
   const [warmBusy, flipWarm] = useWarmToggle(role, state.model, pinned, { onProblem: setProblem });
-  const [startBusy, startWorker] = useStartWorker(role, setProblem);
+  const stopped = status === "stopped" || status === "failed";
+  const [runBusy, flipRun] = useRunSwitch(role, !stopped, { onProblem: setProblem });
 
   // The one thing this card invites: set it up, bring it back up, or decide whether it stays warm.
   // The footer does not change shape between those beyond swapping its button, so the eye keeps
   // finding the light and the word in the same place on every card.
   const action = installing ? "stop"
     : needsSetup ? "setup"
-    : status === "stopped" || status === "failed"
-      ? (isWorker(role) ? "start" : "server")
-      : "warm";
+    : isWorker(role) ? "run"
+    : stopped ? "server"
+    : "warm";
 
   const flip = (event) => {
     event.stopPropagation();
@@ -523,8 +535,15 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
         {action === "setup" && (
           <ui.IconButton class={styles.footAction} icon="download" label={`Set up ${state.label}`} disabled={installing} size={14} onClick={explain} />
         )}
-        {action === "start" && (
-          <ui.IconButton class={styles.footAction} icon="play" label={`Start the ${state.label} worker`} disabled={startBusy} size={14} onClick={startWorker} />
+        {action === "run" && (
+          <WarmSwitch
+            pinned={!stopped}
+            busy={runBusy}
+            disabled={checking}
+            label={`${stopped ? "start" : "stop"} ${state.label}`}
+            title={stopped ? `Start the ${state.label} worker` : `Stop the ${state.label} worker`}
+            onClick={flipRun}
+          />
         )}
         {action === "server" && (
           <ui.IconButton class={styles.footAction} icon="server" label="Open the server controls" size={14} onClick={server} />
@@ -562,7 +581,10 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
   const label = meta?.label ?? role;
   const [busy, run] = useAction(onChanged);
   const [warmBusy, flipWarm] = useWarmToggle(role, entry.default, pinned, { onChanged });
+  const status = runtime.value.roles[role]?.status;
   const specs = (tunables && ROLE_TUNABLES[role]) || [];
+  const workerRole = isWorker(role);
+  const [runBusy, flipRun] = useRunSwitch(role, !(status === "stopped" || status === "failed"), { onChanged });
 
   const loadModel = (model) => run(async (options) => {
     if (model !== entry.default) await setRoleDefault({ role, model });
@@ -574,7 +596,6 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
   // A model can be on disk and still serve nothing: its worker may be stopped, or
   // Ollama may be down. Say which, and offer the one fix this card owns. A missing
   // model is already the install notice's story, so it wins over a stopped worker.
-  const status = runtime.value.roles[role]?.status;
   const workerDown = (status === "stopped" || status === "failed") && entry.state !== "missing" && !entry.reason;
   const engineDown = status === "unavailable";
   const startWorker = () => run(async () => {
@@ -582,13 +603,24 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
     await pollRuntime();
   }, `started the ${label} worker`);
 
+  const restartWorker = () => run(() => workerAction(role, "restart"), `restarted the ${label} worker`);
+
   return (
     <Section
       title={meta?.label ?? role}
       role={role}
       health
       tools={<ui.Button small onClick={() => onAdd?.(role)}>Add model</ui.Button>}
-      warmToggle={(
+      warmToggle={workerRole ? (
+        <WarmSwitch
+          pinned={status !== "stopped" && status !== "failed"}
+          busy={runBusy}
+          disabled={!status || status === "unknown"}
+          label={`${status === "stopped" || status === "failed" ? "start" : "stop"} ${label}`}
+          title={status === "stopped" || status === "failed" ? `Start the ${label} worker` : `Stop the ${label} worker`}
+          onClick={flipRun}
+        />
+      ) : (
         <WarmSwitch
           pinned={pinned}
           busy={warmBusy}
@@ -608,7 +640,7 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
         </div>
       )}
       {engineDown && (
-        <ui.Notice tone="warn">{`Ollama is not answering, so ${label} cannot serve ${entry.default}. Restart it from the Workers section above.`}</ui.Notice>
+        <ui.Notice tone="warn">{`Ollama is not answering, so ${label} cannot serve ${entry.default}. Restart it from the Server page.`}</ui.Notice>
       )}
       <InstallProgress role={role} />
       <ModelList
@@ -623,7 +655,26 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
         onLoad={loadModel}
         onUnload={unloadModel}
       />
-      {specs.map((spec) => <Tunable key={spec.key} spec={spec} stored={tunables[spec.key]} onSaved={onSaved} />)}
+      {(specs.length > 0 || workerRole) && (
+        <div class={styles.settings}>
+          <h4>Settings</h4>
+          {workerRole && (
+            <div class={styles.tunable}>
+              <WarmSwitch
+                pinned={pinned}
+                busy={warmBusy}
+                disabled={entry.state !== "ready"}
+                label={`${pinned ? "stop keeping warm" : "keep warm"} ${label}`}
+                title={pinned ? `Stop keeping ${entry.default} warm` : `Keep ${entry.default} warm (loads it now and holds it)`}
+                onClick={flipWarm}
+              />
+              <span>Keep warm: hold the model in memory instead of unloading it when idle</span>
+            </div>
+          )}
+          {workerRole && <ui.Button small disabled={busy} onClick={restartWorker}>Restart {label} worker</ui.Button>}
+          {specs.map((spec) => <Tunable key={spec.key} spec={spec} stored={tunables[spec.key]} onSaved={onSaved} />)}
+        </div>
+      )}
     </Section>
   );
 }
