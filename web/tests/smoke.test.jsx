@@ -129,6 +129,22 @@ describe("pages render before the first poll", () => {
 describe("pages render against a live-looking runtime", () => {
   beforeEach(seed);
 
+  test("the Decide page offers an image only when the decide model can read one", () => {
+    expect(render(<pages.Decide active />)).toContain("Drop an invoice");
+    runtime.value = {
+      ...runtime.value,
+      roles: { ...runtime.value.roles, decide: { ...runtime.value.roles.decide, readsImages: false } },
+    };
+    expect(render(<pages.Decide active />)).not.toContain("Drop an invoice");
+  });
+
+  test("voices that are not Kokoro codes are labelled by name", async () => {
+    const { voiceLabel } = await import("../src/tabs/Tts.jsx");
+    expect(voiceLabel("Bella")).toBe("Bella");
+    expect(voiceLabel("M1")).toBe("M1");
+    expect(voiceLabel("af_heart")).toBe("heart · American female");
+  });
+
   test("the role cards show each role's model, memory and loaded state", () => {
     const html = render(<App />);
     expect(html).toContain(MODEL);

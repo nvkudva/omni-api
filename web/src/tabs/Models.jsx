@@ -102,14 +102,18 @@ export function GlobalControls({ managed, tunables, onChanged, onSaved }) {
   };
 
   return (
-    <Section title="Workers" meta="every role's runtime at once">
-      <ui.Row>
-        <ui.Button small disabled={busy} onClick={() => run("restart", "Restart all")}>Restart all</ui.Button>
-        <ui.Button small disabled={busy} onClick={() => run("stop", "Stop all", true)}>Stop all</ui.Button>
-        <ui.Button small disabled={busy || !managed} onClick={restartOllama} title={managed ? "Restart the Ollama engine" : "Ollama is not managed by omni on this machine"}>Restart Ollama</ui.Button>
-      </ui.Row>
-      {tunables && <Tunable spec={GATEWAY_TUNABLE} stored={tunables[GATEWAY_TUNABLE.key]} onSaved={onSaved} />}
-    </Section>
+    <Section
+      title="Workers"
+      meta="every role's runtime at once"
+      tools={(
+        <>
+          {tunables && <Tunable spec={GATEWAY_TUNABLE} stored={tunables[GATEWAY_TUNABLE.key]} onSaved={onSaved} inline />}
+          <ui.Button small disabled={busy} onClick={() => run("restart", "Restart all")}>Restart all</ui.Button>
+          <ui.Button small disabled={busy} onClick={() => run("stop", "Stop all", true)}>Stop all</ui.Button>
+          <ui.Button small disabled={busy || !managed} onClick={restartOllama} title={managed ? "Restart the Ollama engine" : "Ollama is not managed by omni on this machine"}>Restart Ollama</ui.Button>
+        </>
+      )}
+    />
   );
 }
 

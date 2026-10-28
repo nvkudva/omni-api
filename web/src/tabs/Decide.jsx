@@ -3,6 +3,7 @@ import { readDataUrl, record } from "../api/client.js";
 import { decide } from "../api/endpoints.js";
 import { cancelExec, newExecId } from "../api/execs.js";
 import { models } from "../api/models.js";
+import { runtime } from "../api/roles.js";
 import { curlJson } from "../lib/curl.js";
 import { uid } from "../lib/uid.js";
 import { shorten, since } from "../lib/format.js";
@@ -129,6 +130,10 @@ export default function Decide() {
   const turnState = useTurnState();
 
   useEffect(() => () => abort.current?.abort(), []);
+
+  // Laya and GLiNER read text only: hide the image picker for them, and drop an image picked under another model
+  const readsImages = runtime.value.roles.decide?.readsImages !== false;
+  useEffect(() => { if (!readsImages && image) setImage(null); }, [readsImages, image]);
 
   const decideModels = models.value.data.filter((entry) => entry.role === "decide").map((entry) => entry.id);
   const effectiveModel = decideModels.includes(model) ? model : "";
@@ -281,7 +286,7 @@ export default function Decide() {
         )}
       >
         <RequestBody view={view} jsonText={json.text} onJsonText={json.setText} jsonError={json.error} curl={curl}>
-          <ui.Field label="Image" hint={image ? "replaces the state text" : "optional, instead of the state text"}>
+          {readsImages && <ui.Field label="Image" hint={image ? "replaces the state text" : "optional, instead of the state text"}>
             <ui.DropZone accept="image/*" onFile={chooseImage}>
               {image
                 ? (
@@ -296,7 +301,7 @@ export default function Decide() {
             {image && (
               <ui.Button small onClick={() => setImage(null)}>Use the state text instead</ui.Button>
             )}
-          </ui.Field>
+          </ui.Field>}
           <ui.Field label="State" hint="⌘/Ctrl + Enter to decide">
             <textarea rows={4} value={state} onInput={(event) => editState(event.currentTarget.value)} onKeyDown={sendOnShortcut} />
           </ui.Field>
