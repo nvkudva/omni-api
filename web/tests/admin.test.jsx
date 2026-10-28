@@ -127,7 +127,18 @@ describe("a role's setup card", () => {
     expect(html).toContain("<h4>Settings</h4>");
     expect(html).toContain('aria-label="stop Image"');
     expect(html).toContain('aria-label="stop keeping warm Image"');
-    expect(html).toContain("Restart");
+    expect(html).toContain(">Stop<");
+    expect(html).toContain(">Restart<");
+    expect(html).not.toContain(">Start<");
+  });
+
+  test("a stopped worker's header offers Start, never Stop or Restart", () => {
+    runtime.value = { ...runtime.value, roles: { image: { status: "stopped" } } };
+    const html = render(<RoleModelCard density="detail" role="image" entry={READY_ENTRY} pinned onChanged={noop} />);
+    runtime.value = { ready: false, error: "", roles: {}, warnings: [], memory: null, pins: [] };
+    expect(html).toContain(">Start<");
+    expect(html).not.toContain(">Stop<");
+    expect(html).not.toContain(">Restart<");
   });
 
   test("an Ollama role's card keeps one keep-warm switch and no Settings box", () => {

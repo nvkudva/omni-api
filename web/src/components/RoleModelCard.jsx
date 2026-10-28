@@ -584,7 +584,8 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
   const status = runtime.value.roles[role]?.status;
   const specs = (tunables && ROLE_TUNABLES[role]) || [];
   const workerRole = isWorker(role);
-  const [runBusy, flipRun] = useRunSwitch(role, !(status === "stopped" || status === "failed"), { onChanged });
+  const workerStopped = status === "stopped" || status === "failed";
+  const [runBusy, flipRun] = useRunSwitch(role, !workerStopped, { onChanged });
 
   const loadModel = (model) => run(async (options) => {
     if (model !== entry.default) await setRoleDefault({ role, model });
@@ -612,14 +613,24 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
       health
       tools={<ui.Button small onClick={() => onAdd?.(role)}>Add model</ui.Button>}
       warmToggle={workerRole ? (
-        <WarmSwitch
-          pinned={status !== "stopped" && status !== "failed"}
-          busy={runBusy}
-          disabled={!status || status === "unknown"}
-          label={`${status === "stopped" || status === "failed" ? "start" : "stop"} ${label}`}
-          title={status === "stopped" || status === "failed" ? `Start the ${label} worker` : `Stop the ${label} worker`}
-          onClick={flipRun}
-        />
+        <>
+          <WarmSwitch
+            pinned={!workerStopped}
+            busy={runBusy}
+            disabled={!status || status === "unknown"}
+            label={`${workerStopped ? "start" : "stop"} ${label}`}
+            title={workerStopped ? `Start the ${label} worker` : `Stop the ${label} worker`}
+            onClick={flipRun}
+          />
+          {workerStopped
+            ? <ui.Button small disabled={runBusy} onClick={flipRun}>Start</ui.Button>
+            : (
+              <>
+                <ui.Button small disabled={runBusy} onClick={flipRun}>Stop</ui.Button>
+                <ui.Button small disabled={busy} onClick={restartWorker}>Restart</ui.Button>
+              </>
+            )}
+        </>
       ) : (
         <WarmSwitch
           pinned={pinned}
@@ -671,7 +682,6 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
               <span>Keep warm: hold the model in memory instead of unloading it when idle</span>
             </div>
           )}
-          {workerRole && <ui.Button small disabled={busy} onClick={restartWorker}>Restart {label} worker</ui.Button>}
           {specs.map((spec) => <Tunable key={spec.key} spec={spec} stored={tunables[spec.key]} onSaved={onSaved} />)}
         </div>
       )}
