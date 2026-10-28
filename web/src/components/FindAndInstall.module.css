@@ -20,18 +20,14 @@
   }
   & .criteriaText { color: var(--muted-foreground); font-size: 0.875rem; }
 
-  & .subhead {
-    font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
-    color: var(--muted-foreground); margin-top: 4px;
-  }
-  & .note { display: block; margin-top: 2px; font-size: 0.75rem; color: var(--muted-foreground); }
-
   /* The model tables are the dialog's own frame: a bordered grid, not the
      hairline-under-each-row style the cards use. */
   & table {
     border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden;
 
     & td { overflow-wrap: anywhere; }
+    /* a long repo id wraps instead of pushing the Size column out of the dialog */
+    & td a { white-space: normal; }
     & th, & td { border-right: 1px solid var(--border); }
     & th:last-child, & td:last-child { border-right: 0; }
   }

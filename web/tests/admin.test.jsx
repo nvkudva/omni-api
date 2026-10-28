@@ -213,16 +213,10 @@ describe("the Find and Install popup", () => {
     expect(stt).toContain("istupakov/parakeet-tdt-0.6b-v2-onnx");
   });
 
-  test("a recommended table lists the server's candidates with their download state and fit", () => {
+  test("the dialog only searches: the recommended list lives on the model card", () => {
     const html = render(<FindAndInstall role="chat" onClose={noop} onInstalled={noop} />);
-    expect(html).toContain("Recommended");
-    expect(html).toContain("qwen3.8:27b");
-    expect(html).toContain("17.7 GB");
-    expect(html).toContain("Download</button>");
-    expect(html).toContain("tight");
-    expect(html).toContain("only 10.0 GB RAM free");
-    // the configured default is marked as such
-    expect(html).toContain("default");
+    expect(html).not.toContain("Recommended");
+    expect(html).toContain("Search Hugging Face");
   });
 
   test("criteria come from the server's role specs, and an unknown role opens nothing", () => {

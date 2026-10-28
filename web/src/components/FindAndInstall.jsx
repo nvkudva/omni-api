@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
-import { ROLE_META, downloadFor, install, installs, matchesModel, specs, stopDownload } from "../api/roles.js";
-import { checkModel, modelStatus, searchModels, setRoleDefault } from "../api/endpoints.js";
+import { ROLE_META, downloadFor, install, installs, specs, stopDownload } from "../api/roles.js";
+import { checkModel, searchModels } from "../api/endpoints.js";
 import { gb, size } from "../lib/format.js";
 import * as ui from "./ui.jsx";
 import styles from "./FindAndInstall.module.css";
@@ -53,68 +53,6 @@ export function InstallProgress({ role }) {
       {progress.warnings?.length > 0 && <ui.Notice>{progress.warnings.join(" ")}</ui.Notice>}
       {progress.error && <ui.ErrorText>{progress.error}</ui.ErrorText>}
     </>
-  );
-}
-
-/**
- * The curated candidates for this role, as the gateway ranks them: the
- * configured default first, each row saying whether it is on disk and what
- * would stand in its way on this machine. Reads `/admin/models/status` once per
- * open and again after an install lands, so the table cannot go stale.
- */
-export function Recommended({ role, onUse, onInstalled }) {
-  const [entry, setEntry] = useState(specs.value[role] ?? null);
-  const finished = installs.value[role]?.fraction;
-  const busy = Boolean(installs.value[role]?.busy);
-
-  useEffect(() => {
-    let live = true;
-    modelStatus()
-      .then((body) => {
-        if (live && body.roles?.[role]) setEntry(body.roles[role]);
-      })
-      .catch(() => {
-        // keep the last description: the table still lists the candidates
-      });
-    return () => { live = false; };
-  }, [role, finished]);
-
-  const rows = entry?.recommended ?? [];
-  const defaultModel = entry?.default ?? null;
-  const isDefault = (row) => matchesModel(row.model, defaultModel);
-  const download = async (model) => {
-    if (await install(role, model)) onInstalled();
-  };
-  const sizeLabel = (row) => (row.gb ? `${row.gb} GB` : "—");
-
-  return (
-    <table>
-      <thead><tr><th>Model</th><th>Size</th><th /></tr></thead>
-      <tbody>
-        {rows.map((row) => {
-          const fits = !row.blockers?.length;
-          return (
-            <tr key={row.model}>
-              <td>
-                <div class={ui.css.nameCell}>
-                  {row.model}
-                  {isDefault(row) && <span class={styles.chip}>default</span>}
-                  {!fits && <span class={styles.chip}>tight</span>}
-                </div>
-                {row.note && <span class={styles.note}>{row.note}</span>}
-                {!fits && <span class={styles.note}>{row.blockers.join(" ")}</span>}
-              </td>
-              <td class={ui.css.numeric}>{sizeLabel(row)}</td>
-              <td class={ui.css.actionCell}>
-                {row.installed
-                  ? !isDefault(row) && <ui.Button small onClick={() => onUse(row.model)}>Use</ui.Button>
-                  : <ui.Button small disabled={busy} onClick={() => download(row.model)}>Download</ui.Button>}
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
   );
 }
 
@@ -240,12 +178,6 @@ export function FindAndInstall({ role, onClose, onInstalled }) {
   const meta = role ? ROLE_META[role] : null;
   const criteria = role ? criteriaFor(role) : null;
 
-  const use = async (model) => {
-    await setRoleDefault({ role, model });
-    onInstalled?.();
-    onClose?.();
-  };
-
   if (!role || !meta || !criteria) return null;
 
   return (
@@ -270,9 +202,6 @@ export function FindAndInstall({ role, onClose, onInstalled }) {
           {criteria.family && <span class={styles.chip}>name contains “{criteria.family}”</span>}
           <span class={styles.criteriaText}>{criteria.accepts}</span>
         </div>
-        <h3 class={styles.subhead}>Recommended</h3>
-        <Recommended role={role} onUse={use} onInstalled={() => onInstalled?.()} />
-        <h3 class={styles.subhead}>Find another</h3>
         <Find role={role} onInstalled={() => onInstalled?.()} inputRef={searchRef} />
         <InstallProgress role={role} />
       </div>
