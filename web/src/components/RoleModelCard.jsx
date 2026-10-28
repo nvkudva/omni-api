@@ -600,10 +600,14 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
       title={meta?.label ?? role}
       role={role}
       health
-      tools={<ui.Button small onClick={() => onAdd?.(role)}>Add model</ui.Button>}
-      warmToggle={(
+      tools={(
         <>
           {workerRole && !workerDown && status !== "unknown" && <ui.Button small disabled={busy} onClick={restartWorker}>Restart</ui.Button>}
+          <ui.Button small onClick={() => onAdd?.(role)}>Add model</ui.Button>
+        </>
+      )}
+      warmToggle={(
+        <>
           {entry.state === "missing"
             ? <ui.Button small disabled={installing} onClick={installDefault}>{installing ? "Downloading…" : "Download"}</ui.Button>
             : (
