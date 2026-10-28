@@ -77,6 +77,16 @@
   flex: 1; min-width: 0; text-align: right;
 }
 
+/* No model on disk yet: one quiet row, the model and why, with its one action. */
+.setup {
+  display: flex; align-items: center; gap: 12px;
+  padding: 0.625rem 0.75rem; border-radius: var(--radius-md);
+  border: 1px dashed var(--border); background: var(--muted);
+}
+.setupText { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.setupModel { font-weight: 500; overflow-wrap: anywhere; }
+.setupHint { font-size: 0.75rem; color: var(--muted-foreground); }
+
 /* A role that cannot serve: the reason fills the line, its fix keeps the right. */
 .standing {
   display: flex; align-items: center; gap: 8px;
@@ -131,4 +141,22 @@
 
 @media (prefers-reduced-motion: reduce) {
   .miniCard .waiting .downloadFill { animation: none; }
+}
+
+.modelTable {
+  border: 1px solid var(--border);
+  border-radius: var(--radius, 0.5rem);
+  overflow: hidden;
+
+}
+
+.rowActions { display: inline-flex; align-items: center; gap: 6px; }
+
+.defaultTag {
+  margin-left: 8px;
+  font-size: 0.6875rem;
+  color: var(--muted-foreground);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0 6px;
 }

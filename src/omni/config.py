@@ -16,6 +16,7 @@ VIDEO_DIR = HOME / "videos"
 BUNDLE_DIR = HOME / "bundles"
 PIDFILE = RUN_DIR / "omni.pid"
 PINS = HOME / "pins.json"
+DOWNLOADS = HOME / "downloads.json"
 USER_CONFIG = HOME / "config.toml"
 CATALOG = Path(__file__).with_name("catalog.toml")
 OLLAMA_DEFAULT_PORT = 11434

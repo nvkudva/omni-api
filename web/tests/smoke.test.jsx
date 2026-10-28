@@ -59,7 +59,7 @@ function seed({ pinned = [] } = {}) {
     pins: pinned,
     roles: Object.fromEntries(ROLE_ORDER.map((role) => [role, {
       ...ROLE_META[role], role, model: MODEL, loaded: true, pinned: pinned.includes(role),
-      runningModel: MODEL, memoryBytes: BYTES, status: "ready", cpuPercent: 12.5, held: false,
+      runningModel: MODEL, memoryBytes: BYTES, modelBytes: BYTES, status: "ready", cpuPercent: 12.5, held: false,
     }])),
   };
   models.value = {

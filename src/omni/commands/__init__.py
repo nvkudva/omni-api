@@ -4,6 +4,7 @@
 ``lifecycle`` and ``settings``; this module only parses arguments and dispatches.
 """
 import argparse
+import os
 import sys
 
 from omni import config, logs, version
@@ -113,7 +114,18 @@ def _enable_completion(parser: argparse.ArgumentParser) -> None:
     argcomplete.autocomplete(parser)
 
 
+TOOL_DIRS = ("/opt/homebrew/bin", "/usr/local/bin")
+
+
+def _extend_path() -> None:
+    """Add Homebrew's bin dirs to PATH: ssh, launchd and cron start omni without them, and ffmpeg and ollama live there."""
+    present = os.environ.get("PATH", "").split(os.pathsep)
+    missing = [directory for directory in TOOL_DIRS if os.path.isdir(directory) and directory not in present]
+    os.environ["PATH"] = os.pathsep.join([*present, *missing])
+
+
 def main() -> None:
+    _extend_path()
     gateway = _gateway_defaults()
     parser = build_parser(gateway)
     _enable_completion(parser)

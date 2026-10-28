@@ -15,6 +15,7 @@ import subprocess
 import sys
 import time
 import webbrowser
+from pathlib import Path
 
 import httpx
 import psutil
@@ -52,6 +53,16 @@ def _read_record() -> dict:
         return {"pid": int(raw)}
     except ValueError:
         return {}
+
+
+def _build_stamp() -> str:
+    """Version plus install time: a reinstall of the same version still changes it."""
+    return f"{version()}:{Path(__file__).stat().st_mtime_ns}"
+
+
+def is_stale() -> bool:
+    """Whether the running gateway was started before the current install."""
+    return bool(gateway_pid()) and _read_record().get("build") != _build_stamp()
 
 
 def gateway_pid() -> int | None:
@@ -147,7 +158,7 @@ def _serve_locked(host: str, port: int) -> int:
     except config.ConfigError as error:
         print(f"omni: bad configuration: {error}", file=sys.stderr)
         return 1
-    config.PIDFILE.write_text(json.dumps({"pid": os.getpid(), "host": host, "port": port}))
+    config.PIDFILE.write_text(json.dumps({"pid": os.getpid(), "host": host, "port": port, "build": _build_stamp()}))
     try:
         server = uvicorn.Server(uvicorn.Config(app, host=host, port=port, log_level="info",
                                            timeout_graceful_shutdown=5, access_log=False))
@@ -180,6 +191,11 @@ def up(host: str, port: int, open_browser: bool = False) -> int:
     if refusal:
         print(refusal, file=sys.stderr)
         return 1
+    if is_stale():
+        print("omni: the running gateway predates this install; restarting it")
+        record = _read_record()
+        host, port = record.get("host", host), record.get("port", port)
+        stop_gateway()
     if gateway_pid():
         record = _read_record()
         running_host = record.get("host", host)

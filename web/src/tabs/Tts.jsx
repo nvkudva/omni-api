@@ -87,13 +87,16 @@ export default function Tts({ active = true }) {
       const buffer = await response.arrayBuffer();
       const blob = new Blob([buffer], { type: "audio/wav" });
       const seconds = wavSeconds(buffer);
+      const url = URL.createObjectURL(blob);
       updateClip(id, {
         pending: false,
-        url: URL.createObjectURL(blob),
+        url,
         filename: `omni-${payload.voice ?? "speech"}.wav`,
         caption: `${payload.voice ?? "default"} · ${payload.speed ?? 1}× · ${seconds.toFixed(1)} s audio in ${elapsed} ms (${(seconds / (elapsed / 1000)).toFixed(1)}× realtime)`,
       });
       setMeta(`${elapsed} ms`);
+      // played here, not via the element's autoplay attribute, so reopening or re-rendering an old clip stays silent
+      new Audio(url).play().catch(() => {});
       if (!roundTrip) return;
       const { result } = await transcribe(blob, "speech.wav", "text", signal, nextExec());
       const heard = typeof result === "string" ? result : result?.text;

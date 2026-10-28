@@ -273,3 +273,27 @@ class ModelUrls(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PartialDownloads(unittest.TestCase):
+    def test_removes_only_partials_of_repos_omni_started_and_only_without_a_gateway(self):
+        import json
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as folder:
+            cache = Path(folder) / "hub"
+            for repo in ("models--a--b", "models--other--tool"):
+                (cache / repo / "blobs").mkdir(parents=True)
+                (cache / repo / "blobs" / "abc.1234.incomplete").write_text("x")
+            (cache / "models--a--b" / "blobs" / "done").write_text("y")
+            ledger = Path(folder) / "downloads.json"
+            ledger.write_text(json.dumps(["a/b"]))
+            with patch("huggingface_hub.constants.HF_HUB_CACHE", str(cache)), \
+                    patch("omni.config.DOWNLOADS", ledger):
+                with patch("omni.commands.lifecycle.gateway_pid", return_value=123):
+                    self.assertEqual(init.remove_partial_downloads(), 0)
+                with patch("omni.commands.lifecycle.gateway_pid", return_value=None):
+                    self.assertEqual(init.remove_partial_downloads(), 1)
+            self.assertEqual([entry.name for entry in (cache / "models--a--b" / "blobs").iterdir()], ["done"])
+            self.assertTrue((cache / "models--other--tool" / "blobs" / "abc.1234.incomplete").exists())

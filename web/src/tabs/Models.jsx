@@ -20,7 +20,7 @@ import { FindAndInstall } from "../components/FindAndInstall.jsx";
 import styles from "./Models.module.css";
 
 export { DownloadedList, WarmSwitch } from "../components/RoleModelCard.jsx";
-export { GatedNotice, Install, Search } from "../components/FindAndInstall.jsx";
+export { GatedNotice, Find } from "../components/FindAndInstall.jsx";
 export { RoleModelCard as RoleSetup } from "../components/RoleModelCard.jsx";
 
 const GATEWAY_TUNABLE = {
