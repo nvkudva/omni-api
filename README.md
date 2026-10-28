@@ -23,7 +23,7 @@ The playground at `/`: every role is a card in the left rail (runtime, model, on
 | ![Decide, probability bars, dark](docs/screenshots/playground-decide-dark.png) | ![Decide, probability bars, light](docs/screenshots/playground-decide-light.png) |
 | ![Embed, semantic search over your own files, dark](docs/screenshots/playground-embed-dark.png) | ![Embed, semantic search over your own files, light](docs/screenshots/playground-embed-light.png) |
 
-**Decide** answers noul, choice and score questions as probability distributions, in one forward pass. **Embed** indexes files, folders, images and audio, then searches them by meaning.
+**Decide** answers noul, choice and score questions as probability distributions, in one forward pass. **Embed** indexes files, folders, images and audio, then searches them by meaning. Images need a multimodal embed model (`embeddinggemma-2`, the default).
 
 | Dark | Light |
 |---|---|
@@ -102,7 +102,7 @@ Light, dark or system theme, cycled from the header. The left rail holds one car
 
 - **Chat**: streaming replies with time-to-first-token, total time and a token rate. An attach button appears when the model has Ollama's `vision` capability.
 - **Decide**: yes/no (noul), choice and score questions, answered as probability distributions. The example dropdown fills in a whole question set.
-- **Embed**: drop files, images, audio or a whole folder, and they are embedded and searchable by meaning. The index lives in the browser (IndexedDB), so it survives a reload.
+- **Embed**: drop files, images, audio or a whole folder, and they are embedded and searchable by meaning. Image upload appears only when the embed model supports images. The index lives in the browser (IndexedDB), so it survives a reload.
 - **Image**: prompt, size, steps, seed and negative prompt; shows and downloads PNGs.
 - **Video**: prompt, size, length, seed and an optional first frame; queues a job, polls it and plays the mp4.
 - **STT**: record from the mic or upload a file; shows a transcript with segment timings.
@@ -121,7 +121,7 @@ A request that is still running can be stopped, and a finished one is kept by th
 - **Three views, one request:** every playground page shows UI, raw JSON and a copyable cURL command for the exact body it sends.
 - **Runs survive a closed tab:** the gateway keeps the request and its result, so closing the browser does not cancel the work — reopen it and the answer is there. A running request can also be stopped.
 - **Live per-role logs:** the request log of every role, tailed in the playground and in `omni logs`.
-- **Search your own files:** the embed role indexes text, code, images (captioned by a vision model) and audio (transcribed by stt) in the browser, then ranks the chunks against a query.
+- **Search your own files:** the embed role indexes text, code, images (embedded directly by a multimodal embed model) and audio (transcribed by stt) in the browser, then ranks the chunks against a query.
 - **Find & Install:** per-role Hugging Face / Ollama search filtered to what that role's runtime can actually run, with gated-repo "accept terms" handling, live download progress and a stop button.
 - **Self-healing workers:** per-worker locks, exponential-backoff restarts, pid + argv verification so a recycled pid is never signalled, and no orphan processes on `omni down`.
 - **One error shape everywhere:** gateway, workers, routing 404/405 and validation 422 all return `{"error": {"message", "type"}}`.
@@ -264,6 +264,10 @@ curl -N localhost:10000/v1/chat/completions -H 'content-type: application/json' 
 curl localhost:10000/v1/embeddings -H 'content-type: application/json' \
   -d '{"input":"how do I get a refund?","input_type":"query"}'
 
+# embed an image (needs a multimodal embed model); input is {"image": base64 or a data URL}
+curl localhost:10000/v1/embeddings -H 'content-type: application/json' \
+  -d "{\"input\":[{\"image\":\"$(base64 < photo.png)\"}]}"
+
 # image → png (Qwen-Image-2.1-Turbo; first call loads the model)
 curl localhost:10000/v1/images/generations -H 'content-type: application/json' \
   -d '{"prompt":"a lighthouse at dawn","size":"1024x1024","steps":20}' | jq -r '.data[0].b64_json' | base64 -d > out.png
@@ -397,7 +401,7 @@ Ports:
   TCP/IP > Configure IPv6.
 - **Background runs inside agent sandboxes** may be stopped after a time limit. For long sessions, run `omni serve` in your own terminal.
 - **tts voices:** American and British English only, since misaki[en] covers just those two.
-- **embed reads text.** Images are embedded as a vision-model caption and audio as its stt transcript; PDFs are not supported yet. The index itself lives in the browser (IndexedDB), not on the server, so it is per-browser and per-address.
+- **embed images need a multimodal model.** `embeddinggemma-2` embeds them directly; text-only tags such as `embeddinggemma-2:270m` hide image upload. Audio is embedded as its stt transcript; PDFs are not supported yet. The index itself lives in the browser (IndexedDB), not on the server, so it is per-browser and per-address.
 - **Not yet built:** `omni pull`, `omni test`, `omni bench`, and the WebSocket `/v1/realtime` (wake word, VAD and streaming speech).
 
 ## Project docs
