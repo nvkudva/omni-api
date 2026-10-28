@@ -184,6 +184,10 @@ export function Section({ title, meta, role, tools, warmToggle, health, children
                 <div class={styles.headRow}>
                   <span class={ui.css.roleGlyph} style={{ "--role-color": roleMeta.color }}><Icon name={role} /></span>
                   {title && <h2 class={styles.title}>{title}</h2>}
+                  <div class={styles.headSub}>
+                    <span class={ui.css.endpoint} title={roleMeta.endpoint}>{roleMeta.endpoint}</span>
+                    {meta && <ui.Meta>{meta}</ui.Meta>}
+                  </div>
                   <div class={styles.tools}>
                     {tools}
                     <span class={styles.icons}>
@@ -194,10 +198,6 @@ export function Section({ title, meta, role, tools, warmToggle, health, children
                     </span>
                     {warmToggle}
                   </div>
-                </div>
-                <div class={styles.headSub}>
-                  <span class={ui.css.endpoint} title={roleMeta.endpoint}>{roleMeta.endpoint}</span>
-                  {meta && <ui.Meta>{meta}</ui.Meta>}
                 </div>
               </>
             )

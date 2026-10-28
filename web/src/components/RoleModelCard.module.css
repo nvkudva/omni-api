@@ -105,7 +105,7 @@
   & .head.role { background: color-mix(in srgb, var(--role-color) 10%, var(--card)); flex-direction: column; flex-wrap: nowrap; align-items: stretch; justify-content: flex-start; gap: 4px; }
   & .headRow { display: flex; align-items: center; gap: 8px; min-width: 0; }
   & .headRow .tools { margin-left: auto; }
-  & .headSub { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; padding-left: 28px; }
+  & .headSub { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; }
   & .title { font-size: 0.875rem; font-weight: 600; }
   & .tools { flex: none; display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
   & .head:not(.role) .tools { gap: 8px; }
