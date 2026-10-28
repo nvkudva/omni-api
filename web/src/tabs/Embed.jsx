@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { readDataUrl, record } from "../api/client.js";
-import { describeImage, embed, transcribe } from "../api/endpoints.js";
+import { embed, transcribe } from "../api/endpoints.js";
 import { cancelExec, newExecId } from "../api/execs.js";
 import { models } from "../api/models.js";
 import * as dialog from "../components/Confirm.jsx";
@@ -18,24 +18,17 @@ import styles from "./Embed.module.css";
 
 const BATCH = 64;
 const TOP_K = 5;
-const STATUS_BY_KIND = { text: "reading", image: "captioning", audio: "transcribing" };
+const STATUS_BY_KIND = { text: "reading", image: "reading", audio: "transcribing" };
 
-function visionModel() {
+function embedSeesImages() {
   const { data, defaults } = models.value;
-  const capable = data.filter((entry) => entry.capabilities?.includes("vision"));
-  return capable.find((entry) => entry.id === defaults.chat)?.id ?? capable[0]?.id;
+  const bare = (name) => name?.replace(/:latest$/, "");
+  return Boolean(data.find((entry) => bare(entry.id) === bare(defaults.embed))?.capabilities?.includes("vision"));
 }
 
 async function extractText(file, kind, run) {
   if (kind === "text") return file.text();
-  if (kind === "audio") return (await transcribe(file, file.name, "text", run.controller.signal, run.next())).result;
-  const model = visionModel();
-  if (!model) throw new Error("no vision-capable chat model is installed to caption images");
-  const caption = await describeImage(await readDataUrl(file), model, run.controller.signal, run.next()).catch((failure) => {
-    throw Object.assign(new Error(`${model} could not describe this image: ${failure.message}`), { status: failure.status });
-  });
-  if (!caption.trim()) throw new Error(`${model} returned no description for this image`);
-  return caption;
+  return (await transcribe(file, file.name, "text", run.controller.signal, run.next())).result;
 }
 
 async function embedAll(texts, onProgress, run) {
@@ -243,11 +236,13 @@ export default function Embed() {
     try {
       if (kind === "text" && file.size > corpus.MAX_TEXT_BYTES) throw new Error("larger than 2 MB");
       if (kind === "image" && file.size > corpus.MAX_IMAGE_BYTES) throw new Error("larger than 10 MB");
-      const text = await extractText(file, kind, run);
-      const pieces = corpus.chunkText(text);
+      const isImage = kind === "image";
+      const text = isImage ? file.name : await extractText(file, kind, run);
+      const pieces = isImage ? [text] : corpus.chunkText(text);
       if (!pieces.length) throw new Error("no text found in this file");
       upsert(path, { status: "embedding", total: pieces.length });
-      const { vectors, tokens, model } = await embedAll(pieces, (done) => upsert(path, { done }), run);
+      const inputs = isImage ? [{ image: await readDataUrl(file) }] : pieces;
+      const { vectors, tokens, model } = await embedAll(inputs, (done) => upsert(path, { done }), run);
       const ms = since(start);
       record("embed", 200, ms);
       const entries = pieces.map((piece, index) => ({ id: `${path}#${index}`, file: path, index, text: piece, embedding: vectors[index] }));
@@ -267,8 +262,13 @@ export default function Embed() {
       return;
     }
     setNotice("");
-    const usable = items.filter(({ file, path }) => !corpus.isSkippedPath(path) && corpus.kindOf(file.name, file.type));
-    setSkipped(items.length - usable.length);
+    const supported = items.filter(({ file, path }) => !corpus.isSkippedPath(path) && corpus.kindOf(file.name, file.type));
+    const imagesBlocked = models.value.data.length > 0 && !embedSeesImages();
+    const isBlockedImage = ({ file }) => imagesBlocked && corpus.kindOf(file.name, file.type) === "image";
+    const usable = supported.filter((item) => !isBlockedImage(item));
+    const blockedCount = supported.length - usable.length;
+    if (blockedCount) setNotice(`${blockedCount} ${blockedCount === 1 ? "image" : "images"} skipped: the embed model does not support images.`);
+    setSkipped(items.length - supported.length);
     const queued = [...new Set(usable.map(({ path }) => path))];
     setBatchPaths(queued);
     // Reset every path first: a re-dropped file still reads "done" from its last run and would count as finished.
@@ -342,15 +342,15 @@ export default function Embed() {
   const done = jobs.filter((job) => job.status === "done");
   const thumbs = Object.fromEntries(jobs.filter((job) => job.thumb).map((job) => [job.name, job.thumb]));
   const footprints = storage.footprints(done, chunks);
-  const canCaption = Boolean(visionModel());
-  const catalogLoaded = models.value.data.length > 0;
+    const catalogLoaded = models.value.data.length > 0;
+  const canAddImages = embedSeesImages() || !catalogLoaded;
   const openId = turnState.open ?? turns[turns.length - 1]?.id;
 
   return (
     <Workbench
       class={styles.embed}
       title="Embed"
-      subtitle="Embed files and folders, then search them by meaning. The model reads text only, so an image is embedded as a vision-model caption and audio as its transcript."
+      subtitle="Embed files and folders, then search them by meaning. Images are embedded directly when the embed model supports them; audio is embedded as its transcript."
       modelRole="embed"
     >
       <Panel
@@ -386,13 +386,15 @@ export default function Embed() {
             try { await addItems(await droppedFiles(event.dataTransfer)); } catch (failure) { setError(failure.message); }
           }}
         >
-          <span>Drop files, images or a folder here</span>
+          <span>{canAddImages ? "Drop files, images or a folder here" : "Drop files or a folder here"}</span>
           <div class={styles.pick}>
             <ui.Button disabled={indexing} onClick={() => fileInput.current.click()}>Add files</ui.Button>
-            <ui.Button disabled={indexing} onClick={() => imageInput.current.click()}>Add images</ui.Button>
+            {canAddImages && <ui.Button disabled={indexing} onClick={() => imageInput.current.click()}>Add images</ui.Button>}
             <ui.Button disabled={indexing} onClick={() => folderInput.current.click()}>Add folder</ui.Button>
           </div>
-          <span class={styles.pickHint}>Text and code, images (up to 10 MB, captioned by a vision model) and audio. PDFs are not supported yet.</span>
+          <span class={styles.pickHint}>
+            {canAddImages ? "Text and code, images (up to 10 MB) and audio." : "Text and code and audio. Images need an embed model that supports them, such as embeddinggemma-2."} PDFs are not supported yet.
+          </span>
           <input
             ref={fileInput}
             type="file"
@@ -428,8 +430,8 @@ export default function Embed() {
             }}
           />
         </div>
-        {catalogLoaded && !canCaption && (
-          <ui.Notice tone="warn">No installed chat model supports vision, so images cannot be embedded. Install one in Settings.</ui.Notice>
+        {catalogLoaded && !canAddImages && (
+          <ui.Notice tone="warn">The embed model reads text only, so images cannot be embedded. Switch to embeddinggemma-2 in Settings.</ui.Notice>
         )}
         {unsaved && <ui.Notice tone="warn">This browser cannot save embedded data; it will be lost on reload.</ui.Notice>}
         {notice && <ui.Notice tone="warn">{notice}</ui.Notice>}

@@ -156,7 +156,7 @@ omni brings all of that together:
 |---|---|---|---|
 | **chat** | `POST /v1/chat/completions` (streaming) | `qwen2.5:0.5b` | Ollama |
 | **decide** | `POST /v1/systemone` | `nvkudva/vega-onnx-q8` (8-bit ONNX, ~0.93 GB); also Laya (English and multilingual) and GLiNER2.5-Decide | ONNX Runtime (Vega), transformers (Laya, GLiNER2.5) |
-| **embed** | `POST /v1/embeddings` | `embeddinggemma-2:270m` (text) | Ollama |
+| **embed** | `POST /v1/embeddings` | `embeddinggemma-2` | Ollama |
 | **image** | `POST /v1/images/generations` | `unsloth/Qwen-Image-2.1-Turbo-GGUF` | diffusers (MPS, Q8_0) |
 | **video** | `POST /v1/videos`, `GET /v1/videos/{id}`, `GET /v1/videos/{id}/content` | `QuantStack/Wan2.2-TI2V-5B-GGUF` (Wan 2.2 TI2V-5B, Q8_0) | diffusers (also runs LTX-Video GGUFs) |
 | **stt** | `POST /v1/audio/transcriptions` | `istupakov/parakeet-tdt-0.6b-v2-onnx` (English, int8, ~0.7 GB); also Moonshine Tiny, Whisper Small and oruk-loop | onnx-asr, transformers |
@@ -233,7 +233,7 @@ omni up       # gateway and workers in the background
 
 `omni init` validates `~/.omni-api/config.toml`, asks whether to install Ollama when the binary is missing (it stops if you say no), starts the server it just installed, pulls the chat and embed models and confirms they landed, then starts the gateway and loads the decide, stt and tts models (downloading them first); every failure prints the command to fix it and a link. The image and video models download on first use, or now with `omni init --media`. When something is wrong and you would rather not install anything, `omni doctor` runs the same checks read-only and prints one line per check. Release and packaging notes live in [`docs/publishing.md`](docs/publishing.md).
 
-The shipped defaults are the small profile: `qwen2.5:0.5b` (chat), `vega-onnx-q8` (decide, 0.93 GB), `embeddinggemma-2:270m` (embed), `parakeet-tdt-0.6b-v2-onnx` (stt, 0.7 GB), `Kokoro-82M-v1.0-ONNX` (tts, 0.12 GB), `Qwen-Image-2.1-Turbo` at Q8_0 (image, 7.6 GB transformer, about 26 GB once the shared text encoder and VAE land) and `Wan2.2-TI2V-5B` at Q8_0 (video, 5.4 GB transformer, about 20 GB with its text encoder and VAE). Any role can be changed in the playground (add a model, set it as default) or in `~/.omni-api/config.toml`; each role's list keeps the bigger models one click away.
+The shipped defaults are the small profile: `qwen2.5:0.5b` (chat), `vega-onnx-q8` (decide, 0.93 GB), `embeddinggemma-2` (embed, 1.3 GB), `parakeet-tdt-0.6b-v2-onnx` (stt, 0.7 GB), `Kokoro-82M-v1.0-ONNX` (tts, 0.12 GB), `Qwen-Image-2.1-Turbo` at Q8_0 (image, 7.6 GB transformer, about 26 GB once the shared text encoder and VAE land) and `Wan2.2-TI2V-5B` at Q8_0 (video, 5.4 GB transformer, about 20 GB with its text encoder and VAE). Any role can be changed in the playground (add a model, set it as default) or in `~/.omni-api/config.toml`; each role's list keeps the bigger models one click away.
 
 ---
 

@@ -25,22 +25,6 @@ export async function embed(body, abortSignal, execId) {
   return { status: response.status, data: await response.json() };
 }
 
-export async function describeImage(dataUrl, model, abortSignal, execId) {
-  const response = await postJson("/v1/chat/completions", {
-    model,
-    stream: false,
-    messages: [{
-      role: "user",
-      content: [
-        { type: "text", text: "Describe this image for a search index: the subjects, setting, any visible text (transcribed exactly), and anything distinctive. Plain prose, no preamble." },
-        { type: "image_url", image_url: { url: dataUrl } },
-      ],
-    }],
-  }, { signal: abortSignal, headers: execHeaders(execId) });
-  const data = await response.json();
-  return data.choices?.[0]?.message?.content ?? "";
-}
-
 // --- media -----------------------------------------------------------------
 
 export async function generateImage(body, abortSignal, execId) {

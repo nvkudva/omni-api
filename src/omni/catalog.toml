@@ -11,7 +11,7 @@ model = "qwen2.5:0.5b"
 model = "nvkudva/vega-onnx-q8"
 
 [embed]
-model = "embeddinggemma-2:270m"
+model = "embeddinggemma-2"
 
 [stt]
 # Parakeet TDT 0.6B v2 (English) as int8 ONNX, run by onnx-asr: about 660 MB, no MLX or torch.

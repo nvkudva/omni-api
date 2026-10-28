@@ -54,8 +54,8 @@ ROLE_SPECS = {
         "accepts": "Ollama: a library name (embeddinggemma-2) or any GGUF repo on Hugging Face as hf.co/user/repo-GGUF:Q8_0.",
         "example": "hf.co/user/repo-GGUF:Q8_0",
         "recommended": [
-            ("embeddinggemma-2:270m", 0.3, "shipped default — smallest"),
-            ("embeddinggemma-2", 1.3, "multimodal, long context"),
+            ("embeddinggemma-2", 1.3, "shipped default — multimodal, long context"),
+            ("embeddinggemma-2:270m", 0.3, "smallest"),
             ("qwen3-embedding:0.6b", 0.6, "small, good quality"),
             ("bge-m3", 1.2, "multilingual"),
             ("qwen3-embedding:8b", 4.7, "best quality; 4096-dim vectors"),

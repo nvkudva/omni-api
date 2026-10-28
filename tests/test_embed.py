@@ -41,6 +41,21 @@ class Inputs(unittest.TestCase):
             embed._texts({"input": ["x"] * (EMBED_MAX_INPUTS + 1)})
 
 
+class Images(unittest.TestCase):
+    def test_text_input_is_not_images(self):
+        self.assertIsNone(embed._images({"input": "hi"}))
+        self.assertIsNone(embed._images({"input": ["a", "b"]}))
+
+    def test_data_url_is_stripped_to_base64(self):
+        self.assertEqual(embed._images({"input": [{"image": "data:image/png;base64,AAA"}, {"image": "BBB"}]}), ["AAA", "BBB"])
+        self.assertEqual(embed._images({"input": {"image": "CCC"}}), ["CCC"])
+
+    def test_mixed_or_malformed_images_raise(self):
+        for payload in ({"input": [{"image": "A"}, "text"]}, {"input": [{"image": ""}]}, {"input": [{"photo": "A"}]}):
+            with self.assertRaises(ValueError):
+                embed._images(payload)
+
+
 class RunValidation(unittest.TestCase):
     def test_bad_input_type_fails_before_any_call(self):
         import asyncio
