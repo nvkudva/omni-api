@@ -603,6 +603,7 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
       tools={<ui.Button small onClick={() => onAdd?.(role)}>Add model</ui.Button>}
       warmToggle={(
         <>
+          {workerRole && !workerDown && status !== "unknown" && <ui.Button small disabled={busy} onClick={restartWorker}>Restart</ui.Button>}
           {entry.state === "missing"
             ? <ui.Button small disabled={installing} onClick={installDefault}>{installing ? "Downloading…" : "Download"}</ui.Button>
             : (
@@ -615,7 +616,6 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
                 onClick={toggleLoad}
               />
             )}
-          {workerRole && !workerDown && status !== "unknown" && <ui.Button small disabled={busy} onClick={restartWorker}>Restart</ui.Button>}
         </>
       )}
       meta={`${entry.runner} · ${entry.installed.length} downloaded · ${gb(entry.total_bytes)} · ${STATE_LABEL[entry.state] ?? entry.state}`}
