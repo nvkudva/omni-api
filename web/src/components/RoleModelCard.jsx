@@ -166,7 +166,7 @@ export function Section({ title, meta, role, tools, warmToggle, health, children
   return (
     <section class={styles.section}>
       {(title || meta) && (
-        <header class={roleMeta ? cx(styles.head, styles.role) : styles.head}>
+        <header class={roleMeta ? cx(styles.head, styles.role) : styles.head} style={roleMeta ? { "--role-color": roleMeta.color } : undefined}>
           {roleMeta
             ? (
               <>
@@ -458,6 +458,7 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
   return (
     <div
       class={cx(styles.miniCard, active && styles.on)}
+      style={{ "--role-color": state.color }}
       aria-current={active ? "page" : undefined}
       onClick={open}
     >

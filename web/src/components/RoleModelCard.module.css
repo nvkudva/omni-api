@@ -8,6 +8,7 @@
   composes: card from "./ui.module.css";
   display: flex; flex-direction: column; gap: 8px;
   padding: 12px 14px;
+  background: color-mix(in srgb, var(--role-color) 8%, var(--card));
   position: relative; overflow: hidden;
   cursor: pointer; text-align: left; min-width: 0;
   transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
@@ -99,7 +100,7 @@
     border-top-right-radius: calc(var(--radius-xl) - 1px);
   }
   /* A role's head stacks: identity row over endpoint line. */
-  & .head.role { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 4px; }
+  & .head.role { background: color-mix(in srgb, var(--role-color) 10%, var(--card)); flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 4px; }
   & .headRow { display: flex; align-items: center; gap: 8px; min-width: 0; }
   & .headRow .tools { margin-left: auto; }
   & .headSub { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex-wrap: wrap; padding-left: 28px; }
