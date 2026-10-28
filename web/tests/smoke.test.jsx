@@ -176,7 +176,7 @@ describe("keeping a model warm", () => {
     seed({ pinned: ["chat"] });
     const html = render(<App />);
     expect(html).toContain(">loaded · kept<");
-    expect(html).toContain(">Unload<");
+    expect(html).toContain('aria-label="unload Chat"');
   });
 
   test("a pinned role whose model is still loading says so", () => {

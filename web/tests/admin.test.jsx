@@ -133,7 +133,7 @@ describe("a role's setup card", () => {
       <RoleModelCard density="detail" role="image" entry={READY_ENTRY} pinned onChanged={noop} />,
     ));
     expect(html).toContain("<h4>Settings</h4>");
-    expect(html).toContain(">Load<");
+    expect(html).toContain('aria-label="load Image"');
     expect(html).toContain('aria-label="stop keeping warm Image"');
     expect(html).toContain(">Restart<");
     expect(html).not.toContain(">Start<");
@@ -144,7 +144,7 @@ describe("a role's setup card", () => {
     const html = withRuntime({ image: { status: "loaded", loaded: true } }, () => render(
       <RoleModelCard density="detail" role="image" entry={READY_ENTRY} pinned onChanged={noop} />,
     ));
-    expect(html).toContain(">Unload<");
+    expect(html).toContain('aria-label="unload Image"');
   });
 
   test("a stopped worker says so, and Load starts it, with no Restart", () => {
@@ -152,14 +152,14 @@ describe("a role's setup card", () => {
       <RoleModelCard density="detail" role="image" entry={READY_ENTRY} pinned onChanged={noop} />,
     ));
     expect(html).toContain("Load starts it.");
-    expect(html).toContain(">Load<");
+    expect(html).toContain('aria-label="load Image"');
     expect(html).not.toContain(">Restart<");
   });
 
   test("a missing default offers Download in the header", () => {
     const html = render(<RoleModelCard density="detail" role="decide" entry={MISSING_ENTRY} pinned={false} onChanged={noop} />);
     expect(html).toContain(">Download<");
-    expect(html).not.toContain(">Load<");
+    expect(html).not.toContain('aria-label="load Decide"');
   });
 
   test("an Ollama role has no Restart, and one keep-warm switch", () => {
@@ -386,9 +386,9 @@ describe("the sidebar card", () => {
     expect(sidebar("chat", blocked)).toContain(">needs setup<");
   });
 
-  test("a ready role keeps its Load button", () => {
+  test("a ready role keeps its load switch", () => {
     const html = sidebar("chat", { status: "ready" });
-    expect(html).toContain(">Load<");
+    expect(html).toContain('aria-label="load Chat"');
     expect(html).not.toContain("Set up Chat");
   });
 
@@ -398,26 +398,26 @@ describe("the sidebar card", () => {
     const html = sidebar("tts", { status: "ready" });
     expect(html).toContain(">idle · not loaded<");
     expect(html).not.toContain(">loaded<");
-    expect(html).toContain(">Load<");
+    expect(html).toContain('aria-label="load Text to speech"');
   });
 
-  test("a stopped worker's card offers Load, which starts it", () => {
+  test("a stopped worker's card offers a load switch, which starts it", () => {
     const html = sidebar("tts", { status: "stopped" });
     expect(html).toContain(">off<");
-    expect(html).toContain(">Load<");
-    expect(html).not.toContain('role="switch"');
+    expect(html).toContain('aria-label="load Text to speech"');
+    expect(html).toContain('aria-checked="false"');
   });
 
   test("a loaded worker's card offers Unload", () => {
     const html = sidebar("tts", { status: "loaded", loaded: true });
-    expect(html).toContain(">Unload<");
+    expect(html).toContain('aria-label="unload Text to speech"');
     expect(html).not.toContain(">Stop<");
   });
 
   test("a failed worker offers Load too", () => {
     const html = sidebar("image", { status: "failed" });
     expect(html).toContain(">failed<");
-    expect(html).toContain(">Load<");
+    expect(html).toContain('aria-label="load Image"');
   });
 
   test("an unreachable Ollama reads stopped and points at the server controls", () => {
@@ -433,11 +433,11 @@ describe("the sidebar card", () => {
   test("warm and running differ only in the word; both offer Unload", () => {
     const warm = sidebar("chat", { status: "loaded", loaded: true, pinned: true, memoryBytes: 2_000_000_000 });
     expect(warm).toContain(">loaded · kept<");
-    expect(warm).toContain(">Unload<");
+    expect(warm).toContain('aria-label="unload Chat"');
 
     const running = sidebar("chat", { status: "loaded", loaded: true, memoryBytes: 2_000_000_000 });
     expect(running).toContain(">loaded<");
-    expect(running).toContain(">Unload<");
+    expect(running).toContain('aria-label="unload Chat"');
   });
 
   test("a pinned role still loading says so", () => {

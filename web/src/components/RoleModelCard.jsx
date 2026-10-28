@@ -121,7 +121,7 @@ function useWarmToggle(role, model, pinned, { onChanged, onProblem } = {}) {
 }
 
 /**
- * The Load / Unload button every role shares. Load brings the role up if its worker is down, then
+ * The load switch every role shares. Load brings the role up if its worker is down, then
  * loads the model; Unload frees the model, and also stops keeping it warm, or the keep-warm loop
  * would load it straight back.
  */
@@ -161,9 +161,8 @@ function useLoadToggle(role, { onChanged, onProblem } = {}) {
   return [busy, toggle];
 }
 
-/** The keep-warm switch. Mini puts it in the card's footer and detail in the
- *  card header (right of the log button); both drive it through
- *  `useWarmToggle`, so it does the same thing in either place. */
+/** A labelled on/off switch: the load switch in the mini footer and the detail header, and the
+ *  keep-warm switch in the Settings box. */
 export function WarmSwitch({ pinned, disabled, busy, title, label, onClick }) {
   return (
     <ui.Switch
@@ -540,15 +539,15 @@ function MiniCard({ role, active, onOpen, onSetup, onServer }) {
           <ui.IconButton class={styles.footAction} icon="server" label="Open the server controls" size={14} onClick={server} />
         )}
         {action === "load" && (
-          <ui.Button
-            small
-            disabled={loadBusy || checking}
+          <WarmSwitch
+            pinned={state.loaded}
+            busy={loadBusy}
+            disabled={checking}
+            label={`${state.loaded ? "unload" : "load"} ${state.label}`}
             title={checking ? "waiting for the gateway"
               : state.loaded ? `Unload ${shownModel}` : `Load ${state.model} into memory`}
             onClick={toggleLoad}
-          >
-            {state.loaded ? "Unload" : "Load"}
-          </ui.Button>
+          />
         )}
       </span>
       {working && (
@@ -607,14 +606,14 @@ function DetailCard({ role, entry, pinned, tunables, onChanged, onSaved, onAdd }
           {entry.state === "missing"
             ? <ui.Button small disabled={installing} onClick={installDefault}>{installing ? "Downloading…" : "Download"}</ui.Button>
             : (
-              <ui.Button
-                small
-                disabled={loadBusy || !status || status === "unknown" || entry.state !== "ready"}
+              <WarmSwitch
+                pinned={loaded}
+                busy={loadBusy}
+                disabled={!status || status === "unknown" || entry.state !== "ready"}
+                label={`${loaded ? "unload" : "load"} ${label}`}
                 title={loaded ? `Unload ${entry.default}` : `Load ${entry.default} into memory`}
                 onClick={toggleLoad}
-              >
-                {loaded ? "Unload" : "Load"}
-              </ui.Button>
+              />
             )}
           {workerRole && !workerDown && status !== "unknown" && <ui.Button small disabled={busy} onClick={restartWorker}>Restart</ui.Button>}
         </>
