@@ -56,7 +56,7 @@ def which_from(*names):
     return lambda name: f"/usr/local/bin/{name}" if name in present else None
 
 
-def ok_run(argv, check=False):  # mirrors subprocess.run's signature
+def ok_run(argv, check=False, capture_output=False):  # mirrors subprocess.run's signature
     return SimpleNamespace(returncode=0)
 
 
