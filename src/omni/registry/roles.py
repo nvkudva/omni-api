@@ -129,7 +129,6 @@ ROLE_SPECS = {
         "recommended": [
             ("unsloth/Qwen-Image-2.1-Turbo-GGUF", 25.9, "shipped default — Q8_0 transformer (7.6 GB) plus the base text encoder and VAE"),
             ("Qwen/Qwen-Image-2.1-Turbo", 32.5, "the same checkpoint at full precision"),
-            ("Qwen/Qwen-Image-2.1", 33.1, "full quality, more steps"),
             ("stable-diffusion-v1-5/stable-diffusion-v1-5", 2.1, "Stable Diffusion 1.5, fp16 — the smallest and fastest; 512 px native, modest quality"),
             ("ByteDance/SDXL-Lightning", 6.9, "SDXL-Lightning 4-step, fp16 — fast, good quality at 1024 px; also downloads SDXL base's text encoders and VAE"),
         ],
