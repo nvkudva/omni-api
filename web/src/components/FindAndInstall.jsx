@@ -45,10 +45,12 @@ export function InstallProgress({ role }) {
   }
   return (
     <>
-      <ui.Meter fraction={progress.fraction} />
+      <div class={styles.progressRow}>
+        <ui.Meter fraction={progress.fraction} />
+        {progress.busy && <ui.Button small onClick={() => stopDownload(role)}>Stop download</ui.Button>}
+      </div>
       <ui.Meta>{progress.status}</ui.Meta>
       {progress.warnings?.length > 0 && <ui.Notice>{progress.warnings.join(" ")}</ui.Notice>}
-      {progress.busy && <ui.Button small onClick={() => stopDownload(role)}>Stop download</ui.Button>}
       {progress.error && <ui.ErrorText>{progress.error}</ui.ErrorText>}
     </>
   );

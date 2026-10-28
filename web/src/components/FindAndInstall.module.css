@@ -37,3 +37,6 @@
   }
   & thead { background: var(--muted); }
 }
+
+.progressRow { display: flex; align-items: center; gap: 8px; }
+.progressRow > :first-child { flex: 1; min-width: 0; }
