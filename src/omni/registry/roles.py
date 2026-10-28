@@ -20,12 +20,9 @@ ROLE_SPECS = {
         "example": "hf.co/user/repo-GGUF:Q4_K_M",
         "recommended": [
             ("qwen2.5:0.5b", 0.4, "shipped default — smallest; a quick start or a tiny machine"),
-            ("qwen2.5:3b", 1.9, "next step up — noticeably better instructions"),
-            ("qwen3.8:27b", 17.7, "best all-round quality"),
-            ("gemma4:26b", 18.7, "Mixture-of-Experts, fast for its size"),
-            ("gpt-oss:20b", 13.8, "strong reasoning"),
-            ("qwen3-coder:30b", 18.6, "code and tool calls"),
+            ("qwen3.5:0.8b", 1.2, "small, newer generation"),
             ("gemma4:12b", 8.0, "smallest of the fast ones"),
+            ("hf.co/JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF:Q4_K_M", 8.1, "Mellum 2.1, 12B MoE (2.5B active) — thinking, code"),
         ],
     },
     "decide": {

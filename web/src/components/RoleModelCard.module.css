@@ -138,9 +138,11 @@
   border-radius: var(--radius, 0.5rem);
   overflow: hidden;
 
+  & td:last-child { white-space: normal; }
+  & td:first-child { overflow-wrap: anywhere; }
 }
 
-.rowActions { display: inline-flex; align-items: center; gap: 6px; }
+.rowActions { display: inline-flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
 
 .rowNote { display: block; font-size: 0.75rem; color: var(--muted-foreground); }
 
