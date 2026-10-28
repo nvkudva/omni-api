@@ -295,6 +295,7 @@ class KeepWarmLoop(unittest.TestCase):
         patcher = patch.object(config, "PINS", self.pins)
         patcher.start()
         self.addCleanup(patcher.stop)
+        config.save_pins([])
 
     def loop(self, workers=None):
         ctx = FakeContext(workers=workers or {})

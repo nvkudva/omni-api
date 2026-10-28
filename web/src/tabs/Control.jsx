@@ -272,6 +272,7 @@ function Ollama({ info, onChanged }) {
         </>
       )}
     >
+      <ui.Meta>Ollama serves chat, decide and embeddings. Image, video, speech-to-text and text-to-speech aren't supported by Ollama, so omni runs its own workers for them.</ui.Meta>
       {error && <ui.ErrorText>{error}</ui.ErrorText>}
       {message && <ui.Meta>{message}</ui.Meta>}
       {!ollama.managed && (

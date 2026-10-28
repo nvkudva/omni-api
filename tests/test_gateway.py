@@ -320,6 +320,7 @@ class Gateway(unittest.TestCase):
             with patch.object(config, "PINS", pins), \
                     patch.object(residency, "plan", new=AsyncMock(return_value=residency.Plan([], [], None))), \
                     patch.object(residency, "set_residency", new=AsyncMock(return_value=True)):
+                config.save_pins([])
                 response = self.client.post("/admin/pins", json={"role": "stt", "pinned": True})
                 self.assertEqual(response.status_code, 200)
                 self.assertTrue(response.json()["pinned"])
@@ -501,6 +502,7 @@ class Gateway(unittest.TestCase):
                     patch.object(residency, "plan", new=AsyncMock(return_value=residency.Plan([], [], None))), \
                     patch.object(residency, "set_residency",
                                  new=AsyncMock(side_effect=httpx.ConnectError("no socket"))):
+                config.save_pins([])
                 response = self.client.post("/admin/pins", json={"role": "stt", "pinned": True})
                 self.assertTrue(response.json()["pinned"])
                 self.assertFalse(response.json()["loaded"])
