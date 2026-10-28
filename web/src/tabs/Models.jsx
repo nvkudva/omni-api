@@ -19,7 +19,7 @@ import { RoleModelCard, Section, Tunable } from "../components/RoleModelCard.jsx
 import { FindAndInstall } from "../components/FindAndInstall.jsx";
 import styles from "./Models.module.css";
 
-export { DownloadedList, WarmSwitch } from "../components/RoleModelCard.jsx";
+export { ModelList, WarmSwitch } from "../components/RoleModelCard.jsx";
 export { GatedNotice, Find } from "../components/FindAndInstall.jsx";
 export { RoleModelCard as RoleSetup } from "../components/RoleModelCard.jsx";
 
