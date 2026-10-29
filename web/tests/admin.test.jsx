@@ -376,8 +376,8 @@ describe("the sidebar card", () => {
     expect(html).not.toContain('role="alert"');
   });
 
-  test("a role that needs setup says so, not 'stopped'", () => {
-    expect(sidebar("chat", blocked)).toContain(">needs setup<");
+  test("a role whose model is not downloaded says so, not 'stopped'", () => {
+    expect(sidebar("chat", blocked)).toContain(">not downloaded<");
   });
 
   test("a ready role keeps its load switch", () => {

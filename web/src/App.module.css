@@ -51,6 +51,23 @@
     & span:first-child { width: 7px; height: 7px; }
   }
 
+  /* Ollama missing or stopped: a strip under the header, dismissible. */
+  & .banner {
+    flex: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+    padding: 6px 16px; font-size: 12px;
+    background: color-mix(in oklab, var(--orange) 14%, var(--card));
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* CPU and RAM: a label, a thin bar and a number each. */
+  & .usage { display: inline-flex; align-items: center; gap: 12px; }
+  & .meter {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--muted-foreground); font-variant-numeric: tabular-nums; white-space: nowrap;
+  }
+  & .meterTrack { width: 44px; height: 5px; border-radius: 999px; background: var(--muted); border: 1px solid var(--border); overflow: hidden; }
+  & .meterFill { display: block; height: 100%; background: var(--brand-ink); transition: width 0.4s; }
+
   /* The last request, as a quiet chip beside the actions. */
   & .lastRequest {
     display: inline-flex; align-items: center; gap: 8px;

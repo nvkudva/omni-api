@@ -7,7 +7,7 @@ import { cx } from "./lib/cx.js";
 import { PageActive } from "./hooks/usePageActive.js";
 import { usePolling } from "./hooks/usePolling.js";
 import { useTheme } from "./hooks/useTheme.js";
-import { GatewayStatus, LastRequest } from "./components/GatewayStatus.jsx";
+import { GatewayStatus, LastRequest, OllamaBanner, SystemUsage } from "./components/GatewayStatus.jsx";
 import { ConfirmHost } from "./components/Confirm.jsx";
 import { Toasts } from "./components/Toasts.jsx";
 import { RoleModelCard } from "./components/RoleModelCard.jsx";
@@ -126,6 +126,7 @@ export default function App() {
           <GatewayStatus />
         </div>
         <div class={styles.actions}>
+          <SystemUsage />
           <LastRequest />
           <ui.IconButton
             icon={theme}
@@ -141,6 +142,7 @@ export default function App() {
           />
         </div>
       </header>
+      <OllamaBanner />
       <div class={styles.body}>
         {!settingsOpen && (
           <nav ref={cardsRef} class={cx(styles.cards, moreCards && styles.more)} aria-label="Models">

@@ -69,6 +69,11 @@ describe("search", () => {
     expect(found[0].score).toBe(1);
   });
 
+  test("minRatio drops hits far below the best one", () => {
+    const found = corpus.search([1, 0], chunks, 10, 0.75);
+    expect(found.map((hit) => hit.chunk.id)).toEqual(["a#0", "b#0"]);
+  });
+
   test("ignores chunks of another dimension", () => {
     const found = corpus.search([1, 0], chunks, 10);
     expect(found.map((hit) => hit.chunk.id)).not.toContain("d#0");

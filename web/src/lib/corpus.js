@@ -69,13 +69,18 @@ export function isVector(value) {
   return value?.length > 0 && Array.from(value).every(Number.isFinite);
 }
 
-/** The `limit` chunks most similar to `queryVector`. Vectors are normalised, so dot is cosine. */
-export function search(queryVector, chunks, limit = 5) {
-  return chunks
+/**
+ * The `limit` chunks most similar to `queryVector`. Vectors are normalised, so dot is cosine.
+ * `minRatio` drops hits scoring under that share of the best one: a top-k alone returns every
+ * indexed item when there are fewer than `limit`, however unrelated.
+ */
+export function search(queryVector, chunks, limit = 5, minRatio = 0) {
+  const ranked = chunks
     .filter((chunk) => chunk.embedding.length === queryVector.length)
     .map((chunk) => ({ chunk, score: dot(queryVector, chunk.embedding) }))
-    .sort((left, right) => right.score - left.score)
-    .slice(0, limit);
+    .sort((left, right) => right.score - left.score);
+  const best = ranked[0]?.score ?? 0;
+  return ranked.filter((hit) => best <= 0 || hit.score >= best * minRatio).slice(0, limit);
 }
 
 export function snippet(text, length = 90) {

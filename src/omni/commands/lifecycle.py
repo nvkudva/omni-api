@@ -233,6 +233,7 @@ def up(host: str, port: int, open_browser: bool = False) -> int:
             continue
         print(f"omni up: http://{host}:{port}/  "
               f"(pid {_read_record().get('pid')}, logs {log_path}; workers warm up in the background)")
+        print("stop it with: omni down")
         if open_browser:
             open_playground(host, port)
         return 0

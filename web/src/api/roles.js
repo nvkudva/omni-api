@@ -13,7 +13,7 @@ import { gb } from "../lib/format.js";
 // ROLE_ORDER below.
 export const ROLE_META = {
   chat: { label: "Chat", endpoint: "/v1/chat/completions", color: "var(--role-chat)" },
-  decide: { label: "Decide", endpoint: "/v1/systemone", color: "var(--role-decide)" },
+  decide: { label: "Decision", endpoint: "/v1/systemone", color: "var(--role-decide)" },
   embed: { label: "Embed", endpoint: "/v1/embeddings", color: "var(--role-embed)" },
   image: { label: "Image", endpoint: "/v1/images/generations", color: "var(--role-image)" },
   video: { label: "Video", endpoint: "/v1/videos", color: "var(--role-video)" },

@@ -5,7 +5,7 @@ gets: each test here pins one failure to the guidance it must print.
 """
 import contextlib
 import io
-import threading
+import json
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -72,14 +72,15 @@ def run_init(*, which, get=None, run=None, settings=SETTINGS, url="http://127.0.
             raise url_error
         return url
 
-    def warm_media(host, port, wanted_roles):
+    def warm_media(host, port, wanted_roles, _settings):
         if warm_calls is not None:
             warm_calls.append((host, port, wanted_roles))
         return warm_code
 
     out, err = io.StringIO(), io.StringIO()
     with patch.object(init.shutil, "which", side_effect=which), \
-         patch.object(init, "warm_media", side_effect=warm_media), \
+         patch.object(init, "download_media", side_effect=warm_media), \
+         patch.object(init, "offer_up", return_value=0), \
          patch.object(init.sys.stdin, "isatty", return_value=False), \
          patch.object(init.subprocess, "run", side_effect=run or ok_run), \
          patch.object(init.httpx, "get", side_effect=get or serve_api([])), \
@@ -180,12 +181,11 @@ class Pulling(unittest.TestCase):
         self.assertIn("does not list", err)
         self.assertIn("embeddinggemma-2", err)
 
-    def test_success_reports_ready_and_the_playground_url(self):
+    def test_success_reports_ready(self):
         code, out, err = run_init(which=which_from("ollama"),
                                   get=serve_api(["llama3.2", "embeddinggemma-2"]))
         self.assertEqual(code, 0, err)
         self.assertIn("ready: embeddinggemma-2, llama3.2", out)
-        self.assertIn("http://127.0.0.1:10000/", out)
 
     def test_the_plan_lists_what_downloads_and_what_waits(self):
         code, out, _ = run_init(which=which_from("ollama"), get=serve_api(["llama3.2", "embeddinggemma-2"]))
@@ -236,30 +236,53 @@ class DownloadProgress(unittest.TestCase):
     def test_no_line_when_the_role_is_not_downloading(self):
         self.assertIsNone(init.download_line([{"role": "tts", "completed": 1, "total": 2}], "stt"))
 
-    def test_load_prints_progress_while_it_waits(self):
-        release = threading.Event()
+    def test_pull_prints_progress_and_returns_none_on_success(self):
+        events = [{"status": "downloading m", "completed": 1024**3, "total": 2 * 1024**3}, {"status": "success"}]
 
-        def slow_post(*_, **__):
-            release.wait(5)
-            return FakeResponse({})
-
-        def downloads(*_, **__):
-            release.set()
-            return FakeResponse({"downloads": [{"role": "stt", "completed": 1024**3, "total": 2 * 1024**3}]})
+        class Stream:
+            status_code = 200
+            def __enter__(self): return self
+            def __exit__(self, *_): return False
+            def iter_lines(self): return (json.dumps(event) for event in events)
 
         out = io.StringIO()
-        with patch.object(init, "DOWNLOAD_PROGRESS_SECONDS", 0.01), \
-             patch.object(init.httpx, "post", side_effect=slow_post), \
-             patch.object(init.httpx, "get", side_effect=downloads), \
-             contextlib.redirect_stdout(out):
-            response = init.load_with_progress("http://127.0.0.1:10000", "stt")
-        self.assertIsInstance(response, FakeResponse)
+        with patch.object(init.httpx, "stream", return_value=Stream()), contextlib.redirect_stdout(out):
+            failure = init.pull_with_progress("http://127.0.0.1:10000", "stt", "m")
+        self.assertIsNone(failure)
         self.assertIn("stt: 1.0 / 2.0 GB (50%)", out.getvalue())
 
-    def test_load_failure_is_raised_to_the_caller(self):
-        with patch.object(init.httpx, "post", side_effect=httpx.ConnectError("refused")), \
-             self.assertRaises(httpx.ConnectError):
-            init.load_with_progress("http://127.0.0.1:10000", "stt")
+    def test_pull_returns_the_error_event(self):
+        class Stream:
+            status_code = 200
+            def __enter__(self): return self
+            def __exit__(self, *_): return False
+            def iter_lines(self): return iter([json.dumps({"error": "disk full"})])
+
+        with patch.object(init.httpx, "stream", return_value=Stream()):
+            self.assertEqual(init.pull_with_progress("http://x", "stt", "m"), "disk full")
+
+
+class OfferUp(unittest.TestCase):
+    def offer(self, answer):
+        out = io.StringIO()
+        with patch("omni.commands.lifecycle.gateway_pid", return_value=None), \
+             patch("omni.commands.lifecycle.up", return_value=0) as up, \
+             patch.object(init.sys.stdin, "isatty", return_value=True), \
+             patch("builtins.input", return_value=answer), \
+             contextlib.redirect_stdout(out):
+            init.offer_up("127.0.0.1", 10000)
+        return up, out.getvalue()
+
+    def test_yes_starts_the_server(self):
+        up, out = self.offer("y")
+        up.assert_called_once()
+        self.assertIn("init completed.", out)
+
+    def test_no_points_at_up_and_down(self):
+        up, out = self.offer("n")
+        up.assert_not_called()
+        self.assertIn("omni up", out)
+        self.assertIn("omni down", out)
 
 
 class ModelUrls(unittest.TestCase):

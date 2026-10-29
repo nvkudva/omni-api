@@ -253,7 +253,7 @@ export default function Decide() {
   return (
     <Workbench
       class={styles.decide}
-      title="Decide"
+      title="Decision"
       subtitle="Yes/no, choice and score questions answered as probability distributions in one forward pass."
       modelRole="decide"
       headerTools={(

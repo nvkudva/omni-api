@@ -429,7 +429,10 @@ fi
 # --- init -------------------------------------------------------------------
 if [ "$RUN_INIT" -eq 1 ]; then
   say ""
-  "$BIN_DIR/omni" init < /dev/null || die "omni init failed (the failing step is printed above)" \
+  # a terminal on stdin lets `omni init` ask before it installs Ollama; piped installs have none
+  init_input=/dev/null
+  if ( : < /dev/tty ) 2>/dev/null; then init_input=/dev/tty; fi
+  "$BIN_DIR/omni" init < "$init_input" || die "omni init failed (the failing step is printed above)" \
     "fix that step, then run: \"$BIN_DIR/omni\" init" \
     "the CLI itself is installed; models are only needed to serve them"
 fi

@@ -21,6 +21,7 @@ import styles from "./RoleModelCard.module.css";
  */
 function cardStatus(state, { checking, needsSetup, installing }) {
   if (checking) return "checking";
+  if (needsSetup && !installing && state.setupState === "missing") return "missing";
   if (needsSetup) return "blocked";
   if (installing) return "installing";
   const { status, loaded, pinned } = state;
@@ -39,6 +40,7 @@ function cardStatus(state, { checking, needsSetup, installing }) {
 const CARD_STATUS = {
   checking: { tone: "busy", word: "checking…", hint: () => "waiting for the gateway" },
   blocked: { tone: "busy", word: "needs setup", hint: (state) => state.setupReason || "this role's default model cannot run on this machine" },
+  missing: { tone: "busy", word: "not downloaded", hint: (state) => state.setupReason || `${state.model} is not downloaded yet` },
   installing: { tone: "busy", word: "installing…", hint: (state, download) => download?.error || `downloading ${download?.model ?? state.model}` },
   stopped: {
     tone: "bad",

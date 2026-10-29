@@ -1,14 +1,14 @@
-"""``omni init``: check the setup, install Ollama if it is missing, pull the models it serves, then load decide, stt and tts.
+"""``omni init``: check the setup, install Ollama if it is missing, pull the models it serves, then download decide, stt and tts.
 
 Every step states its own precondition and, when it fails, the one thing to fix — the command to run
 and a link — so a fresh machine can go from clone to ``omni up`` without reading the source.
 """
+import json
 import os
 import shutil
 import signal
 import subprocess
 import sys
-import threading
 import time
 
 import httpx
@@ -20,7 +20,7 @@ from omni.supervisor import guard
 # decide and the speech models are small and every install wants them; image and video weigh tens of GB, so `--media` opts in
 SMALL_ROLES = ("decide", "stt", "tts")
 MEDIA_ROLES = (*SMALL_ROLES, "image", "video")
-# a first load reads or downloads weights from Hugging Face, which is slow but not endless
+# a download from Hugging Face is slow but not endless
 MEDIA_LOAD_TIMEOUT = httpx.Timeout(10.0, read=1800.0)
 DOWNLOAD_PROGRESS_SECONDS = 10.0
 # how long a freshly started server gets to answer, and how often it is asked
@@ -230,76 +230,98 @@ def download_line(downloads: list[dict], role: str) -> str | None:
     return None
 
 
-def show_download(base: str, role: str) -> None:
-    try:
-        downloads = httpx.get(f"{base}/admin/models/downloads", timeout=5.0).json().get("downloads", [])
-    except (httpx.HTTPError, ValueError):
-        return
-    line = download_line(downloads, role)
-    if line:
-        print(line, flush=True)
+def pull_with_progress(base: str, role: str, model: str) -> str | None:
+    """Stream the gateway's download of `model` to completion, printing progress; the error, or None."""
+    last_printed = 0.0
+    with httpx.stream("POST", f"{base}/admin/models/pull", json={"role": role, "model": model},
+                      timeout=MEDIA_LOAD_TIMEOUT) as response:
+        if response.status_code >= 400:
+            return response.read().decode(errors="replace")
+        for raw in response.iter_lines():
+            if not raw:
+                continue
+            event = json.loads(raw)
+            if event.get("warning"):
+                print(f"  {role}: {event['warning']}", flush=True)
+            if event.get("error"):
+                return event["error"]
+            if event.get("status") == "success":
+                return None
+            if time.monotonic() - last_printed >= DOWNLOAD_PROGRESS_SECONDS:
+                last_printed = time.monotonic()
+                line = download_line([{**event, "role": role}], role)
+                if line:
+                    print(line, flush=True)
+    return f"download of {model} ended without finishing"
 
 
-def load_with_progress(base: str, role: str) -> httpx.Response:
-    """POST the load and, while it blocks on a weights download, print the progress the gateway tracks."""
-    outcome: dict = {}
+def download_media(host: str, port: int, wanted_roles: tuple[str, ...], settings: dict) -> int:
+    """Download each of `wanted_roles` the gateway serves, and wait only for the downloads.
 
-    def post() -> None:
-        try:
-            outcome["response"] = httpx.post(f"{base}/admin/models/load", json={"role": role, "force": True},
-                                             timeout=MEDIA_LOAD_TIMEOUT)
-        except Exception as failure:  # re-raised on the main thread below
-            outcome["failure"] = failure
-
-    # a daemon thread, so Ctrl-C exits at once instead of waiting out a 30-minute load
-    request = threading.Thread(target=post, daemon=True)
-    request.start()
-    request.join(DOWNLOAD_PROGRESS_SECONDS)
-    while request.is_alive():
-        show_download(base, role)
-        request.join(DOWNLOAD_PROGRESS_SECONDS)
-    if "failure" in outcome:
-        raise outcome["failure"]
-    return outcome["response"]
-
-
-def warm_media(host: str, port: int, wanted_roles: tuple[str, ...]) -> int:
-    """Load each of `wanted_roles` the gateway serves, so the download is not paid by the first request.
-
-    The gateway is started when it is not running: a worker only downloads its weights once it loads
-    them, and nothing loads them without a request.
+    The gateway does the downloading, so it is started when it is not running, and stopped again
+    afterwards: starting and loading the models is `omni up`'s job, not a reason to keep `omni init` waiting.
     """
     from omni.commands import lifecycle
 
-    if not lifecycle.gateway_pid() or lifecycle.is_stale():
+    base = f"http://{host}:{port}"
+    already_running = bool(lifecycle.gateway_pid()) and not lifecycle.is_stale()
+    if not already_running:
         code = lifecycle.up(host, port)
         if code:
             return code
     try:
-        served = httpx.get(f"http://{host}:{port}/health", timeout=5.0).json().get("workers", {})
+        return _download_roles(base, wanted_roles, settings)
+    finally:
+        if not already_running:
+            lifecycle.stop_gateway()
+
+
+def _download_roles(base: str, wanted_roles: tuple[str, ...], settings: dict) -> int:
+    try:
+        served = httpx.get(f"{base}/health", timeout=5.0).json().get("workers", {})
     except (httpx.HTTPError, ValueError):
-        return error(f"omni is running but /health does not answer on {host}:{port}")
+        return error(f"omni is running but /health does not answer on {base}")
     roles = [role for role in wanted_roles if role in served]
     for role in wanted_roles:
         if role not in served:
             print(f"{role}: skipped, {registry.unavailable_reason(role) or 'its worker is not running'}")
-    if not roles:
-        return 0
     failed = 0
     for role in roles:
-        print(f"loading {role} (weights download on first use)", flush=True)
+        model = settings[role]["model"]
+        print(f"downloading {role}: {model} (nothing to download if it is already on disk)", flush=True)
         try:
-            response = load_with_progress(f"http://{host}:{port}", role)
-        except httpx.HTTPError as failure:
+            failure = pull_with_progress(base, role, model)
+        except (httpx.HTTPError, ValueError) as problem:
+            failure = str(problem)
+        if failure:
             print(f"{role}: {failure}", file=sys.stderr)
             failed += 1
             continue
-        if response.status_code >= 400:
-            print(f"{role}: {response.text}", file=sys.stderr)
-            failed += 1
-            continue
-        print(f"{role}: loaded")
+        print(f"{role}: downloaded", flush=True)
     return 1 if failed else 0
+
+
+def offer_up(host: str, port: int) -> int:
+    """After a finished init, ask whether to start the server now; yes runs `omni up`."""
+    from omni.commands import lifecycle
+
+    print()
+    print("init completed.")
+    if lifecycle.gateway_pid() and not lifecycle.is_stale():
+        print(f"omni is running: open http://{host}:{port}/   (stop it with `omni down`)")
+        return 0
+    if not sys.stdin.isatty():
+        print("start the server with `omni up` (stop it with `omni down`)")
+        return 0
+    try:
+        answer = input('shall I run "omni up" to start the server now? [Y/n] ')
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return 0
+    if answer.strip().lower() in ("", "y", "yes"):
+        return lifecycle.up(host, port)
+    print("start it later with `omni up` (stop it with `omni down`)")
+    return 0
 
 
 def plan_lines(settings: dict, all_media: bool) -> list[str]:
@@ -316,7 +338,7 @@ def plan_lines(settings: dict, all_media: bool) -> list[str]:
 
 
 def run(all_media: bool = False) -> int:
-    """Check the config, install Ollama if missing, pull chat and embed, then load decide, stt and tts.
+    """Check the config, install Ollama if missing, pull chat and embed, then download decide, stt and tts.
 
     `all_media` loads image and video as well. Non-zero on failure. An Ollama this run started is
     stopped before it returns: the gateway starts and supervises its own.
@@ -356,9 +378,10 @@ def _run(all_media: bool, started: list[subprocess.Popen]) -> int:
     present, installed_now = require_ollama()
     if not present:
         return 1
-    # a fresh install is a fresh server: start it, so `omni init` can finish pulling in one go
-    if installed_now and not answering(url):
-        print(f"ollama is not answering at {url} yet; starting it", flush=True)
+    # a fresh install or a stopped server: start it, so `omni init` can finish pulling in one go
+    if not answering(url):
+        reason = "was just installed" if installed_now else "is installed but not running"
+        print(f"ollama {reason}; starting it (not answering at {url})", flush=True)
         server = start_ollama()
         if server is not None:
             started.append(server)
@@ -389,11 +412,10 @@ def _run(all_media: bool, started: list[subprocess.Popen]) -> int:
     # before the gateway starts: it supervises ollama itself when none answers
     for server in started:
         stop_started_ollama(server)
-    code = warm_media(host, port, MEDIA_ROLES if all_media else SMALL_ROLES)
+    code = download_media(host, port, MEDIA_ROLES if all_media else SMALL_ROLES, settings)
     if code:
         return code
     print(f"ready: {', '.join(models)}")
-    print(f"omni is running: open http://{host}:{port}/")
     if not all_media:
-        print("  (the image and video models download on first use; `omni init --media` loads them now)")
-    return 0
+        print("  (the image and video models download on first use; `omni init --media` downloads them now)")
+    return offer_up(host, port)

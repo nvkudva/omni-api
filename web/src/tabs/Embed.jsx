@@ -18,6 +18,7 @@ import styles from "./Embed.module.css";
 
 const BATCH = 64;
 const TOP_K = 5;
+const MIN_SCORE_RATIO = 0.75;
 const STATUS_BY_KIND = { text: "reading", image: "reading", audio: "transcribing" };
 
 function embedSeesImages() {
@@ -327,7 +328,7 @@ export default function Embed() {
       record("embed", 200, ms);
       const vector = data.data?.[0]?.embedding;
       if (!corpus.isVector(vector)) throw new Error("query embedding is empty or contains non-finite values");
-      const hits = corpus.search(vector, chunks, TOP_K);
+      const hits = corpus.search(vector, chunks, TOP_K, MIN_SCORE_RATIO);
       if (!hits.length) throw new Error(`no indexed passage has ${vector.length} dimensions: the embedded data was made with a different embedding model`);
       const response = { model: data.model, usage: data.usage, results: hits.map((hit) => ({ id: hit.chunk.id, score: hit.score })) };
       setTurns((current) => [...current, { id: uid(), at, query: text, hits, request, response, meta: `${ms} ms` }]);

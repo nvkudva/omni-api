@@ -1,5 +1,6 @@
 """The /admin runtime surface: retained requests, load/unload, pins, workers and memory."""
 import asyncio
+import time
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
@@ -10,6 +11,9 @@ from omni.errors import error_response
 from omni.gateway import executions, residency
 from omni.gateway.context import Context
 from omni.gateway.http import bad_role, json_object
+
+# a worker imports its runtime before it answers; a load waits that out instead of failing with "not ready"
+WORKER_START_WAIT_SECONDS = 180.0
 
 
 def register(app: FastAPI, ctx: Context) -> None:
@@ -67,6 +71,9 @@ def register(app: FastAPI, ctx: Context) -> None:
         worker = pool.workers.get(role)
         if worker is not None and worker.held:
             await pool.restart(role)
+        deadline = time.monotonic() + WORKER_START_WAIT_SECONDS
+        while worker is not None and worker.status in ("starting", "restarting") and time.monotonic() < deadline:
+            await asyncio.sleep(0.5)
 
     async def residence(role: str, model: str, load: bool, force: bool) -> JSONResponse:
         """Load or unload, refusing without force only for something about this model.

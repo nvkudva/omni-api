@@ -1,5 +1,6 @@
 """GET /v1/models and GET /health."""
 import asyncio
+import shutil
 
 import httpx
 from fastapi import FastAPI
@@ -50,7 +51,8 @@ def register(app: FastAPI, ctx: Context) -> None:
         statuses = await asyncio.to_thread(ctx.pool.status)
         if "chat" not in statuses:
             reachable = bool(await _chat_models(ctx.clients["chat"]))
-            statuses["chat"] = {"status": "external" if reachable else "unavailable", "url": ctx.chat_url}
+            statuses["chat"] = {"status": "external" if reachable else "unavailable", "url": ctx.chat_url,
+                                "installed": shutil.which("ollama") is not None}
         # a worker the admin stopped on purpose is not a reason for the gateway to report itself unhealthy
         ok = all(entry["status"] in READY_STATES or entry.get("held") for entry in statuses.values())
         # the pins a person set, so the sidebar can show which cards are meant to stay warm
